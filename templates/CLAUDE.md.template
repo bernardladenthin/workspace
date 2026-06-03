@@ -1,0 +1,155 @@
+# CLAUDE.md — <REPO-NAME>
+
+This document provides guidance for AI assistants working on the
+<REPO-NAME> codebase.
+
+> Shared workspace policies and guides live in the sibling `workspace`
+> repo. Sections marked with **(workspace)** below are pointers — the
+> canonical text lives in `workspace/policies/` or `workspace/guides/`.
+
+---
+
+## Project Overview
+
+**<REPO-NAME>** — <1-2 sentence description>.
+
+- **Group ID:** `net.ladenthin`
+- **Artifact ID:** `<artifact>`
+- **Version:** `<version>`
+- **Java:** `<target / build JDK>`
+- **License:** Apache 2.0
+- **Author:** Bernard Ladenthin (Copyright `<years>`)
+
+---
+
+## Build Commands
+
+```bash
+mvn compile          # Compile
+mvn test             # Run all tests
+mvn package          # Build JAR
+```
+
+Add repo-specific commands (profiles, fat JAR, CUDA build, jcstress
+profile, etc.) below.
+
+---
+
+## Architecture
+
+<Concise overview of the core design — class diagram in words, key
+components, data-flow.>
+
+---
+
+## Testing
+
+<Repo-specific test stack, frameworks, conventions, model/data files
+required, network-restriction handling.>
+
+For canonical test conventions see
+[workspace/guides/TEST_WRITING_GUIDE.md](../workspace/guides/TEST_WRITING_GUIDE.md)
+**(workspace)**.
+
+---
+
+## Code Conventions
+
+<Repo-specific naming, error handling, concurrency, framework patterns,
+e.g. C-prefixed POJOs for BAF, Maven `@Parameter` POJOs for the plugin.>
+
+For canonical code conventions see
+[workspace/guides/CODE_WRITING_GUIDE.md](../workspace/guides/CODE_WRITING_GUIDE.md)
+**(workspace)**.
+
+For TDD workflow see
+[workspace/.claude/skills/java-tdd-guide/SKILL.md](../workspace/.claude/skills/java-tdd-guide/SKILL.md)
+**(workspace)**.
+
+---
+
+## CI/CD Pipelines
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `publish.yml` | Push, PR, manual dispatch | Build/test/coverage/package; publishes snapshots and releases |
+| `codeql.yml` | Schedule/Push | GitHub CodeQL security scanning |
+| `scorecard.yml` | Schedule/Push | OpenSSF Scorecard supply-chain analysis |
+| `osv-scanner.yml` | Schedule/Push/PR | Google OSV-Scanner dependency vuln scan |
+| `reuse.yml` | Push/PR | FSFE REUSE license-compliance check |
+| `claude-code-review.yml` | PR | AI-powered code review |
+| `claude.yml` | Issue/PR comment with `@claude` | Claude Code interactive assistant |
+
+---
+
+## Dependencies Summary
+
+| Dependency | Version | Purpose |
+|---|---|---|
+| `<dep>` | `<ver>` | <one-line purpose> |
+
+---
+
+## Test / Code Writing Compliance
+
+After modifying or creating any `.java` file:
+
+- For `*Test.java` files, verify rules from
+  [workspace/guides/TEST_WRITING_GUIDE.md](../workspace/guides/TEST_WRITING_GUIDE.md)
+  and this repo's own `TEST_WRITING_GUIDE.md` (if present).
+- For production sources, verify rules from
+  [workspace/guides/CODE_WRITING_GUIDE.md](../workspace/guides/CODE_WRITING_GUIDE.md)
+  and this repo's own `CODE_WRITING_GUIDE.md` (if present).
+- Apply all fixable violations automatically; report only violations that
+  cannot be resolved without a large refactor.
+
+---
+
+## Pull Request Workflow **(workspace)**
+
+See [workspace/workflows/pull-request-workflow.md](../workspace/workflows/pull-request-workflow.md).
+
+---
+
+## Javadoc Conventions **(workspace)**
+
+See [workspace/policies/javadoc-conventions.md](../workspace/policies/javadoc-conventions.md).
+
+---
+
+## SpotBugs Suppressions **(workspace)**
+
+See [workspace/policies/spotbugs-suppressions.md](../workspace/policies/spotbugs-suppressions.md).
+
+---
+
+## jqwik Policy **(workspace)**
+
+See [workspace/policies/jqwik-prompt-injection.md](../workspace/policies/jqwik-prompt-injection.md).
+The pin (`jqwik.version ≤ 1.9.3`) is enforced via Maven Enforcer or a
+Dependabot ignore rule.
+
+---
+
+## Cross-Repo Code-Quality TODOs **(workspace)**
+
+See [workspace/policies/code-quality-todos.md](../workspace/policies/code-quality-todos.md)
+for the `@VisibleForTesting` audit + design-fit review, package hierarchy
+review, and class/method naming review.
+
+The shared cross-repo status snapshot is
+[workspace/crossrepostatus.md](../workspace/crossrepostatus.md).
+
+---
+
+## Key Design Principles
+
+<3-6 numbered bullets specific to this repo.>
+
+---
+
+## Open TODOs
+
+<Repo-specific open work. The cross-repo TODOs that used to live here
+(jqwik policy, abstract guidelines, standardise CLAUDE.md template) have
+moved into the workspace policies and templates above; do not duplicate.>

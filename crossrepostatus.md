@@ -49,8 +49,8 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | Package hierarchy review | ❌ | ❌ | ❌ | ❌ |
 | Class / method naming review | ❌ | ❌ | ❌ | ❌ |
 | **Cross-repo refactors** | | | | |
-| Workspace-shared guidelines layer (Java code/test conventions) | ❌ | ❌ | ❌ | ❌ |
-| Standardised `CLAUDE.md` template | ❌ | ❌ | ❌ | ❌ |
+| Workspace-shared guidelines layer (Java code/test conventions) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
+| Standardised `CLAUDE.md` template | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
 | **BAF-specific big items** | | | | |
 | `-Werror` items 1–6 (BAF-internal pre-`-Werror` list) | ✅ all six cleared (`6eadc6f`) | ➖ | ➖ | ➖ |
 | Persistence-backends research/implementation | ✅ refresh DONE in `5b16c77` (this session) — TODO now reflects shipped state per plan item: HashSet snapshot, BloomFilterAccelerator extraction, TRUNCATED_LONG_64, AddressLookupBackend config enum, AddressPresence/AddressLookup chain contract, AddressLookupBenchmarkTest — all marked DONE. Remaining open: 3 stale example JSON `loadToMemoryCacheOnInit` lines, JMH migration of the benchmark, open-addressing hash table backend, standalone Bloom-only backend. | ➖ | ➖ | ➖ |
@@ -108,11 +108,11 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 
 ### Universal (all 4 repos)
 - SpotBugs `effort=Max` + `threshold=Low` — one-off triage experiment
-- `@VisibleForTesting` audit + design-fit review
-- Package hierarchy review
-- Class / method naming review
-- Workspace-shared guidelines layer (canonical conventions in one place)
-- Standardised CLAUDE.md template
+- `@VisibleForTesting` audit + design-fit review (now centralised at `workspace/policies/code-quality-todos.md`)
+- Package hierarchy review (centralised at `workspace/policies/code-quality-todos.md`)
+- Class / method naming review (centralised at `workspace/policies/code-quality-todos.md`)
+- ~~Workspace-shared guidelines layer~~ ✅ **DONE this session** — canonical guides at `workspace/guides/`, canonical TDD skill at `workspace/.claude/skills/java-tdd-guide/SKILL.md`, jqwik / Javadoc / SpotBugs policies at `workspace/policies/`, PR workflow at `workspace/workflows/`
+- ~~Standardised CLAUDE.md template~~ ✅ **DONE this session** — `workspace/templates/CLAUDE.md.template`
 
 ### BAF-only
 - `javac -Werror` flip (next obvious move — blockers cleared)
