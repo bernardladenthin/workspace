@@ -64,7 +64,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | ArchUnit leaf-layer rules | ✅ (3 rules: `constantsPackageIsALeaf`, `configurationDoesNotDependOnRuntimeLayers`, `cliIsEntryPointOnly`) | ✅ (`argsPackageIsALeaf`) | ➖ single-package | ➖ single-package |
 | ArchUnit full `layeredArchitecture()` | ❌ — needs DTO/orchestration split; touches public-API FQNs | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
 | ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
-| SpotBugs `effort=Max` + `threshold=Low` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` |
+| SpotBugs `effort=Max` + `threshold=Low` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
 | **Logging / observability** | | | | |
 | LogCaptor smoke test | ✅ LogCaptor 2.12.6 (7 tests) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
 | **Code-quality audits (continuous)** | | | | |
@@ -89,7 +89,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 
 ### Affects all 4 repos
-- **SpotBugs `effort=Max` + `threshold=Low`** — one-off triage experiment, never run.
+- **SpotBugs `effort=Max` + `threshold=Low`** — open in BAF, jllama, plugin. **sb done** (`4374dea` + `e7e254a`). Path that worked for sb: flip pom config, run `spotbugs:check`, fix each finding at source rather than suppressing the pattern globally (`waitForAtLeast` assertion → IllegalArgumentException; 7 weak-exception-messaging sites gain state-dependent context in the message; explicit `toString()` snapshotting state under `bufferLock`). 290 tests pass; zero project-wide suppressions added. The 3 remaining repos have larger surface (plugin ~49, jllama ~105, BAF ~238 findings at Max+Low); each will need the same per-site treatment.
 - **Package hierarchy review** (recurring; centralised at [`policies/code-quality-todos.md`](policies/code-quality-todos.md)).
 
 ### Affects BAF + jllama (multi-package repos)
