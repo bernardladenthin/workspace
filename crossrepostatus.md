@@ -35,10 +35,11 @@ status table further down has been updated accordingly.
 
 | Metric | Last snapshot | Actual today | Why it moved |
 |---|---|---|---|
-| BAF `@VisibleForTesting` usages | 19 sites × 6 files | **16 sites × 5 files** | 3 annotations dropped (`OpenClTask.getPrivateKeySourceArgument`, `ProducerOpenCL.waitTillFreeThreadsInPool`, `ProducerOpenCL.getFreeThreads` — commit `05d9ddf`). The 4 `cli/Main.FILE_EXTENSION_*` annotations are still present (constants used by production, tests reach them in-package via `MainConfigurationLoadingTest`). |
+| BAF `@VisibleForTesting` usages | 19 sites × 6 files | **10 sites × 5 files** | 9 sites cleared this session: 3 misapplied annotations dropped (`05d9ddf`); 5 executor / lifecycle sites converted to test-friendly constructors (`dda12e3`, `1855f8e`×2, `4e83f88`, `98aab98`); `Main.runLatch` made `private` and annotation dropped (`2d99c4a`); `ConsumerJava.shouldRun` field replaced by getter (`dc839bd` + `85cc8ae`); `BIP39KeyProducer.counter` replaced by ctor parameter (`ece579f`); the 2 mutable-static `AWAIT_DURATION_*` fields migrated to config (`51ac43c`). The 10 remaining sites are **all legitimate**: 4 test-friendly constructors (intended use), 4 `Main.FILE_EXTENSION_*` constants referenced symbolically by same-package tests, `Main.getRunLatch()` (public, annotation = pure doc), `ConsumerJava.keysQueueSize()` (single-line getter). |
 | BAF LogCaptor test files | 5 | **7** | Two LogCaptor users added since the snapshot. |
 | BAF `@Nullable` sites in production | 53 | **50** | 3 sites removed as types tightened (no regressions; deep scan still finds the remainder legitimate). |
 | BAF stale `loadToMemoryCacheOnInit` example JSONs | 3 | **0 — RESOLVED** | Original list was 3, actual was 4 (`config_AddressFilesToLMDB.json` was the missed one); all 4 lines deleted this session, JSON validity verified. Default backend remains `BLOOM` per `CLMDBConfigurationReadOnly.java:43`. |
+| BAF `Find` example configs surface await-duration knobs | hidden behind defaults | **all 4 explicit** | `d199ad7` (this session). Each of `config_Find_1OpenCLDevice.json`, `config_Find_1OpenCLDeviceAnd2CPUProducer.json`, `config_Find_8CPUProducer.json`, `config_Find_SecretsFile.json` now lists both `awaitTerminateSeconds: 31536000000` and `awaitQueueEmptySeconds: 60` (production defaults preserved byte-for-byte). Guard test `cli/ConfigFixturesParseTest` fails-loud if anyone strips them back out. |
 | sb `@Nullable` "zero in production" claim | 0 | **0 actual annotations** (2 grep hits are in Javadoc text, not annotations) — claim **stays accurate**. |
 
 **Items confirmed unchanged (still open, no source movement):**
@@ -110,8 +111,8 @@ status table further down has been updated accordingly.
 | **This session's additions (sb)** | | | | |
 | `getAvailableBytesExact()` public long getter | ➖ | ➖ | ➖ | ✅ `aa5c6b8` — closes the >2 GB live-count API gap; verified across 441-commit upstream history that no equivalent ever existed before |
 | **Code-quality audits (continuous)** | | | | |
-| `@VisibleForTesting` audit (count, re-verified 2026-06-04) | 16 usages × 5 files (was 19×6; 3 dropped via `05d9ddf`) | 0 | 0 | 0 |
-| `@VisibleForTesting` design-fit review | ✅ done this session — see "BAF @VisibleForTesting site-by-site audit" below | ➖ no usages | ➖ no usages | ➖ no usages |
+| `@VisibleForTesting` audit (count, re-verified 2026-06-04) | **10 usages × 5 files** (down from 19×6 — 9 sites cleared this session; remaining 10 are all legitimate per the site-by-site audit below) | 0 | 0 | 0 |
+| `@VisibleForTesting` design-fit review | ✅ done this session — all REFACTOR-VIA-INJECTION (7 sites) + REFACTOR-EXTRACT-HELPER (2 sites) closed. Remaining sites are the 4 `FILE_EXTENSION_*` constants (legitimate same-package access), the public `getRunLatch()`/`keysQueueSize()` getters (annotation = pure doc, no access widening), and 4 test-friendly constructors (textbook `@VisibleForTesting` usage). | ➖ no usages | ➖ no usages | ➖ no usages |
 | Null-safety follow-up review (re-verified 2026-06-04) | ✅ 50 `@Nullable` sites (down from 53), all legitimate | ✅ 43 sites all legitimate | ✅ 17 sites all legitimate | ✅ zero `@Nullable` annotations in production (2 grep hits are Javadoc text only) |
 | Package hierarchy review | ❌ | ❌ | ❌ | ❌ |
 | Class / method naming review (21-item cross-repo audit) | ✅ 6/6 + 2 follow-ups (`alignDown`, `assumeOpenClLibraryAvailable*`) — see "BAF section" below | ✅ 1/1 (`isDefault` → `isUnset` `ffbc06c`) | ✅ 7/7 — see "plugin section" below | ✅ 7/7 (typo `966595c` + bundle `cf2b5fd` + cleanups `16f1df7`) |
@@ -129,6 +130,7 @@ status table further down has been updated accordingly.
 | BAF `@VisibleForTesting` design-fit follow-ups: small cleanups | ✅ `Main.runLatch` field-to-private + `-Werror` comment refresh `2d99c4a`; `ConsumerJava.shouldRun()` getter `dc839bd` + naming correction `85cc8ae` | ➖ | ➖ | ➖ |
 | BAF `@VisibleForTesting` executor / lifecycle injection (5 audit rows) | ✅ all 5 closed via test-friendly-constructor pattern: `Finder.producerExecutorService` `dda12e3`; `ConsumerJava.scheduledExecutorService` + `consumeKeysExecutorService` `1855f8e`; `ProducerOpenCL.resultReaderThreadPoolExecutor` `4e83f88`; `ProducerOpenCL.openCLContext` → `isInitialized()` getter `98aab98` (lifecycle handle, not an executor) | ➖ | ➖ | ➖ |
 | BAF `BIP39KeyProducer.counter` constructor injection | ✅ `ece579f` — test no longer mutates the field directly to force overflow | ➖ | ➖ | ➖ |
+| BAF mutable-static `AWAIT_DURATION_*` → config fields | ✅ `51ac43c` — `Finder.AWAIT_DURATION_TERMINATE` + `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` migrated to `CFinder.awaitTerminateSeconds` / `CConsumerJava.awaitQueueEmptySeconds` (long). Test-order hazard eliminated. `java.time.Duration` import dropped from both production classes. Plus `d199ad7`: all 4 `config_Find_*.json` example fixtures now carry the fields explicitly (production defaults preserved) so operators see them in the file; `cli/ConfigFixturesParseTest` guards against silent regression. | ➖ | ➖ | ➖ |
 | **BAF-specific big items** | | | | |
 | `-Werror` items 1–6 (BAF-internal pre-`-Werror` list) | ✅ all six cleared (`6eadc6f`) | ➖ | ➖ | ➖ |
 | Persistence-backends research/implementation | ✅ HashSet snapshot, BloomFilterAccelerator extraction, TRUNCATED_LONG_64, AddressLookupBackend config enum, AddressPresence/AddressLookup chain contract, AddressLookupBenchmarkTest, 4 stale `loadToMemoryCacheOnInit` example JSONs cleaned up (`3c4d558`). Remaining open: JMH migration of the benchmark; open-addressing hash table backend; standalone Bloom-only backend; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item). | ➖ | ➖ | ➖ |
@@ -197,7 +199,7 @@ status table further down has been updated accordingly.
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
 - 3 large GPU design TODOs (Pre-compute HASHSET hash on GPU, Push TRUNCATED_LONG_64 into OpenCL, End-to-end GPU vision)
 - Persistence follow-ups (re-verified 2026-06-04): ~~4 stale `loadToMemoryCacheOnInit` example JSONs~~ ✅ DONE this session; JMH migration of `AddressLookupBenchmarkTest` (still under `persistence/`, NOT in `benchmark/` JMH module); open-addressing hash table backend; standalone `BloomFilterPersistence`; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item). Default backend remains `BLOOM`.
-- `@VisibleForTesting` site-by-site cleanup: **11 of 16 sites cleared (this session + commit `51ac43c`).** The 2 highest-value items (`Finder.AWAIT_DURATION_TERMINATE` + `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` mutable statics) were migrated to `CFinder.awaitTerminateSeconds` / `CConsumerJava.awaitQueueEmptySeconds` config fields — test-order hazard eliminated. Remaining sites are the public `@VisibleForTesting` getters (e.g. `getRunLatch()`, `getFreeThreads()`) — documentation-only since the access modifier is already public; could drop the annotation but it's pure noise.
+- ~~`@VisibleForTesting` site-by-site cleanup~~ ✅ **DESIGN-FIT REVIEW COMPLETE this session.** Of the 19 original sites: **9 were dropped or refactored** (3 misapplied annotations dropped `05d9ddf`; 5 executor/lifecycle sites converted to test-friendly constructors; 2 mutable-static `AWAIT_DURATION_*` migrated to config in `51ac43c`); **10 legitimate sites remain** — all justified per the BAF audit's "KEEP" verdict (4 test-friendly constructors, 4 `FILE_EXTENSION_*` constants with same-package symbolic references, public `getRunLatch()` + `keysQueueSize()` getters where the annotation is documentation-only). No further cleanup recommended.
 - ~~4 naming-audit MODERATE/MINOR findings still in source~~ ✅ ALL 4 FIXED this session: `BitHelper.getKillBits` → `getLowBitMask`; `LMDBPersistence.getAllAmountsFromAddresses` → `sumAmountsForAddresses`; `OpenCLBuilder.isOpenCLnativeLibraryLoadable` → `isOpenClNativeLibraryLoaded`; `PrivateKeyValidator.returnValidPrivateKey` → `coerceToValidPrivateKey`
 
 ### jllama-only
@@ -221,24 +223,24 @@ status table further down has been updated accordingly.
 
 Project's own stated rule (BAF CLAUDE.md): *"@VisibleForTesting should be the last resort, not the first."* Audit applies that rule per site.
 
-### REFACTOR-VIA-INJECTION — 7 sites (mutable static / executor injection)
+### REFACTOR-VIA-INJECTION — 7 sites (mutable static / executor injection) — ✅ ALL CLOSED THIS SESSION
 
-| File:Line | Entity | Current visibility | Why refactor |
+| File:Line | Entity | Current visibility | Status |
 |---|---|---|---|
 | ~~`Finder.java:43`~~ | ~~`static Duration AWAIT_DURATION_TERMINATE`~~ | pkg-private static (**mutable!**) | ✅ **FIXED** in `51ac43c` — migrated to `CFinder.awaitTerminateSeconds` (long, default ~100 k years). Tests inject via config POJO; static gone; `java.time.Duration` import dropped from `Finder`. Test-order hazard eliminated. |
 | ~~`ConsumerJava.java:47`~~ | ~~`static Duration AWAIT_DURATION_QUEUE_EMPTY`~~ | pkg-private static (**mutable!**) | ✅ **FIXED** in `51ac43c` — migrated to `CConsumerJava.awaitQueueEmptySeconds` (long, default 60). Same pattern, same hazard eliminated. |
-| `Finder.java:60` | `final ExecutorService producerExecutorService` | pkg-private | Test only calls `.isTerminated()`. Inject executor → field becomes `private`. |
-| `ConsumerJava.java:94` | `ScheduledExecutorService scheduledExecutorService` | pkg-private **non-final** | Test reads `.isShutdown()`. Inject; field becomes `private final`. |
-| `ConsumerJava.java:129` | `final ExecutorService consumeKeysExecutorService` | pkg-private | Same — inject. |
-| `ProducerOpenCL.java:25` | `final ThreadPoolExecutor resultReaderThreadPoolExecutor` | pkg-private | Same — inject. |
-| `ProducerOpenCL.java:28` | `@Nullable OpenCLContext openCLContext` | pkg-private (lifecycle handle) | Test only asserts init/close ran; expose `boolean isInitialized()` instead. |
+| ~~`Finder.java:60`~~ | ~~`final ExecutorService producerExecutorService`~~ | pkg-private | ✅ **FIXED** in `dda12e3` — test-friendly constructor accepts the executor; field is now `private final`. |
+| ~~`ConsumerJava.java:94`~~ | ~~`ScheduledExecutorService scheduledExecutorService`~~ | pkg-private **non-final** | ✅ **FIXED** in `1855f8e` — 5-arg test-friendly constructor; field is `private final`. |
+| ~~`ConsumerJava.java:129`~~ | ~~`final ExecutorService consumeKeysExecutorService`~~ | pkg-private | ✅ **FIXED** in `1855f8e` (same constructor pair). |
+| ~~`ProducerOpenCL.java:25`~~ | ~~`final ThreadPoolExecutor resultReaderThreadPoolExecutor`~~ | pkg-private | ✅ **FIXED** in `4e83f88` — injected. |
+| ~~`ProducerOpenCL.java:28`~~ | ~~`@Nullable OpenCLContext openCLContext`~~ | pkg-private (lifecycle handle) | ✅ **FIXED** in `98aab98` — `isInitialized()` getter exposes lifecycle state; field is now `private`. |
 
-### REFACTOR-EXTRACT-HELPER — 2 sites (observable through narrower API)
+### REFACTOR-EXTRACT-HELPER — 2 sites (observable through narrower API) — ✅ ALL CLOSED THIS SESSION
 
-| File:Line | Entity | Current visibility | Why refactor |
+| File:Line | Entity | Current visibility | Status |
 |---|---|---|---|
-| `ConsumerJava.java:126` | `final AtomicBoolean shouldRun` | pkg-private | Tests call `.get()`. Expose `boolean isRunning()` getter; keep field truly private. |
-| `BIP39KeyProducer.java:51` | `final AtomicInteger counter` | pkg-private | Test sets `counter.set(Integer.MAX_VALUE)` to force overflow. Replace with constructor parameter for starting value. |
+| ~~`ConsumerJava.java:126`~~ | ~~`final AtomicBoolean shouldRun`~~ | pkg-private | ✅ **FIXED** — first `dc839bd` (`isRunning()` getter added), then naming corrected in `85cc8ae` to `shouldRun()` matching the flag semantics (cancellation-request flag, not thread-liveness). Field is now `private final`. |
+| ~~`BIP39KeyProducer.java:51`~~ | ~~`final AtomicInteger counter`~~ | pkg-private | ✅ **FIXED** in `ece579f` — test-friendly constructor accepts `int startingIndex`; field is now `private final` again, no longer mutated by tests. |
 
 ### MAKE-PRIVATE — 1 site (annotation is noise / dead)
 
@@ -262,17 +264,22 @@ Project's own stated rule (BAF CLAUDE.md): *"@VisibleForTesting should be the la
 | ~~`ProducerOpenCL.java:139`~~ | `void waitTillFreeThreadsInPool()` | pkg-private | ✅ **FIXED** in `05d9ddf` — real production helper, annotation was misapplied |
 | ~~`ProducerOpenCL.java:147`~~ | `int getFreeThreads()` | pkg-private | ✅ **FIXED** in `05d9ddf` — called from `waitTillFreeThreadsInPool()` in production |
 
-### Recommended cleanup order (cheapest → most invasive)
+### Recommended cleanup order — ✅ ALL TIERS COMPLETE
 
 1. ~~**Trivial (5 min)**: delete the 4 dead `FILE_EXTENSION_*` annotations~~ → **Resolved differently** in `63ef722` + `c4eed5e` (this session): extracted `Main.loadConfiguration(Path)`, then in follow-up created focused `cli/MainConfigurationLoadingTest.java` with 6 round-trip + syntax-probe tests that reference the constants symbolically (constants stay package-private and `@VisibleForTesting` is now semantically honest — same package as `Main`).
-2. **Small (15 min)**: ✅ Partially done in `05d9ddf` — dropped misapplied annotations on `OpenClTask.getPrivateKeySourceArgument` + `ProducerOpenCL.waitTillFreeThreadsInPool` + `ProducerOpenCL.getFreeThreads`. **Still open**: make `Main.runLatch` field `private` (keep public getter); consider widening `ConsumerJava.keysQueueSize` to `public` or dropping the annotation.
-3. **Medium (30–60 min)**: replace `ConsumerJava.shouldRun` and `BIP39KeyProducer.counter` direct-field exposure with `isRunning()` getter / constructor parameter respectively.
-4. **Bigger (1–2 h)**: inject the 5 executor services via constructor; fields become `private final`. Tests pass their own executors and assert on them.
-5. ~~**Biggest (carries semantic risk)**: kill the two mutable static `AWAIT_DURATION_*` fields.~~ ✅ **DONE** in `51ac43c` — both migrated to `long` seconds config fields on `CFinder` / `CConsumerJava`. `Duration` chosen against because Jackson lacks jsr310 in this project; `long` matches existing convention (`delayEmptyConsumer = 100`).
+2. ~~**Small (15 min)**: dropped misapplied annotations + `Main.runLatch`~~ ✅ DONE — `05d9ddf` + `2d99c4a`. `keysQueueSize()` annotation kept on a pkg-private single-line getter; widening to public is a stylistic preference not a correctness fix, so leaving as-is.
+3. ~~**Medium (30–60 min)**: replace `ConsumerJava.shouldRun` and `BIP39KeyProducer.counter` direct-field exposure~~ ✅ DONE — `dc839bd`/`85cc8ae` + `ece579f`.
+4. ~~**Bigger (1–2 h)**: inject the 5 executor services via constructor~~ ✅ DONE — `dda12e3`, `1855f8e`, `4e83f88`, `98aab98`.
+5. ~~**Biggest (carries semantic risk)**: kill the two mutable static `AWAIT_DURATION_*` fields.~~ ✅ **DONE** in `51ac43c` — both migrated to `long` seconds config fields on `CFinder` / `CConsumerJava`. `Duration` chosen against because Jackson lacks jsr310 in this project; `long` matches existing convention (`delayEmptyConsumer = 100`). Follow-up `d199ad7`: all 4 `config_Find_*.json` example fixtures now carry the new fields explicitly with production-default values so operators discover them in the config file.
 
 ### Net story (updated this session)
 
-Of the 19 sites: **3 groups resolved this session** — (1) 4 `FILE_EXTENSION_*` constants via the `loadConfiguration` extraction + `cli/MainConfigurationLoadingTest.java`; (2) 3 misapplied annotations dropped in `05d9ddf` (`OpenClTask.getPrivateKeySourceArgument`, `ProducerOpenCL.waitTillFreeThreadsInPool`, `ProducerOpenCL.getFreeThreads`); (3) **the 2 highest-value mutable-static `AWAIT_DURATION_*` fields migrated to `CFinder.awaitTerminateSeconds` / `CConsumerJava.awaitQueueEmptySeconds` config fields in `51ac43c` — test-order hazard eliminated**. 8 genuine "widen access for tests" smells remain; 2 are still KEEP.
+Of the 19 original sites: **9 cleared (cleanup tiers 1–5 all complete) + 10 legitimate sites remain**. The 10 that stay are not "smells" — they are all justified:
+- **4 test-friendly constructors** (BIP39KeyProducer, Finder, ConsumerJava 5-arg, ProducerOpenCL) — this is the *intended* `@VisibleForTesting` usage pattern documented in the BAF CLAUDE.md.
+- **4 `Main.FILE_EXTENSION_*` constants** — production constants exercised by same-package `MainConfigurationLoadingTest`; annotation is semantically honest.
+- **2 public/observable getters** (`Main.getRunLatch()`, `ConsumerJava.keysQueueSize()`) — the annotation is pure documentation since the methods are already accessible.
+
+**The BAF `@VisibleForTesting` design-fit review is complete.** Further passes would only churn doc comments without changing behaviour.
 
 ---
 
