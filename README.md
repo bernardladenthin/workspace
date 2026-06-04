@@ -18,9 +18,10 @@ PR workflow.
 ## Layout
 
 ```
-.claude/skills/java-tdd-guide/SKILL.md   Canonical Java TDD skill
-guides/CODE_WRITING_GUIDE.md             Canonical Java code conventions
-guides/TEST_WRITING_GUIDE.md             Canonical Java test conventions
+.claude/skills/java-tdd-guide/SKILL.md   Canonical Java TDD skill (Jupiter, Java 8 baseline)
+guides/CODE_WRITING_GUIDE.md             Canonical code conventions (Java 8 baseline)
+guides/CODE_WRITING_GUIDE-java21.md      Java 21 supplement (records, switch, text blocks)
+guides/TEST_WRITING_GUIDE.md             Canonical test conventions (Jupiter + Hamcrest)
 policies/javadoc-conventions.md          HTML-entity rules for Javadoc
 policies/spotbugs-suppressions.md        spotbugs-exclude.xml maintenance
 policies/jqwik-prompt-injection.md       jqwik pin + incident note
@@ -29,6 +30,20 @@ workflows/pull-request-workflow.md       gh / MCP PR steps
 templates/CLAUDE.md.template             Standard per-repo CLAUDE.md
 crossrepostatus.md                       Live cross-repo status table
 ```
+
+## Java version split
+
+Canonical baseline is Java 8 (the lowest common denominator across
+`streambuffer`, `java-llama.cpp`, and `llamacpp-ai-index-maven-plugin`).
+`BitcoinAddressFinder` runs Java 21 and additionally follows the
+optional `CODE_WRITING_GUIDE-java21.md` supplement.
+
+## Style ground truth
+
+`BitcoinAddressFinder` and `streambuffer` are hand-written by the
+owner and are the authoritative references for code style. The
+other two repos are predominantly AI-generated; their patterns are
+data points, not canon.
 
 ## How sibling repos consume this
 

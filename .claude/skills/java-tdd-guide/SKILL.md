@@ -1,104 +1,145 @@
 ---
 name: java-tdd-guide
-description: Bernard Ladenthin's personal Java Test-Driven Development skill — version 1.0.0 — Red → Green → Refactor workflow with project-independent conventions
+description: Bernard Ladenthin's personal Java Test-Driven Development skill — Red → Green → Refactor workflow with project-independent conventions. Baselines on Java 8 + JUnit Jupiter; BAF-specific Java 21 idioms live in the optional supplement.
 ---
 
 # Java TDD Skill — Test-Driven Development
 
-**Author:** Bernard Ladenthin  
-**Version:** 1.0.0  
-**License:** Apache 2.0  
+**Author:** Bernard Ladenthin
+**License:** Apache 2.0
 
-This is a personal, reusable Java TDD guide for use across multiple projects. All examples are generic and project-independent. Project-specific patterns and constants are documented separately in each project's CLAUDE.md.
+This is the canonical Java TDD skill for the four sibling repos
+(`BitcoinAddressFinder`, `streambuffer`, `java-llama.cpp`,
+`llamacpp-ai-index-maven-plugin`). It describes the workflow and
+conventions that are **actually in use** across the codebases — verified
+by reading the test sources, not invented.
+
+**Baseline assumed by this skill:** Java 8 + JUnit Jupiter 6.1.0 +
+Hamcrest 3.0. Java 21 idioms (records, switch expressions, text blocks)
+are documented separately in
+[`../../../guides/CODE_WRITING_GUIDE-java21.md`](../../../guides/CODE_WRITING_GUIDE-java21.md);
+only `BitcoinAddressFinder` targets Java 21 today.
 
 ---
 
 ## TDD Workflow — Red → Green → Refactor
 
-Follow the **Red → Green → Refactor** cycle rigorously. Every new behaviour must be covered by a failing test *before* the production code is written.
+Follow the **Red → Green → Refactor** cycle rigorously. Every new
+behaviour must be covered by a failing test *before* the production code
+is written.
 
 ### 1 — Red (failing test first)
-Write one test that precisely describes the next desired behaviour. The test must compile but **must fail** when run. Do not write any production code yet.
+
+Write one test that precisely describes the next desired behaviour. The
+test must compile but **must fail** when run. Do not write any production
+code yet.
 
 ### 2 — Green (minimum production code)
-Write the smallest change to production code that makes the failing test pass. Do not add code that is not driven by a test.
+
+Write the smallest change to production code that makes the failing test
+pass. Do not add code that is not driven by a test.
 
 ### 3 — Refactor
-Improve the implementation and the test code without changing observable behaviour. All tests must stay green.
+
+Improve the implementation and the test code without changing observable
+behaviour. All tests must stay green.
 
 Repeat for each behaviour increment.
 
 ---
 
-## Test File Structure
+## Test Framework — the actually-used stack
 
-### File Header — Apache 2.0 License
-
-Every test file **must** start with the formatter-off block enclosing the Apache 2.0 license header:
-
-```java
-// @formatter:off
-/**
- * Copyright <YEAR> <Author> <email>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// @formatter:on
-package com.example.foo;
-```
-
-- The `// @formatter:off` / `// @formatter:on` pair wraps **only** the license block.
-- The year must match the file creation year (not the current year).
-
----
-
-## Test Framework Stack
-
-| Concern | Mandatory choice |
-|---|---|
-| Runner | JUnit 4 (`@Test`, `@Before`, `@Rule`) |
-| Parameterized | `@RunWith(DataProviderRunner.class)` + `@UseDataProvider` (only when the class has at least one `@UseDataProvider` method) |
-| Assertions | Hamcrest only — `assertThat(actual, is(equalTo(expected)))` |
-| Mocking | Mockito — `mock()`, `when()`, `verify()`, `ArgumentCaptor` |
-| Temp files | `@Rule public TemporaryFolder folder = new TemporaryFolder()` |
+| Concern | Choice | Evidence |
+|---|---|---|
+| Runner | **JUnit Jupiter** 6.1.0 (`org.junit.jupiter.api.*`) | `pom.xml` in all four repos |
+| Assertions | **Hamcrest 3.0** (`assertThat(actual, is(equalTo(expected)))`) | universally adopted; `assertThrows` is the one Jupiter assertion that's always allowed |
+| Parameterized | `@ParameterizedTest` + `@MethodSource(SourceClass.CONSTANT_NAME)` | `BitHelperTest.java:21,33`; `StreamBufferTest.java:42-47` |
+| Mocking | **Mockito** (`mock()`, `when()`, `verify()`, `ArgumentCaptor`) | BAF + plugin; not used by sb/jllama |
+| Temp filesystem | `@TempDir Path folder` (JUnit Jupiter native) | universal |
+| Property-based (optional) | jqwik **pinned ≤ 1.9.3** | see policies/jqwik-prompt-injection.md |
 
 **Never use:**
-- `assertEquals`, `assertTrue`, `assertFalse`, `assertNotNull` from `org.junit.Assert`
-- TestNG or JUnit 5
+
+- `org.junit.Test` / `org.junit.Before` / `org.junit.Rule` (JUnit 4) — banned via Maven Enforcer
+- `@RunWith(DataProviderRunner.class)` + `com.tngtech.java.junit.dataprovider` — **not used in any repo**
+- TestNG
+- `assertEquals` etc. from `org.junit.jupiter.api.Assertions` when Hamcrest can express it more clearly. Two narrow exceptions are accepted in practice and visible in `StreamBufferTest`: (a) `assertThrows`/`assertDoesNotThrow` for exception assertion, (b) `assertArrayEquals` when comparing byte arrays.
 
 ---
 
-## Class Layout
+## Test File Structure
+
+### File header — SPDX
+
+Every test file **must** start with the SPDX-format license header:
 
 ```java
-@RunWith(DataProviderRunner.class)   // only when @UseDataProvider is present
-public class FooTest {
-
-    // shared, constructed-once immutable fields
-    private final Bar bar = new Bar();
-    private final BazHelper helper = new BazHelper();
-
-    // mocks that must be fresh per test — declare field here, initialize in @Before
-    private Logger mockLogger;
-
-    @Before
-    public void setUp() {
-        mockLogger = mock(Logger.class);
-    }
-    // Omit @Before entirely when it does no meaningful work.
+// SPDX-FileCopyrightText: <YEAR-RANGE> Bernard Ladenthin <bernard.ladenthin@gmail.com>
+//
+// SPDX-License-Identifier: Apache-2.0
+package net.ladenthin.<repo>;
 ```
 
-Omit `@RunWith` if no data providers are used. Omit empty `@Before` methods.
+- `<YEAR-RANGE>` is the file's actual lifespan (e.g. `2017-2026`,
+  `2014-2026`).
+- No `// @formatter:off` / `// @formatter:on` wrapper — the SPDX block
+  is three single-line comments and does not need formatter exemption.
+- jllama uses MIT (`SPDX-License-Identifier: MIT`) with a dual-copyright
+  line for the upstream Konstantin Herud attribution; everywhere else
+  is Apache-2.0.
+
+### Class declaration
+
+```java
+public class FooTest {
+```
+
+No runner annotation — JUnit Jupiter auto-discovers `@Test` /
+`@ParameterizedTest` methods.
+
+---
+
+## Two equally valid grouping styles
+
+Owner's actual codebases use two different patterns to group related
+tests within a class. **Both are accepted** in workspace canonical; pick
+the style that matches the surrounding file rather than mixing.
+
+### Style A — NetBeans `<editor-fold>` (used in BAF, plugin)
+
+```java
+// <editor-fold defaultstate="collapsed" desc="getKillBits">
+@ParameterizedTest
+@MethodSource(CommonDataProvider.DATA_PROVIDER_KILL_BITS)
+public void getKillBits_bitsGiven_killBitsEqualsExpectation(int bits, BigInteger killBits) {
+    // ...
+}
+// </editor-fold>
+```
+
+Rules: `desc` equals the method name (or a short feature label);
+`defaultstate="collapsed"` is mandatory; one fold per method under test.
+
+### Style B — `@Nested` + `@DisplayName` (used in streambuffer)
+
+```java
+@Nested
+@DisplayName("roundtrip")
+class RoundtripTests {
+    @DisplayName("simple round trip")
+    @Test
+    public void testSimpleRoundTrip() throws IOException {
+        // ...
+    }
+}
+```
+
+Rules: each `@Nested` class groups tests for a related behaviour;
+`@DisplayName` provides the human-readable label.
+
+The two styles are not interchangeable inside one class. Stay consistent
+within a file.
 
 ---
 
@@ -107,105 +148,93 @@ Omit `@RunWith` if no data providers are used. Omit empty `@Before` methods.
 Pattern: **`methodUnderTest_inputOrCondition_expectedBehavior`**
 
 ```
-foo_emptyInput_returnsNull
-bar_validArgumentsGiven_returnsExpected
-baz_negativeValue_throwsException
-interrupt_queueNotEmpty_waitedForDuration
-toString_whenCalled_containsClassNameAndIdentityHash
+getKillBits_bitsGiven_killBitsEqualsExpectation
+convertBitsToSize_bitsGiven_sizeEqualsExpectation
+assertBatchSizeInBitsIsInRange_bitsGivenBelowMinimum_exceptionThrown
 ```
 
-**Rules:**
-- All three segments are **required**, separated by underscores.
+Verified in BAF: `BitHelperTest.java:22,34,45,54,66`.
+
+Rules:
+
+- All three segments are **required** and separated by underscores.
 - Use camelCase within each segment.
+- The `expected` segment describes the observable outcome
+  (`_returnsZero`, `_throwsException`, `_exceptionThrown`,
+  `_skipsFile`, `_roundtripsCorrectly`).
 - Exception tests end with `_throwsException` or `_exceptionThrown`.
-- No-op/smoke tests: `_noExceptionThrown`.
-- `toString` tests: describe exact content (identity hash or structured format).
-- Logging assertions: include `_logged` or `_logsError`.
+- No-op / smoke tests use `_noExceptionThrown`.
+
+Inside `@Nested` classes (streambuffer style), naming may relax to
+`testFoo` because `@DisplayName` provides the readable label; do not
+mix the relaxed naming into a non-`@Nested` class.
 
 ---
 
 ## Test Body — AAA Structure
 
-Every test body **must** follow Arrange / Act / Assert with explicit section comments:
+Every test body **must** follow the Arrange / Act / Assert structure
+with explicit section comments. Verified in BAF (323+ matches across 10
+files), sb (658 matches in one file), plugin (129 matches). The combined
+`// act, assert` comma form is acceptable when the act IS the assertion
+(`BitHelperTest.java:26,38,49,58,70`):
 
 ```java
 @Test
-public void methodName_conditionGiven_expectedResult() {
+public void getKillBits_bitsGiven_killBitsEqualsExpectation(int bits, BigInteger killBits) {
     // arrange
-    Foo sut = new Foo(42);
+    BitHelper bitHelper = new BitHelper();
+
+    // act, assert
+    assertThat(bitHelper.getKillBits(bits), is(equalTo(killBits)));
+}
+```
+
+For separate act + assert:
+
+```java
+@Test
+public void example() {
+    // arrange
+    Foo foo = new Foo();
 
     // act
-    String result = sut.bar();
+    int result = foo.doThing();
 
     // assert
-    assertThat(result, is(equalTo("expected")));
+    assertThat(result, is(equalTo(42)));
 }
 ```
 
 ### `// pre-assert` — two valid positions
 
-**1. Before `// act`** — assert a precondition or input invariant:
-
-```java
-// arrange
-String input = "test-value";
-
-// pre-assert
-assertThat(input, not(emptyString()));
-
-// act
-String result = sut.process(input);
-
-// assert
-assertThat(result, is(equalTo("expected")));
-```
-
-**2. Between `// act` and `// assert`** — null-guard before accessing result fields:
+`// pre-assert` is a named section that asserts a condition without it
+being the primary assertion of the test. Use it (a) before `// act` to
+verify a precondition, or (b) between `// act` and `// assert` as a
+null-guard before accessing fields.
 
 ```java
 // act
-FooResult result = sut.compute();
+final Foo result = sut.compute();
 
 // pre-assert
 assertThat(result, is(notNullValue()));
 
 // assert
-assertThat(result.getValue(), is(equalTo(expected)));
+assertThat(result.value(), is(equalTo("expected")));
 ```
 
-**Rules:**
-- Do **not** use `Objects.requireNonNull(...)` in tests; use `// pre-assert` with `assertThat(x, is(notNullValue()))` instead.
-- The `// arrange` section may be omitted only when there is genuinely nothing to arrange.
+Rules:
+
+- `// arrange` may be omitted only when there is genuinely nothing to
+  arrange.
 - Keep the act to a **single method call** whenever possible.
-
----
-
-## Editor Folds — Mandatory Grouping
-
-Tests within a class **must** be grouped using editor fold regions, one fold per method/feature under test:
-
-```java
-// <editor-fold defaultstate="collapsed" desc="methodName">
-@Test
-public void methodName_caseA_resultA() { ... }
-
-@Test
-public void methodName_caseB_resultB() { ... }
-// </editor-fold>
-```
-
-**Rules:**
-- The `desc` attribute equals the method name (or a short feature label).
-- `defaultstate="collapsed"` is **mandatory** on every fold.
-- All tests for the same method go inside a single fold.
-- Tests for different methods **must** be in different folds.
-- Order folds logically (simple cases first, edge cases and exceptions last).
+- Do **not** use `Objects.requireNonNull(...)` as a guard in tests; use
+  a `// pre-assert` with `assertThat(x, is(notNullValue()))`.
 
 ---
 
 ## Assertions — Hamcrest Style
-
-All assertions use Hamcrest `assertThat`:
 
 ```java
 // equality
@@ -224,738 +253,214 @@ assertThat(result, is(not(equalTo(unexpected))));
 
 // strings
 assertThat(message, containsString("substring"));
-assertThat(message, matchesPattern("Regex\\d+"));
 assertThat(output, not(emptyOrNullString()));
 
 // collections
 assertThat(list, hasSize(3));
 assertThat(list, is(empty()));
-assertThat(list, hasItems("a", "b"));
 
-// numbers / comparable
-assertThat(index, is(lessThan(colonIndex)));
-assertThat(waitTime, is(greaterThan(minExpected)));
-
-// type
-assertThat(obj, instanceOf(Foo.class));
+// numbers
+assertThat(count, is(greaterThan(0)));
 ```
 
-**Imports:**
+**Imports to use:**
+
 ```java
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;   // when many matchers are used
-// or specific imports when only a few are needed
+import static org.hamcrest.Matchers.*;
+// or specific:
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+```
+
+Two narrow exceptions where Jupiter assertions are acceptable:
+
+```java
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;  // byte-array compare
 ```
 
 ---
 
 ## Exception Testing
 
-### Pattern A — Simple (no message check)
-
-```java
-@Test(expected = IllegalArgumentException.class)
-public void foo_nullInput_throwsException() {
-    // act
-    sut.foo(null);
-}
-```
-
-### Pattern B — With message verification (try/catch/fail)
-
 ```java
 @Test
-public void foo_invalidInput_throwsException() {
-    try {
-        // act
-        sut.foo("invalid");
-        fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException e) {
-        // assert
-        assertThat(e.getMessage(), containsString("expected error text"));
-    }
-}
-```
-
-Import for `fail()`:
-```java
-import static org.junit.Assert.fail;
-```
-
----
-
-## Data Providers (Parameterized Tests)
-
-### Centralized Pattern
-
-All data providers belong in a centralized `CommonDataProvider` class. Each provider follows this pattern:
-
-```java
-// 1. Constant for the provider name
-public final static String DATA_PROVIDER_MY_CASES = "myCases";
-
-// 2. Javadoc linking to which test it serves
-/** For {@link FooTest}. */
-@DataProvider
-public static Object[][] myCases() {
-    return new Object[][] {
-        { inputA, expectedA },
-        { inputB, expectedB },
-    };
-}
-```
-
-### Consuming a data provider
-
-```java
-@RunWith(DataProviderRunner.class)
-public class FooTest {
-
-    @Test
-    @UseDataProvider(value = CommonDataProvider.DATA_PROVIDER_MY_CASES, location = CommonDataProvider.class)
-    public void foo_inputGiven_returnsExpected(String input, String expected) {
-        // arrange
-        Foo sut = new Foo();
-
-        // act
-        String result = sut.bar(input);
-
-        // assert
-        assertThat(result, is(equalTo(expected)));
-    }
-}
-```
-
-### Enum-based providers
-
-```java
-@DataProvider
-public static Object[][] allEnumValues() {
-    return transformFlatToObjectArrayArray(MyEnum.values());
-}
-```
-
-### Cartesian product providers
-
-```java
-@DataProvider
-public static Object[][] typeAndSize() {
-    return mergeMany(types(), sizes());
-}
-```
-
----
-
-## Named Constants — DRY, No Magic Literals
-
-Every semantic value must be a named `public static final` or `private static final` constant with Javadoc.
-
-**Rules:**
-- Every string, number, or flag literal that carries meaning **must** be a named constant.
-- Constants belong at the class level, before constructors and methods.
-- Name constants by their **meaning or role**, not the raw value.
-- Each constant must have **Javadoc** explaining what it represents and why.
-- Derived values must be computed from source constants, never duplicated.
-- Radix values (`16`, `10`, `2`) should be referenced through helper constants, never as bare integers.
-
-**Bad:**
-```java
-return new BigInteger("FFFFFFFFFFFFFFFF", 16);
-if (batchSize > 256) { ... }
-```
-
-**Good:**
-```java
-/**
- * The maximum valid size for batch processing.
- * Chosen based on performance testing with typical workloads.
- */
-public static final int MAX_BATCH_SIZE = 256;
-
-/**
- * The hex value for all 64 bits set.
- * Derived from {@link #MAX_BATCH_SIZE} — do not duplicate the literal.
- */
-public static final String MAX_VALUE_HEX = "FF".repeat(8);
-
-if (batchSize > MAX_BATCH_SIZE) { ... }
-```
-
----
-
-## Logger Injection — Constructor Over Setter
-
-When a class uses an SLF4J `Logger` and tests need to inject a mock logger, prefer **constructor-based injection**.
-
-**Pattern — two constructors:**
-
-```java
-public class MyService {
-    private final Logger logger;
-
-    // Production constructor — creates its own logger
-    public MyService(Config config) {
-        this(config, LoggerFactory.getLogger(MyService.class));
-    }
-
-    // Test constructor — accepts an injected logger
-    @VisibleForTesting
-    MyService(Config config, Logger logger) {
-        this.config = config;
-        this.logger = logger;
-    }
-}
-```
-
-**Rules:**
-- The `logger` field should be `private final`.
-- The production constructor delegates to the test constructor (or vice versa) — never duplicate initialization.
-- The `@VisibleForTesting` constructor has package-private visibility.
-- A `setLogger` method is a last resort — only if constructor injection is infeasible.
-
-**Test usage:**
-```java
-Logger mockLogger = mock(Logger.class);
-MyService service = new MyService(config, mockLogger);
-```
-
----
-
-## Null Safety — JSpecify Annotations
-
-Use **JSpecify** `@Nullable` annotation for optional values; `@NonNull` is the default (no annotation needed).
-
-```java
-import org.jspecify.annotations.Nullable;
-
-public @Nullable String getOptional() { return null; }
-
-// Array null annotations — place between type and brackets
-private byte @Nullable [] buffer;           // array itself may be null
-public byte @NonNull [] getBuffer() { }     // array is guaranteed non-null
-```
-
-**Compiler enforcement:**
-A static checker (e.g., NullAway) enforces null safety at compile time. Missing `@Nullable` on a nullable return or field causes a **compilation failure**.
-
----
-
-## @VisibleForTesting Annotation
-
-Mark package-private or protected members that are only exposed for testing:
-
-```java
-@VisibleForTesting
-static Duration AWAIT_DURATION = Duration.ofSeconds(20);
-
-@VisibleForTesting
-final ExecutorService executor = Executors.newFixedThreadPool(4);
-```
-
-Tests may modify `@VisibleForTesting` static fields to shorten wait times or adjust test-specific behaviour.
-
----
-
-## Mocking & Logger Verification
-
-### Capturing and asserting log output
-
-```java
-ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-verify(logger, times(1)).info(captor.capture());
-List<String> arguments = captor.getAllValues();
-assertThat(arguments.get(0), is(equalTo("Initialized.")));
-```
-
-### Verifying no interaction
-
-```java
-verify(logger, never()).error(anyString());
-```
-
-### Verifying with argument matchers
-
-```java
-verify(logger).error(contains("expectedSubstring"));
-verify(mockLogger, times(1)).info(eq("Message"), eq(expectedValue));
-```
-
-**Imports:**
-```java
-import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.*;
-```
-
----
-
-## Randomness — Always Fixed Seeds
-
-All `Random` instances in tests **must** use a fixed seed:
-
-```java
-private final Random random = new Random(1337);
-```
-
-Never use `new Random()` (unseeded). Document the seed's significance when it matters:
-
-```java
-/** This random produces bits: 1, 0, 1, 0 — useful for testing boundary cases. */
-private final Random random = new Random(1);
-```
-
----
-
-## TemporaryFolder / File System Tests
-
-Use `TemporaryFolder` for tests that create files and directories:
-
-```java
-@Rule
-public TemporaryFolder folder = new TemporaryFolder();
-
-@Test
-public void testFileHandling() throws IOException {
+public void doIt_invalidInput_throwsException() {
     // arrange
-    File tempFile = folder.newFile("data.txt");
-    File subdir = folder.newFolder("output");
-    
-    // use Files NIO for writing
-    Files.writeString(tempFile.toPath(), "content");
-    
-    // act / assert
+    Foo foo = new Foo();
+
+    // act, assert
+    assertThrows(IllegalArgumentException.class, () -> foo.doIt(-1));
+}
+
+// With message check:
+@Test
+public void doIt_invalidInput_throwsExceptionWithReason() {
+    // arrange
+    Foo foo = new Foo();
+
+    // act
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> foo.doIt(-1));
+
+    // assert
+    assertThat(e.getMessage(), containsString("must be >= 0"));
+}
+```
+
+Verified in BAF `BitHelperTest.java:50,59`.
+
+---
+
+## Parameterized Tests — `@MethodSource`
+
+The owner's pattern stores method-source names as named string constants
+on a `CommonDataProvider` (or sibling provider) class, then references
+them symbolically from `@MethodSource`. This prevents typos and makes
+provider methods easy to find via "find usages".
+
+```java
+// In CommonDataProvider.java:
+public static final String DATA_PROVIDER_KILL_BITS = "killBitsArguments";
+
+static Stream<Arguments> killBitsArguments() {
+    return Stream.of(
+            Arguments.of(1, BigInteger.valueOf(1L)),
+            Arguments.of(8, BigInteger.valueOf(255L))
+    );
+}
+
+// In BitHelperTest.java:
+@ParameterizedTest
+@MethodSource(CommonDataProvider.DATA_PROVIDER_KILL_BITS)
+public void getKillBits_bitsGiven_killBitsEqualsExpectation(int bits, BigInteger killBits) {
     // ...
 }
 ```
 
-**Rules:**
-- Always use `folder.newFile(...)` and `folder.newFolder(...)` — never create manually.
-- Cleanup is automatic when the test completes.
+Verified in `BitHelperTest.java:21,33,65`.
 
----
-
-## Records & Immutability
-
-Use Java `record` for immutable value objects:
+For sources local to the test class (the streambuffer pattern), the
+provider method lives on the test class itself:
 
 ```java
-public record MyValue(@NonNull String name, int count) {
-    // compact constructor for validation
-    public MyValue {
-        Objects.requireNonNull(name);
-    }
+static Stream<Arguments> writeMethods() {
+    return Stream.of(
+            Arguments.of(WriteMethod.BYTE_ARRAY),
+            Arguments.of(WriteMethod.INT),
+            Arguments.of(WriteMethod.BYTE_ARRAY_WITH_PARAMETER));
 }
 ```
 
-**Rules:**
-- `Objects.requireNonNull()` is **valid in production code** (not in tests).
-- Mark immutable classes with `@Immutable` annotation when appropriate.
-- For records containing mutable third-party types, suppress the Error Prone warning:
-
-```java
-@Immutable
-public record Container(
-    @SuppressWarnings("Immutable") MutableObject obj,
-    @NonNull String name
-) { }
-```
+Verified in `StreamBufferTest.java:42-47`.
 
 ---
 
-## Concurrency Conventions
+## Mocking the Logger
+
+For Maven plugins (`org.apache.maven.plugin.logging.Log`) — plugin only:
 
 ```java
-// Thread-safe counters
-private final AtomicLong hits = new AtomicLong();
-private final AtomicInteger stateCounter = new AtomicInteger();
+@BeforeEach
+public void setUp() {
+    mockLog = mock(Log.class);
+}
 
-// Work queue
-private final LinkedBlockingQueue<byte[]> workQueue;
-
-// Thread pool — never raw Thread
-private final ExecutorService executor = Executors.newFixedThreadPool(4);
-
-// Shutdown synchronisation
-private final CountDownLatch shutdownLatch = new CountDownLatch(1);
-```
-
-### Async/Concurrent Tests
-
-Use `CountDownLatch` + `ExecutorService` + `Future` for coordinating async tests:
-
-```java
 @Test
-public void asyncOperation_serverSendsData_clientReceives() throws Exception {
+public void indexSourceRoot_missingFile_logsWarning() {
     // arrange
-    int port = findFreePort();
-    ExecutorService executorService = Executors.newCachedThreadPool();
-    CountDownLatch serverStarted = new CountDownLatch(1);
-
-    Future<Void> serverFuture = executorService.submit(() -> {
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            serverStarted.countDown();                // signal ready
-            try (Socket client = serverSocket.accept();
-                 DataOutputStream out = new DataOutputStream(client.getOutputStream())) {
-                out.write(data);
-            }
-        }
-        return null;
-    });
-
-    serverStarted.await();                            // wait for server to be ready
+    final SourceFileIndexer indexer = new SourceFileIndexer(mockLog, ...);
 
     // act
-    String result = connectAndFetch(port);
+    indexer.indexSourceRoot(sourceRoot);
 
     // assert
-    assertThat(result, is(equalTo(expected)));
-
-    serverFuture.get(5, TimeUnit.SECONDS);            // ensure server completed cleanly
-    executorService.shutdown();
-}
-
-private static int findFreePort() throws IOException {
-    try (ServerSocket s = new ServerSocket(0)) {
-        return s.getLocalPort();
-    }
+    verify(mockLog, atLeastOnce()).warn(contains("Skipping"));
 }
 ```
 
----
-
-## Equals / HashCode / ToString Contract Tests
-
-Use a generic contract test helper with four instances (two for value A, two for value B):
+For SLF4J-based repos (BAF, jllama, streambuffer), production code
+typically uses the static logger idiom:
 
 ```java
-// arrange
-Foo a1 = new Foo(valueA);
-Foo a2 = new Foo(valueA);  // same data, different reference
-Foo b1 = new Foo(valueB);
-Foo b2 = new Foo(valueB);
-
-// assert — A != B
-EqualHashCodeToStringTestHelper helper = new EqualHashCodeToStringTestHelper(a1, a2, b1, b2);
-helper.assertEqualsHashCodeToStringAIsDifferentToB();
-
-// OR — A == B (same semantic content)
-helper.assertEqualsHashCodeToStringAIsEqualToB();
+private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
 ```
 
-For `toString()` tests verifying default object identity format:
-```java
-assertThat(output, matchesPattern("ClassName@\\p{XDigit}+"));
-```
-
-For `toString()` tests verifying structured content:
-```java
-assertThat(output, is(equalTo("Foo{name=bar, count=42}")));
-```
-
----
-
-## Import Style
-
-Group imports in this order (no blank lines within groups, blank line between groups):
-
-1. Standard Java (`java.*`, `javax.*`)
-2. Third-party libraries (alphabetical)
-3. Project classes (`com.example.*`)
-4. Static imports (last, alphabetical)
+In tests, use **LogCaptor** to verify expected log output without
+mocking the static field:
 
 ```java
-import java.io.IOException;
-import java.util.List;
-
-import org.junit.Test;
-import org.mockito.Mock;
-
-import com.example.foo.Foo;
-import com.example.foo.Bar;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-```
-
-Prefer **specific static imports** over wildcard when used 1–2 times. Use wildcard for Hamcrest matchers when many are used:
-```java
-import static org.hamcrest.Matchers.*;
-```
-
----
-
-## Array & Collection Assertions
-
-### Do NOT use for-loops in assertions
-
-**Problem:** For-loop iteration in assertions reduces readability.
-
-```java
-// ❌ BAD — uses for-loop
-for (int i = 0; i < expected.length; i++) {
-    assertThat(result[i], is(equalTo(expected[i])));
-}
-```
-
-**Solution:** Compare entire arrays directly.
-
-```java
-// ✅ GOOD — compare whole array
-assertThat(result, is(expected));
-```
-
-### Exception: iterating over all enum values is allowed
-
-When verifying behaviour for **every value of an enum**, iterating via `EnumType.values()` is preferred. It ensures new enum constants are automatically covered:
-
-```java
-@Test
-public void process_allEnumValues_succeeds() {
-    for (MyEnum value : MyEnum.values()) {
-        String result = sut.process(value);
-        assertThat(result, not(emptyString()));
-    }
-}
-```
-
-### Pattern for zero-padded arrays
-
-```java
-@Test
-public void decode_shorterInput_leftPaddedWithZeros() {
-    // arrange
-    byte[] original = {0x01, 0x02, 0x03};
-    final int targetLength = 20;
-    final int paddingLength = targetLength - original.length;
-    byte[] expectedPadding = new byte[paddingLength];
-
+try (LogCaptor captor = LogCaptor.forClass(Foo.class)) {
     // act
-    byte[] result = decoder.decode(original, targetLength);
+    foo.doSomething();
 
     // assert
-    assertThat(Arrays.copyOfRange(result, 0, paddingLength), is(expectedPadding));
-    assertThat(Arrays.copyOfRange(result, paddingLength, targetLength), is(original));
+    assertThat(captor.getInfoLogs(), hasItem(containsString("started")));
 }
 ```
 
+Verified in BAF (`LogCaptor` 2.12.6 declared at `pom.xml:84,847`; used
+in 5 test files) and jllama (`LoggingSmokeTest`).
+
 ---
 
-## Constants Within a Fold (DRY)
+## Production-side conventions referenced by tests
 
-When the same literal appears in **two or more tests in the same fold**, extract it as a `private static final` constant:
+When TDD drives production code, these are the conventions tests assume
+and reinforce:
 
-```java
-// ✅ GOOD — one definition, both variants derived from it
-private static final String CUSTOM_HEX = "FF";
+- **Named constants with Javadoc.** Every meaningful string/number/flag
+  literal must be a `public static final` or `private static final`
+  named constant with a Javadoc comment. Verified in BAF: 141
+  `static final` declarations across 29 source files.
+- **Custom domain exceptions.** Throw a specific named exception type
+  rather than generic `IllegalArgumentException` / `RuntimeException`
+  when a domain meaning is involved. BAF examples:
+  `KeyProducerIdNullException`, `PrivateKeyTooLargeException`.
+- **Constructor injection.** Dependencies arrive through the constructor
+  (with `private final` fields) so tests can substitute fakes. Loggers
+  are an exception in SLF4J-using repos (static-field `Logger`); inject
+  the `Log` when using Maven `Log`.
+- **`@VisibleForTesting`** (Guava annotation) marks members that exist
+  only to support tests. Used in BAF (16 sites); see
+  `policies/code-quality-todos.md` for the design-fit review.
 
-sut.value = CUSTOM_HEX.toUpperCase();  // "FF"
-sut.value = CUSTOM_HEX.toLowerCase();  // "ff"
-assertThat(result, is(equalTo(new BigInteger(CUSTOM_HEX, 16))));
-```
+For the Java 21 idioms (records, switch expressions, text blocks,
+pattern matching) that apply to BitcoinAddressFinder but not the
+Java-8 repos, see
+[`../../../guides/CODE_WRITING_GUIDE-java21.md`](../../../guides/CODE_WRITING_GUIDE-java21.md).
 
-```java
-// ❌ BAD — same literal repeated
-sut.value = "FF";
-sut.value = "ff";
-assertThat(result, is(equalTo(BigInteger.valueOf(255))));
-```
+---
 
-**Rule:** Constants belong to their fold. Do **not** share a constant between different folds even when values coincide — tests for different methods should remain logically independent.
+## What NOT To Do
+
+| Anti-pattern | Correct alternative |
+|---|---|
+| `import org.junit.Test` (JUnit 4) | `import org.junit.jupiter.api.Test` |
+| `@RunWith(DataProviderRunner.class)` | `@ParameterizedTest` + `@MethodSource` |
+| `@Rule public TemporaryFolder folder = new TemporaryFolder()` | `@TempDir Path folder` |
+| `Assert.assertEquals(expected, actual)` | `assertThat(actual, is(equalTo(expected)))` |
+| `Assert.assertTrue(condition)` | `assertThat(condition, is(true))` |
+| `Assert.assertNotNull(x)` | `assertThat(x, is(notNullValue()))` |
+| `Objects.requireNonNull(x)` as guard in tests | `// pre-assert` with `assertThat(x, is(notNullValue()))` |
+| `System.out.println(...)` in tests | Remove; use LogCaptor / mock-Log assertions instead |
+| Missing `// arrange / act / assert` comments | Add the section comments always |
+| Mixing `<editor-fold>` and `@Nested` styles in one file | Pick one and stay consistent |
+| `/* license */` block instead of SPDX lines | Use the SPDX single-line form |
 
 ---
 
 ## Preserving Existing Comments
 
-When modifying existing test code (fixing bugs, applying guide compliance):
+When modifying existing test code:
 
 - **Keep all existing inline comments** that are correct and descriptive.
-- **Only remove a comment** if it is factually wrong, misleading, or describes deleted code.
+- **Only remove a comment** if it is factually wrong, misleading, or
+  describes code that no longer exists.
 - **Add new comments** where added code is not self-explanatory.
+- When adding AAA section comments, place them **around** existing
+  inline comments — do not replace them.
 
-Example — correct preservation:
-```java
-// arrange
-String address = createAddress();
-
-// Server socket binds        ← existing comment preserved
-ServerSocket socket = new ServerSocket(port);
-
-// act
-String result = sut.process(address);
-
-// assert
-assertThat(result, not(emptyString()));
-```
-
-**Goal:** Minimize the diff to only lines that actually need changing.
-
----
-
-## Anti-Patterns — What NOT To Do
-
-| Anti-pattern | Correct alternative |
-|---|---|
-| `assertEquals(expected, actual)` | `assertThat(actual, is(equalTo(expected)))` |
-| `assertTrue(condition)` | `assertThat(condition, is(true))` |
-| `Assert.assertNotNull(x)` | `assertThat(x, is(notNullValue()))` |
-| `Objects.requireNonNull(x)` as guard in test | `// pre-assert` with `assertThat(x, is(notNullValue()))` |
-| Unseeded `new Random()` | `new Random(fixedSeed)` |
-| Hard-coded address/constant strings | Use project-specific static constants |
-| Missing `// arrange / act / assert` | Add the section comments always |
-| Missing editor fold | Wrap each method group in `<editor-fold>` |
-| Non-conforming test name like `testme()` | Rename to `methodName_condition_expectation()` |
-| Empty `@Before` method | Remove it entirely |
-| `@RunWith(DataProviderRunner.class)` without `@UseDataProvider` | Remove the `@RunWith` |
-| For-loop iteration in assertions | Compare entire array at once — **exception:** `for (MyEnum v : MyEnum.values())` is allowed |
-| Magic numbers like `result[9]` | Use `final int` constants: `result[targetLength - 1]` |
-| Removing existing correct comments during fixes | Preserve comments; only remove factually wrong ones |
-
----
-
-## Test Anatomy — Complete Reference Example
-
-```java
-// @formatter:off
-/**
- * Copyright 2025 Your Name your.name@example.com
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// @formatter:on
-package com.example.foo;
-
-import java.io.IOException;
-import java.util.List;
-
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-
-import com.tngtech.java.junit.dataprovider.DataProviderRunner;
-import com.tngtech.java.junit.dataprovider.UseDataProvider;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
-
-@RunWith(DataProviderRunner.class)
-public class FooTest {
-
-    @Rule
-    public TemporaryFolder folder = new TemporaryFolder();
-
-    private Bar bar;
-
-    @Before
-    public void setUp() {
-        bar = new Bar();
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="someMethod">
-    @Test
-    public void someMethod_validInputGiven_returnsExpectedResult() {
-        // arrange
-        Foo sut = new Foo();
-
-        // act
-        String result = sut.someMethod("validInput");
-
-        // assert
-        assertThat(result, is(equalTo("expectedResult")));
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void someMethod_nullGiven_throwsException() {
-        // arrange
-        Foo sut = new Foo();
-
-        // act
-        sut.someMethod(null);
-    }
-
-    @Test
-    @UseDataProvider(value = CommonDataProvider.DATA_PROVIDER_MY_CASES, location = CommonDataProvider.class)
-    public void someMethod_parameterizedInput_returnsExpected(String input, String expected) {
-        // arrange
-        Foo sut = new Foo();
-
-        // act
-        String result = sut.someMethod(input);
-
-        // assert
-        assertThat(result, is(equalTo(expected)));
-    }
-    // </editor-fold>
-
-    // <editor-fold defaultstate="collapsed" desc="toString">
-    @Test
-    public void toString_whenCalled_containsClassNameAndIdentityHash() {
-        // arrange
-        Foo sut = new Foo();
-
-        // act
-        String output = sut.toString();
-
-        // assert
-        assertThat(output, not(emptyOrNullString()));
-        assertThat(output, matchesPattern("Foo@\\p{XDigit}+"));
-    }
-    // </editor-fold>
-}
-```
-
----
-
-## Completeness Checklist
-
-Before submitting code:
-
-- [ ] At least one test was written and failed **before** the production code was written.
-- [ ] Every production behaviour is covered by at least one test.
-- [ ] All tests pass: `./mvnw test` (or equivalent for your project).
-- [ ] Compilation is clean (no null-safety errors).
-- [ ] Every test class has the Apache 2.0 license header wrapped in `@formatter:off/on`.
-- [ ] Test method names follow the `method_condition_expected` three-segment pattern.
-- [ ] Every test body has `// arrange`, `// act`, `// assert` comments.
-- [ ] All tests for the same method/feature are inside a single `<editor-fold defaultstate="collapsed">` block.
-- [ ] No `assertEquals` / `assertTrue` / `assertFalse` / `assertNotNull` anywhere.
-- [ ] Exception tests with message assertions use `try { ...; fail(...); } catch`.
-- [ ] All `Random` instances use a fixed seed.
-- [ ] Data providers are added to `CommonDataProvider` (or project equivalent), not inlined in test classes.
-- [ ] `@RunWith(DataProviderRunner.class)` is present **only** when `@UseDataProvider` is used.
-- [ ] Empty `@Before` methods are removed.
-- [ ] All nullable fields/returns in new production code are annotated with `@Nullable`.
-- [ ] Array nullable annotations follow the `byte @Nullable []` placement convention.
-- [ ] Logger in new production classes is `private final` with constructor injection (or setter as last resort).
-- [ ] `@VisibleForTesting` is applied to any member exposed solely for tests.
-- [ ] Async tests use `CountDownLatch` + `ExecutorService` + `Future`; no raw `Thread` or polling with `Thread.sleep`.
-- [ ] Async socket tests use `findFreePort()` and project-specific timeout constants — no magic port numbers.
-- [ ] Nested concrete implementations of abstract classes are private static inner classes inside the test class.
-- [ ] `Objects.requireNonNull()` is used only in production code, never in tests.
-- [ ] Multi-line expected strings use Java text blocks (`""" ... """`).
-- [ ] Records with mutable third-party fields use `@SuppressWarnings("Immutable")` on the specific field.
-- [ ] Behaviour injection in production constructors uses functional interfaces (`Consumer<T>`, `Function<T,R>`) rather than subclassing.
-- [ ] Existing correct inline comments in modified test code are preserved — only removed if factually wrong or describing deleted code.
-
----
-
-## Project-Specific Extensions
-
-Each project may define additional conventions beyond this generic guide. Refer to your project's CLAUDE.md or supplementary guide files for:
-
-- Custom marker annotations (e.g., `@OpenCLTest`, `@ToStringTest`, `@AwaitTimeTest`)
-- Static test data constants (e.g., known addresses, keys, fixtures)
-- Project-specific helper classes and test utilities
-- Database or library-specific test patterns (LMDB, OpenCL, WebSocket, ZMQ, etc.)
-- Configuration POJO naming conventions (e.g., C-prefix)
-- Custom domain exceptions
+The goal is to **minimize the diff** to only lines that actually need
+changing.

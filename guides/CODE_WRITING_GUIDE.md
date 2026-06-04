@@ -1,24 +1,32 @@
-# Code Writing Guide — Workspace Canonical Conventions
+# Code Writing Guide — Workspace Canonical Conventions (Java 8 Baseline)
 
 > Canonical workspace guide. Applies to every sibling Java repo
 > (`BitcoinAddressFinder`, `java-llama.cpp`, `llamacpp-ai-index-maven-plugin`,
 > `streambuffer`). Each repo's own `CODE_WRITING_GUIDE.md` (if present)
-> contains only **project-specific supplements**: domain exceptions, repo-
-> specific helper classes, framework-specific patterns (e.g. C-prefix
-> config POJOs in BAF, Maven `@Parameter` POJOs in the plugin).
+> contains only **project-specific supplements**.
 >
-> For TDD workflow (Red → Green → Refactor, test-first discipline), see
-> `.claude/skills/java-tdd-guide/SKILL.md` in this repo.
+> **Baseline assumed by this guide:** Java 8 source/target. Three of
+> the four sibling repos (`streambuffer`, `java-llama.cpp`,
+> `llamacpp-ai-index-maven-plugin`) build to Java 8 bytecode (`<release>8</release>`
+> in their `pom.xml`). The rules here use only Java 8 idioms so they
+> apply uniformly across the fleet.
+>
+> **Java 21 idioms** (records, switch expressions, text blocks, pattern
+> matching, sealed types) are documented in the optional supplement
+> [`CODE_WRITING_GUIDE-java21.md`](CODE_WRITING_GUIDE-java21.md).
+> Only `BitcoinAddressFinder` (`<source>21</source>/<target>21</target>`)
+> opts into that supplement today.
+>
+> For TDD workflow see
+> [`../.claude/skills/java-tdd-guide/SKILL.md`](../.claude/skills/java-tdd-guide/SKILL.md).
 
 ---
 
 ## 1. Named Constants — DRY, No Inline Literals
 
-The primary motivation is **Don't Repeat Yourself (DRY)**. Every meaningful
-value must exist in exactly **one** authoritative place — a named constant —
-so that a future change requires editing only one line. Inline literals
-scatter the same meaning across multiple call sites, making the code
-fragile and hard to maintain.
+The primary motivation is **Don't Repeat Yourself (DRY)**. Every
+meaningful value must exist in exactly **one** authoritative place — a
+named constant — so that a future change requires editing only one line.
 
 ### Rules
 
@@ -29,121 +37,121 @@ fragile and hard to maintain.
   and methods.
 - The name must describe the **meaning or role** of the value, not the
   value itself.
-- Each constant must have a **Javadoc comment** that explains what the
-  value represents, why it has that specific value, and any relevant
-  cross-references.
-- When a derived value (e.g., a string built from a constant prefix) is
-  needed, define **both** the source constant and the derived constant,
-  and compute the derived one from the source — never duplicate the raw
-  literal.
+- Each constant **must** have a Javadoc comment that explains what the
+  value represents and why it has that specific value.
+- When a derived value is needed, define **both** the source constant
+  and the derived constant, and compute the derived one from the
+  source — never duplicate the raw literal.
 
 ```java
-// BAD — magic literals inline, no single source of truth
+// BAD — magic literals inline
 if (name.endsWith(".ai.md")) { ... }
 header.put("h", "1.0");
 
 // GOOD — one authoritative constant with Javadoc
 /**
- * File extension appended to every source file name to produce its AI
- * index file name. Example: "MyClass.java" -> "MyClass.java.ai.md".
+ * File extension appended to every source file name to produce its
+ * AI index file name. Example: "MyClass.java" -> "MyClass.java.ai.md".
  */
 public static final String AI_MD_EXTENSION = ".ai.md";
 ```
 
-Repo-specific applications (e.g. BAF's `BitHelper.RADIX_HEX`, the
-plugin's header field keys / node-type / provider-name constants) live in
-each repo's own supplement.
+Verified adoption: BAF has 141 `static final` declarations across 29
+production source files.
+
+Repo-specific applications (BAF's `BitHelper.RADIX_*`, the plugin's
+header-field-key / node-type / provider-name constants) live in each
+repo's own supplement.
 
 ---
 
-## 2. Logger Injection — Constructor Over Setter
+## 2. Custom Domain Exceptions
 
-When a class accepts a logger and tests need to inject a mock or stub,
-prefer **constructor-based injection** over a setter method.
+Throw a specific named exception type rather than generic
+`IllegalArgumentException` / `RuntimeException` when a domain meaning is
+involved. Domain exceptions document the failure mode at the throw site
+and let callers catch the specific case they can handle.
 
-### Pattern (Maven plugin example using `org.apache.maven.plugin.logging.Log`)
-
-Provide two constructors:
-
-1. **Framework constructor** — the Mojo / framework subclass obtains the
-   logger (via `AbstractMojo.getLog()` for Maven plugins) and passes it
-   in. This is the constructor used at runtime.
-2. **`@VisibleForTesting` constructor** — accepts the logger directly.
-   This is the constructor used by tests.
+Verified in BAF: `KeyProducerIdNullException`,
+`KeyProducerIdIsNotUniqueException`, `KeyProducerIdUnknownException`,
+`NoMoreSecretsAvailableException`, `PrivateKeyTooLargeException`,
+`UnknownSecretFormatException`, `AddressFormatNotAcceptedException`.
 
 ```java
-public class SourceFileIndexer {
+// BAD — what's actually wrong here?
+throw new IllegalArgumentException("bad key");
 
-    private final Log log;
+// GOOD — name documents the failure mode
+throw new PrivateKeyTooLargeException("private key " + key + " exceeds secp256k1 range");
+```
 
-    public SourceFileIndexer(
-            final Log log,
-            // ... other params
-    ) {
-        this.log = log;
+`IllegalArgumentException` is still appropriate for truly generic
+constraint failures with no domain meaning (e.g. "argument must be
+non-negative" for a public utility method).
+
+---
+
+## 3. Constructor Injection — Dependencies and Configuration
+
+Dependencies and configuration arrive through the constructor with
+`private final` fields. This makes the dependency graph explicit and
+lets tests substitute fakes without touching production code.
+
+```java
+public class ProducerJava {
+
+    private final CProducerJava config;
+    private final KeyUtility keyUtility;
+    private final BitHelper bitHelper;
+
+    public ProducerJava(
+            CProducerJava config,
+            KeyUtility keyUtility,
+            BitHelper bitHelper) {
+        this.config = config;
+        this.keyUtility = keyUtility;
+        this.bitHelper = bitHelper;
     }
 }
 ```
 
-Tests pass a `SystemStreamLog`, a mock `Log`, or — for SLF4J-based repos —
-a captured `LogCaptor` logger directly.
+### Loggers — two valid patterns
 
-### Rules
-
-- The `log` field must be `private final`.
-- Never expose a `setLog` method on non-framework classes. Constructor
-  injection is the only approved mechanism.
-- A `setLog` method is the **last resort** — only use it when the object
-  is instantiated by a framework that controls construction and
-  constructor injection is not feasible.
-
-For repos using SLF4J (BAF, jllama, streambuffer): the same pattern applies
-— inject the `org.slf4j.Logger` through the constructor; do not use the
-static `LoggerFactory.getLogger(MyClass.class)` field idiom in classes
-that have other constructor-injected dependencies, because it defeats
-test-time substitution.
-
----
-
-## 3. Records for Immutable Value Objects
-
-Java `record` types are the preferred representation for immutable data
-carriers. Use records when:
-
-- The class holds only final fields that are set at construction.
-- There is no mutable state.
-- The class has value semantics (equality based on field values).
+**SLF4J static-field idiom** (used in BAF, jllama, streambuffer):
 
 ```java
-// GOOD — immutable value object as a record
-public record AiSummaryResponse(String text, int tokensGenerated) {}
+private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
+```
 
-// BAD — mutable class with getters/setters for a simple data carrier
-public class AiSummaryResponse {
-    private String text;
-    public String getText() { return text; }
-    public void setText(String text) { this.text = text; }
+In tests, capture log output with **LogCaptor** rather than mocking the
+static field. This is the idiom that's actually in production across
+the SLF4J-using repos.
+
+**Maven `Log` constructor injection** (used in the plugin, applicable
+only to Mojo collaborators):
+
+```java
+public SourceFileIndexer(final Log log, ...) {
+    this.log = log;
 }
 ```
 
-**Exception:** Classes instantiated by a framework via reflection (e.g.
-Maven's plugin framework reading `@Parameter`-bearing configuration
-classes, Jackson deserialising JSON config POJOs) must remain regular
-classes with setters or public fields, because the framework cannot
-inject values into record components.
+The plugin uses constructor-injected `Log` because Mojos receive their
+logger from `AbstractMojo.getLog()` and pass it down. SLF4J repos do
+not follow this pattern and do not need to.
 
 ---
 
 ## 4. Defensive Null and Empty Checks at Public Boundaries
 
-- Validate `null` and empty inputs at the entry point of every public
-  method that would otherwise propagate a `NullPointerException` deep
-  into a call stack.
-- Prefer `log.warn(...)` + early return over silent skips for cases that
-  indicate a misconfiguration.
-- Throw `IllegalArgumentException` with a descriptive message for
-  programming errors (e.g., unsupported target name, missing required
-  configuration).
+Validate `null` and empty inputs at the entry point of every public
+method that would otherwise propagate a `NullPointerException` deep
+into a call stack.
+
+- Prefer `log.warn(...)` + early return over silent skips for cases
+  that indicate a misconfiguration.
+- Throw `IllegalArgumentException` (or the appropriate domain exception)
+  with a descriptive message for programming errors.
 
 ```java
 // GOOD — clear error for unsupported configuration
@@ -156,107 +164,141 @@ if (!Files.exists(sourceFile)) {
 }
 ```
 
-For repos with NullAway enforcement (every sibling repo, in strict
-JSpecify mode): the implicit non-null default removes most boundary
-checks at compile time, so this rule applies to the input edges that
-NullAway cannot prove safe — JSON-deserialised values, file/network
-input, reflection-populated fields.
+With NullAway in strict JSpecify mode (enabled in every sibling repo),
+the implicit non-null default removes most boundary checks at compile
+time. This rule applies to input edges NullAway cannot prove safe —
+JSON-deserialised values, file/network input, reflection-populated
+fields.
 
 ---
 
 ## 5. Helper Classes — Instance Methods Over Static Utilities
 
-Helper classes should be designed for mockability and testability, not as
-static utility classes.
+Helper classes should be designed for mockability and testability.
 
 ### Rules
 
-- **Prefer instance methods over static methods.** Helper classes must be
-  regular classes (not `final`), with **instance methods** (not `static`).
-- **No private constructor.** Do not enforce non-instantiation; allow
-  normal object creation.
-- **Dependency injection.** Store an instance as a field in classes that
-  use the helper, making the dependency explicit and testable.
-- **Easy to mock.** Instance methods can be overridden or mocked in tests,
-  enabling better test isolation.
+- Prefer instance methods over static methods.
+- Helper classes must be regular classes (not `final`), with instance
+  methods (not `static`).
+- No private constructor — allow normal object creation.
+- Store an instance as a field in classes that use the helper, making
+  the dependency explicit and injectable.
 
 ### When static methods ARE acceptable
-
-Static methods are acceptable **only** for:
 
 - Pure mathematical functions with no side effects;
 - Trivial string/number formatting that never needs to be mocked;
 - Constant lookup functions that have no external dependencies.
 
-### Example
+### Example — BAF migration
 
 ```java
 // BAD — static utility, not mockable
-public final class CompatibilityHelper {
-    private CompatibilityHelper() { }
-    public static boolean isBlank(final String str) { ... }
+public final class KeyUtility {
+    private KeyUtility() { }
+    public static boolean isInvalidWithBatchSize(BigInteger key, BigInteger max) { ... }
 }
 
-// GOOD — instance method, mockable
-public class CompatibilityHelper {
-    public boolean isBlank(final String str) { ... }
+// GOOD — instance method on a dedicated validator
+public class PrivateKeyValidator {
+    public boolean isInvalidWithBatchSize(BigInteger key, BigInteger max) { ... }
 }
 
-// In the class that uses it:
-public class Factory {
-    private final CompatibilityHelper compat = new CompatibilityHelper();
-    public Foo create(final String name) {
-        if (name == null || compat.isBlank(name)) { ... }
-    }
+public class ProducerJava {
+    private final PrivateKeyValidator validator = new PrivateKeyValidator();
+    // ...
 }
 ```
 
-Migration pattern in BAF: methods originally on `KeyUtility` as `static`
-have been moved into `PrivateKeyValidator` as instance methods for the
-same reason — see BAF's `CODE_WRITING_GUIDE.md` for the per-method list.
+Verified in BAF: `PrivateKeyValidator.getMaxPrivateKeyForBatchSize` /
+`isInvalidWithBatchSize` / `isOutsidePrivateKeyRange` / etc. moved off
+the `KeyUtility` static surface.
 
 ---
 
-## 6. Key-Indexed Definition Pattern
+## 6. `@VisibleForTesting`
 
-When a configuration block contains a list of named definitions (e.g.
-prompt templates, model configs, named producer strategies) that other
-parts of the configuration reference by a string key, apply the
-**key-indexed definition pattern**:
+Use the Guava annotation
+(`com.google.common.annotations.VisibleForTesting`) to mark
+package-private or protected members that exist only so tests can reach
+them. The annotation is documentation, not enforcement; it signals
+intent to readers and to static-analysis tools.
 
-1. **Definition POJO** — a regular JavaBean class (not a record, because
-   the framework injects via reflection) that holds the key and all
-   configuration fields. Fields default to the corresponding
-   `*Config.DEFAULT_*` constants.
-2. **Support class** — converts the list of definition POJOs into a
-   `Map<String, ConfigType>` at construction time, then exposes
-   `getConfig(String key)` which throws `IllegalArgumentException` (with
-   the missing key in the message) for unknown keys.
-3. **Reference by key** — any configuration class that previously held an
-   inline nested config object is refactored to hold only a
-   `String aiDefinitionKey` (or similar) that is resolved at runtime via
-   the support class.
+`@VisibleForTesting` should be the last resort, not the first. Before
+applying it, check whether constructor injection, behaviour extraction,
+or making the observable property a public method achieves the same
+goal without widening visibility. See
+[`../policies/code-quality-todos.md`](../policies/code-quality-todos.md)
+for the design-fit review.
 
-### Why this pattern?
-
-- Eliminates duplication when the same parameters are needed in multiple
-  places.
-- Removes the need for framework profiles (Maven profiles, env-specific
-  Spring profiles, etc.) to vary configuration; all definitions live
-  inline in the configuration block.
-- The support class is constructed once per execution and passed into
-  collaborators, making the dependency explicit and testable.
-
-Existing implementations: the plugin's `AiPromptDefinition` /
-`AiPromptSupport` and `AiModelDefinition` / `AiModelDefinitionSupport`.
-BAF's `KeyProducer`-by-id resolution is the same idea applied to
-producer-strategy lookups.
+Verified in BAF: 16 sites across 5 production files. The other three
+sibling repos have zero usages.
 
 ---
 
-## License Headers
+## 7. License Headers — SPDX Form
 
-Every source file across every sibling repo must include the Apache 2.0
-license header wrapped in `// @formatter:off` / `// @formatter:on`. See
-any existing source file for the template. The year must match the file
-creation year (not the current year).
+Every source file across every sibling repo must include the SPDX-format
+license header:
+
+```java
+// SPDX-FileCopyrightText: <YEAR-RANGE> Bernard Ladenthin <bernard.ladenthin@gmail.com>
+//
+// SPDX-License-Identifier: Apache-2.0
+package net.ladenthin.<repo>;
+```
+
+Rules:
+
+- Three single-line comments — no `/* ... */` block.
+- No `// @formatter:off` / `// @formatter:on` wrapper. The SPDX form
+  does not need formatter exemption (the canonical guide previously
+  said otherwise — that was wrong; verified by `grep` returning 2 hits
+  in 1 file across the entire fleet).
+- `<YEAR-RANGE>` is the file's actual lifespan (e.g. `2017-2026`,
+  `2014-2026`), not the current year.
+- License identifier is **Apache-2.0** in BAF, sb, and plugin.
+  `java-llama.cpp` uses **MIT** with a dual-copyright line for the
+  upstream Konstantin Herud attribution:
+
+  ```java
+  // SPDX-FileCopyrightText: 2023 Konstantin Herud
+  // SPDX-FileCopyrightText: 2024-2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+  //
+  // SPDX-License-Identifier: MIT
+  ```
+
+REUSE-tool compliance is enforced via the `reuse.yml` GitHub workflow
+in every repo.
+
+---
+
+## 8. Concurrency
+
+- Use `LinkedBlockingQueue<byte[]>` (or similar `java.util.concurrent`
+  primitives) for producer-consumer hand-off.
+- Use `ExecutorService` / `ThreadPoolExecutor` for thread pool
+  management. **Do not introduce raw `Thread` usage** — ArchUnit rules
+  in every repo enforce this (`no Thread.sleep` in production code).
+- Use `AtomicLong` / `AtomicBoolean` / `AtomicInteger` for thread-safe
+  flags and counters.
+- Use `CountDownLatch` for shutdown synchronization.
+
+Repo-specific shutdown contracts (BAF's `Interruptable`, streambuffer's
+`bufferLock` + `Semaphore signalModification`) live in the per-repo
+supplements.
+
+---
+
+## What's NOT in this canonical guide and why
+
+- **Records.** Java 16+ feature; only BAF can use them today. See the
+  Java 21 supplement.
+- **Switch expressions, text blocks, pattern matching.** Same reason;
+  see the Java 21 supplement.
+- **Key-indexed definition pattern** (`AiPromptDefinition` /
+  `AiPromptSupport`). Used only by the plugin; lives in the plugin's
+  own supplement.
+- **Constructor-injected Maven `Log`.** Plugin-only; documented in
+  §3 above as one of two valid logger patterns.

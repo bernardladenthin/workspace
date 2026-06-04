@@ -3,68 +3,70 @@
 > Canonical workspace guide. Applies to every sibling Java repo
 > (`BitcoinAddressFinder`, `java-llama.cpp`, `llamacpp-ai-index-maven-plugin`,
 > `streambuffer`). Each repo's own `TEST_WRITING_GUIDE.md` (if present)
-> contains only **project-specific supplements**: custom marker annotations,
-> platform-assume helpers, LMDB / OpenCL / JNI integration patterns.
+> contains only **project-specific supplements**.
 >
-> For the underlying TDD workflow (Red → Green → Refactor), see
-> `.claude/skills/java-tdd-guide/SKILL.md` in this repo.
+> Reflects the conventions **actually in use** across the codebases —
+> verified by reading test sources, not invented. The owner's
+> ground-truth references are
+> [`BitcoinAddressFinder`](https://github.com/bernardladenthin/BitcoinAddressFinder)
+> and
+> [`streambuffer`](https://github.com/bernardladenthin/streambuffer),
+> which are hand-written. The other two repos are predominantly
+> AI-generated and have weaker style fidelity.
 >
-> **Heads-up on framework drift.** The skill specifies JUnit 4, but BAF
-> (`junit-jupiter` 6.0.3) and the plugin (`junit-jupiter` 6.1.0) actually
-> run JUnit Jupiter. This guide documents the JUnit Jupiter conventions
-> the active repos use; the skill text needs a reconciliation pass that
-> hasn't happened yet.
+> For the TDD workflow and the larger framework rationale, see
+> [`../.claude/skills/java-tdd-guide/SKILL.md`](../.claude/skills/java-tdd-guide/SKILL.md).
 
 ---
 
-## 1. File Structure & Header
+## 1. File header — SPDX
 
-Every test file **must** start with the formatter-off block enclosing the
-Apache 2.0 license header:
+Every test file **must** start with the SPDX-format license header:
 
 ```java
-// @formatter:off
-/**
- * Copyright <YEAR> Bernard Ladenthin <email>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// @formatter:on
+// SPDX-FileCopyrightText: <YEAR-RANGE> Bernard Ladenthin <bernard.ladenthin@gmail.com>
+//
+// SPDX-License-Identifier: Apache-2.0
 package net.ladenthin.<repo>;
 ```
 
-- The `// @formatter:off` / `// @formatter:on` pair wraps **only** the
-  license block.
-- The year must match the file creation year (not the current year).
+- Three single-line `//` comments.
+- No `// @formatter:off` / `// @formatter:on` wrapper.
+- `<YEAR-RANGE>` is the file's actual lifespan (e.g. `2017-2026`).
+- jllama uses `SPDX-License-Identifier: MIT` with a dual-copyright
+  line (Konstantin Herud upstream attribution); everywhere else is
+  `Apache-2.0`.
+
+REUSE-tool compliance is enforced in CI in every repo.
 
 ---
 
-## 2. Test Framework
+## 2. Test Framework — the actually-used stack
 
 | Concern | Choice |
 |---|---|
-| Test runner | JUnit Jupiter (`@Test`, `@BeforeEach`, `@TempDir`) from `org.junit.jupiter.api.*` |
-| Parameterized tests | `@ParameterizedTest` + `@MethodSource` / `@ValueSource` / `@CsvSource` |
-| Assertions | Hamcrest only — `assertThat(actual, is(equalTo(expected)))` |
-| Mocking | Mockito (`mock()`, `verify()`, `when()`, `ArgumentCaptor`) |
-| Temp file system | `Files.createTempDirectory(...)` or `@TempDir Path folder` |
-| SLF4J log capture (where applicable) | `LogCaptor` |
+| Runner | JUnit Jupiter 6.1.0 (`org.junit.jupiter.api.*`) |
+| Assertions | Hamcrest 3.0 (`assertThat(actual, is(equalTo(expected)))`) |
+| Parameterized | `@ParameterizedTest` + `@MethodSource(SourceClass.CONSTANT_NAME)` |
+| Mocking | Mockito (BAF, plugin) |
+| Temp filesystem | `@TempDir Path folder` |
+| SLF4J log capture | `LogCaptor` (BAF, jllama) |
 
 **Do NOT use:**
 
-- `Assertions.assertEquals` / `Assertions.assertTrue` / `Assertions.assertFalse`
-  — use Hamcrest equivalents.
-- TestNG, JUnit 4, or JUnit 5 vintage runner.
+- `org.junit.*` (JUnit 4) — banned via Maven Enforcer in every repo.
+- `@RunWith(DataProviderRunner.class)` — not used in any repo.
+- TestNG.
+- `Assertions.assertEquals` / `assertTrue` / `assertFalse` /
+  `assertNotNull` from `org.junit.jupiter.api.Assertions` when Hamcrest
+  can express it more clearly.
+
+**Two narrow Jupiter-assertion exceptions** that ARE used in practice:
+
+- `assertThrows` / `assertDoesNotThrow` — Hamcrest has no equivalent.
+- `assertArrayEquals(byte[], byte[])` — used in streambuffer for
+  byte-array equality where Hamcrest's `is(equalTo(...))` would compare
+  references instead of content.
 
 ---
 
@@ -76,15 +78,16 @@ package net.ladenthin.<repo>;
 public class FooTest {
 ```
 
-No runner annotation is required — JUnit Jupiter discovers `@Test` and
-`@ParameterizedTest` methods automatically.
+No runner annotation. Class-level `@Timeout(value = 20, unit = TimeUnit.SECONDS)`
+is appropriate for tests that may hang on bugs (verified in
+`StreamBufferTest.java:39`).
 
 ### Shared Instance Fields
 
 Declare shared utilities as `private final` instance fields:
 
 ```java
-private final AiMdDocumentCodec documentCodec = new AiMdDocumentCodec();
+private final BitHelper bitHelper = new BitHelper();
 ```
 
 Mocks that need fresh state per test are declared at field level but
@@ -99,7 +102,7 @@ public void setUp() {
 }
 ```
 
-An empty `@BeforeEach` method should be omitted entirely.
+Omit an empty `@BeforeEach` method entirely.
 
 ### TempDir
 
@@ -114,83 +117,119 @@ public Path folder;
 
 ---
 
-## 4. Code Folding — Grouping Tests by Method Under Test
+## 4. Two equally valid grouping styles
 
-Tests within a class **must** be grouped using NetBeans-style editor fold
-regions, one fold per method/feature under test:
+The owner's codebases use two different patterns to group related
+tests within a class. **Both are accepted**; pick the style that
+matches the surrounding file and stay consistent.
+
+### Style A — NetBeans `<editor-fold>` (used in BAF, plugin)
 
 ```java
-// <editor-fold defaultstate="collapsed" desc="methodName">
-@Test
-public void methodName_conditionA_expectedResultA() { ... }
-
-@Test
-public void methodName_conditionB_expectedResultB() { ... }
+// <editor-fold defaultstate="collapsed" desc="getKillBits">
+@ParameterizedTest
+@MethodSource(CommonDataProvider.DATA_PROVIDER_KILL_BITS)
+public void getKillBits_bitsGiven_killBitsEqualsExpectation(int bits, BigInteger killBits) {
+    // ...
+}
 // </editor-fold>
 ```
 
 Rules:
 
-- The `desc` attribute equals the method name (or a short feature label
-  for non-method groups).
-- `defaultstate="collapsed"` is mandatory on every fold.
-- All tests for the same method go inside a single fold.
-- Tests that exercise different methods **must** be in different folds.
-- The fold order in the file should match logical reading order (simple
-  cases first, edge cases and exceptions last).
+- `desc` equals the method name (or a short feature label).
+- `defaultstate="collapsed"` is mandatory.
+- One fold per method/feature under test.
+- Tests for different methods MUST be in different folds.
+
+### Style B — `@Nested` + `@DisplayName` (used in streambuffer)
+
+```java
+@Nested
+@DisplayName("roundtrip")
+class RoundtripTests {
+    @DisplayName("simple round trip")
+    @Test
+    public void testSimpleRoundTrip() throws IOException {
+        // ...
+    }
+}
+```
+
+Rules:
+
+- Each `@Nested` class groups tests for a related behaviour.
+- `@DisplayName` provides the human-readable label.
+- `@Nested` classes are non-static inner classes.
+
+**Do not mix styles in one file.** If you're editing a `<editor-fold>`-
+style file, keep adding folds; if you're editing a `@Nested`-style
+file, keep adding `@Nested` classes.
 
 ---
 
 ## 5. Test Method Naming
 
-Pattern: **`methodUnderTest_inputOrCondition_expectedBehavior`**
+Default pattern: **`methodUnderTest_inputOrCondition_expectedBehavior`**
 
 ```
+getKillBits_bitsGiven_killBitsEqualsExpectation
+convertBitsToSize_bitsGiven_sizeEqualsExpectation
+assertBatchSizeInBitsIsInRange_bitsGivenBelowMinimum_exceptionThrown
 indexSourceRoot_emptyDirectory_returnsZero
-indexSourceRoot_existingSummaryForceIsFalse_skipsFile
-read_validDocument_parsesHeaderAndBody
-preparePrompt_sourceLongerThanMax_trimmedFlagIsTrue
 ```
 
-Rules:
+Rules for the default pattern:
 
-- All three segments are **required** and separated by underscores.
-- Use camelCase within each segment.
-- The `expected` segment describes the observable outcome, not the
-  implementation step.
-  - Good: `_returnsZero`, `_throwsException`, `_skipsFile`,
-    `_roundtripsCorrectly`
-  - Bad: `_works`, `_correct`, `_test`
-- Exception tests: the segment ends with `_throwsException` or
-  `_exceptionThrown`.
-- No-op / smoke tests: use `_noExceptionThrown`.
+- All three segments are required and separated by underscores.
+- camelCase within each segment.
+- The `expected` segment describes the observable outcome
+  (`_returnsZero`, `_throwsException`, `_exceptionThrown`,
+  `_skipsFile`, `_roundtripsCorrectly`).
+- Exception tests end with `_throwsException` or `_exceptionThrown`.
+- No-op / smoke tests use `_noExceptionThrown`.
+
+**Inside `@Nested` classes (Style B)**, naming MAY relax to
+`testFoo` / `testSimpleRoundTrip` because `@DisplayName` carries the
+readable label. Do not relax naming in non-`@Nested` classes.
 
 ---
 
 ## 6. Test Body — AAA Structure
 
-Every test body **must** follow the Arrange / Act / Assert structure with
-explicit section comments:
+Every test body **must** follow the Arrange / Act / Assert structure
+with explicit section comments. Verified usage: BAF 323+ matches across
+10 files; sb 658 matches in one file; plugin 129 across 10 files.
 
 ```java
 @Test
-public void indexSourceRoot_emptyDirectory_returnsZero() throws Exception {
+public void example() {
     // arrange
-    final Path temp = Files.createTempDirectory("ai-test");
-    final SourceFileIndexer indexer = new SourceFileIndexer(...);
+    Foo foo = new Foo();
 
     // act
-    final int result = indexer.indexSourceRoot(temp);
+    int result = foo.doThing();
 
     // assert
-    assertThat(result, is(equalTo(0)));
+    assertThat(result, is(equalTo(42)));
+}
+```
+
+The combined `// act, assert` form is acceptable when the act IS the
+assertion (verified in `BitHelperTest.java:26,38,49`):
+
+```java
+@Test
+public void getKillBits_bitsGiven_killBitsEqualsExpectation(int bits, BigInteger killBits) {
+    // arrange
+    BitHelper bitHelper = new BitHelper();
+
+    // act, assert
+    assertThat(bitHelper.getKillBits(bits), is(equalTo(killBits)));
 }
 ```
 
 ### `// pre-assert` — two valid positions
-
-`// pre-assert` is a named section that asserts a condition without it
-being the primary assertion of the test.
 
 **1. Before `// act`** — to verify a precondition of the input:
 
@@ -208,33 +247,31 @@ final int count = indexer.indexSourceRoot(sourceRoot);
 assertThat(count, is(equalTo(1)));
 ```
 
-**2. Between `// act` and `// assert`** — as a guard before accessing
-fields:
+**2. Between `// act` and `// assert`** — as a null-guard before
+accessing fields:
 
 ```java
 // act
-final AiMdDocument updated = documentCodec.read(aiFile);
+final Foo result = sut.compute();
 
 // pre-assert
-assertThat(updated, is(notNullValue()));
+assertThat(result, is(notNullValue()));
 
 // assert
-assertThat(updated.header().s(), is(equalTo("Mock summary for Test.java")));
+assertThat(result.value(), is(equalTo("expected")));
 ```
 
 Rules:
 
 - `// arrange` may be omitted only when there is genuinely nothing to
   arrange.
-- Keep the act to a **single method call** whenever possible.
-- Do **not** use `Objects.requireNonNull(...)` as a guard in tests; use a
+- Keep the act to a single method call whenever possible.
+- Do **not** use `Objects.requireNonNull(...)` as a guard in tests; use
   `// pre-assert` with `assertThat(x, is(notNullValue()))`.
 
 ---
 
 ## 7. Assertions — Hamcrest Style
-
-All assertions use the Hamcrest `assertThat` form:
 
 ```java
 // equality
@@ -263,18 +300,23 @@ assertThat(list, is(empty()));
 assertThat(count, is(greaterThan(0)));
 ```
 
-**Imports to use:**
+**Imports:**
 
 ```java
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+// or specific:
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 ```
 
-Do **not** use:
+Allowed Jupiter assertions alongside Hamcrest:
 
-- `org.junit.Assert.assertEquals`
-- `org.junit.Assert.assertTrue` / `assertFalse`
-- `Assert.assertNotNull`
+```java
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;  // byte-array compare
+```
 
 ---
 
@@ -283,63 +325,95 @@ Do **not** use:
 ```java
 // Simple expected exception
 @Test
-public void preparePrompt_unsupportedTarget_throwsException() {
-    // act / assert
-    assertThrows(IllegalArgumentException.class, () -> summarizer.someMethod(null));
+public void doIt_invalidInput_throwsException() {
+    // arrange
+    Foo foo = new Foo();
+
+    // act, assert
+    assertThrows(IllegalArgumentException.class, () -> foo.doIt(-1));
 }
 
-// Exception with message verification
+// With message check:
 @Test
-public void create_unknownProvider_throwsWithMessage() {
+public void doIt_invalidInput_throwsExceptionWithReason() {
     // arrange
-    final AiGenerationProviderFactory factory = new AiGenerationProviderFactory();
+    Foo foo = new Foo();
 
     // act
-    final IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-            () -> factory.create("unknown-provider", config, promptSupport));
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> foo.doIt(-1));
 
     // assert
-    assertThat(e.getMessage(), containsString("unknown-provider"));
+    assertThat(e.getMessage(), containsString("must be >= 0"));
 }
 ```
 
 ---
 
-## 9. Parameterized Tests
+## 9. Parameterized Tests — `@MethodSource`
+
+Owner's pattern: store method-source names as named string constants
+on a `CommonDataProvider` (or sibling provider) class, then reference
+them symbolically from `@MethodSource`. Prevents typos and makes
+provider methods easy to locate.
 
 ```java
-// 1. Constant for the source method name
-public static final String SOURCE_NODE_TYPES = "nodeTypes";
+// In CommonDataProvider.java:
+public static final String DATA_PROVIDER_KILL_BITS = "killBitsArguments";
 
-// 2. Javadoc linking to which test it serves
-/**
- * For {@link AiMdHeaderCodecTest}.
- */
-static Stream<String> nodeTypes() {
+static Stream<Arguments> killBitsArguments() {
     return Stream.of(
-            AiMdHeaderCodec.NODE_TYPE_FILE,
-            AiMdHeaderCodec.NODE_TYPE_PACKAGE
+            Arguments.of(1, BigInteger.valueOf(1L)),
+            Arguments.of(8, BigInteger.valueOf(255L))
     );
 }
 
+// In BitHelperTest.java:
 @ParameterizedTest
-@MethodSource("nodeTypes")
-public void roundtrip_validNodeType_preservesValue(final String nodeType) {
-    // arrange / act / assert
+@MethodSource(CommonDataProvider.DATA_PROVIDER_KILL_BITS)
+public void getKillBits_bitsGiven_killBitsEqualsExpectation(int bits, BigInteger killBits) {
+    // ...
 }
 ```
 
-For sources shared across multiple test classes, reference a fully-
-qualified method:
-`@MethodSource("net.ladenthin.<pkg>.CommonDataProvider#nodeTypes")`.
+Verified in `BitHelperTest.java:21,33,65`.
+
+For sources local to the test class (streambuffer pattern), the
+provider method lives directly on the test class:
+
+```java
+static Stream<Arguments> writeMethods() {
+    return Stream.of(
+            Arguments.of(WriteMethod.BYTE_ARRAY),
+            Arguments.of(WriteMethod.INT),
+            Arguments.of(WriteMethod.BYTE_ARRAY_WITH_PARAMETER));
+}
+```
 
 ---
 
 ## 10. Mocking the Logger
 
-Inject a mock logger to verify that a class logs expected messages.
+For SLF4J-based repos (BAF, jllama, streambuffer), production code
+uses the static-field idiom
+(`private static final Logger LOG = LoggerFactory.getLogger(Foo.class)`).
+In tests, use **LogCaptor**:
 
-For Maven plugins (`org.apache.maven.plugin.logging.Log`):
+```java
+try (LogCaptor captor = LogCaptor.forClass(Foo.class)) {
+    // act
+    foo.doSomething();
+
+    // assert
+    assertThat(captor.getInfoLogs(), hasItem(containsString("started")));
+}
+```
+
+Verified in BAF (`LogCaptor` 2.12.6 in 5 test files) and jllama
+(`LoggingSmokeTest`).
+
+For Maven plugins (plugin only), the `Log` is constructor-injected and
+can be mocked with Mockito:
 
 ```java
 @BeforeEach
@@ -348,7 +422,7 @@ public void setUp() {
 }
 
 @Test
-public void indexSourceRoot_missingSourceFile_logsWarning() {
+public void indexSourceRoot_missingFile_logsWarning() {
     // arrange
     final SourceFileIndexer indexer = new SourceFileIndexer(mockLog, ...);
 
@@ -356,24 +430,9 @@ public void indexSourceRoot_missingSourceFile_logsWarning() {
     indexer.indexSourceRoot(sourceRoot);
 
     // assert
-    verify(mockLog, atLeastOnce()).warn(contains("Skipping missing subtree"));
+    verify(mockLog, atLeastOnce()).warn(contains("Skipping"));
 }
 ```
-
-For SLF4J-based repos, prefer `LogCaptor`:
-
-```java
-try (LogCaptor logCaptor = LogCaptor.forClass(OSInfo.class)) {
-    // act
-    OSInfo.getHardwareName();
-
-    // assert
-    assertThat(logCaptor.getInfoLogs(), hasItem(containsString("arch=")));
-}
-```
-
-Use `ArgumentCaptor<String>` when the full message content must be
-asserted with the mock approach.
 
 ---
 
@@ -404,19 +463,18 @@ import static org.hamcrest.Matchers.*;
 
 ---
 
-## 12. Constants — DRY Within a Fold
+## 12. Constants — DRY Within a Fold / `@Nested` Class
 
-When the same literal appears in two or more tests within the same fold,
-extract it into a `private static final` constant at the class level.
+When the same literal appears in two or more tests within the same
+grouping, extract it to a `private static final` constant.
 
 ```java
 // GOOD — one definition; both tests derive from it
 private static final String FIXED_CHECKSUM = "AAAAAAAA";
 ```
 
-Constants belong to their logical fold. Do not share a constant between
-different folds even when the underlying value is identical — different
-folds test independent methods and should not be coupled.
+Constants belong to their logical group. Do not share a constant
+between unrelated groups even when the underlying value is identical.
 
 ---
 
@@ -424,17 +482,21 @@ folds test independent methods and should not be coupled.
 
 | Anti-pattern | Correct alternative |
 |---|---|
+| `import org.junit.Test` (JUnit 4) | `import org.junit.jupiter.api.Test` |
+| `@RunWith(DataProviderRunner.class)` | `@ParameterizedTest` + `@MethodSource` |
+| `@Rule public TemporaryFolder folder = new TemporaryFolder()` | `@TempDir Path folder` |
 | `Assert.assertEquals(expected, actual)` | `assertThat(actual, is(equalTo(expected)))` |
 | `Assert.assertTrue(condition)` | `assertThat(condition, is(true))` |
 | `Assert.assertNotNull(x)` | `assertThat(x, is(notNullValue()))` |
 | `Objects.requireNonNull(x)` as guard in tests | `// pre-assert` with `assertThat(x, is(notNullValue()))` |
-| `System.out.println(...)` in tests | Remove; use logger assertions instead |
+| `System.out.println(...)` in tests | Remove; use LogCaptor / mock-Log instead |
 | Missing `// arrange / act / assert` comments | Add the section comments always |
-| Missing editor fold | Wrap each method group in `<editor-fold>` |
-| Non-conforming test name like `shouldSummarizeFile()` | Rename to `summarizeFiles_condition_expectation()` |
+| Mixing `<editor-fold>` and `@Nested` styles in one file | Pick one and stay consistent |
+| `/* license */` block | Use the SPDX single-line form |
+| `// @formatter:off` wrapper around the license | Remove — not needed for SPDX |
+| Non-conforming test name like `shouldDoFoo()` | Rename to `doFoo_condition_expectation()` |
 | Empty `@BeforeEach` method | Remove it |
-| Hard-coded path strings like `"/tmp/test"` | Use `Files.createTempDirectory(...)` |
-| Removing existing correct inline comments during a fix | Preserve all correct comments; only remove factually wrong ones |
+| Hard-coded paths like `"/tmp/test"` | Use `Files.createTempDirectory(...)` or `@TempDir` |
 
 ---
 
@@ -442,12 +504,12 @@ folds test independent methods and should not be coupled.
 
 When modifying existing test code:
 
-- **Keep all existing inline comments** that are correct and descriptive.
-- **Only remove a comment** if it is factually wrong, misleading, or
+- Keep all existing inline comments that are correct and descriptive.
+- Only remove a comment if it is factually wrong, misleading, or
   describes code that no longer exists.
-- **Add new comments** where added code is not self-explanatory.
-- When adding AAA section comments, place them **around** existing inline
-  comments — do not replace them.
+- Add new comments where added code is not self-explanatory.
+- When adding AAA section comments, place them **around** existing
+  inline comments — do not replace them.
 
 The goal is to **minimize the diff** to only lines that actually need
 changing.
@@ -456,14 +518,12 @@ changing.
 
 ## 15. Repo-specific supplements
 
-The following patterns are documented in each repo's own
-`TEST_WRITING_GUIDE.md` (when present):
-
 | Repo | Project-specific test conventions |
 |---|---|
-| BAF | Custom marker annotations (`@AwaitTimeTest`, `@OpenCLTest`, `@ToStringTest`); `OpenCLPlatformAssume` / `LMDBPlatformAssume`; `StaticKey` / `TestAddresses42` / `P2PKH` enum constants; `LMDBBase` / `AbstractProducerTest` shared base classes; socket test helpers via `TestTimeProvider` / `ConnectionUtils` |
-| plugin | LLM integration tests with `LlamaCppJniAvailability.isAvailable()` guard + bundled `SmolLM2-135M-Instruct-Q3_K_M.gguf` model |
-| jllama | C++ GoogleTest pattern (`test_json_helpers.cpp`, `test_jni_helpers.cpp`); JNI mock via zero-filled `JNINativeInterface_`; multimodal integration test self-skip via system properties |
-| streambuffer | jcstress + Lincheck + vmlens opt-in concurrency profiles; JMH benchmarks via `exec-maven-plugin` |
+| BAF | Custom marker annotations (`@AwaitTimeTest`, `@OpenCLTest`, `@ToStringTest`); `OpenCLPlatformAssume` / `LMDBPlatformAssume`; `StaticKey` / `TestAddresses42` / `P2PKH` enum constants; `LMDBBase` / `AbstractProducerTest` shared base classes; socket test helpers via `TestTimeProvider` / `ConnectionUtils`; `CommonDataProvider.DATA_PROVIDER_*` parameter constants. Style: `<editor-fold>`, strict naming. |
+| streambuffer | jcstress + Lincheck + vmlens opt-in concurrency profiles; JMH benchmarks via `exec-maven-plugin`; class-level `@Timeout(20s)`. Style: `@Nested` + `@DisplayName`, relaxed naming inside `@Nested`. |
+| jllama | C++ GoogleTest pattern (`test_json_helpers.cpp`, `test_jni_helpers.cpp`); JNI mock via zero-filled `JNINativeInterface_`; multimodal integration test self-skip via system properties. AI-generated; use BAF/sb for Java style reference. |
+| plugin | LLM integration tests with `LlamaCppJniAvailability.isAvailable()` guard + bundled `SmolLM2-135M-Instruct-Q3_K_M.gguf` model; Maven `Log` mocked via Mockito. AI-generated; use BAF/sb for Java style reference. |
 
-These supplements compose with — not replace — the canonical rules above.
+These supplements compose with — not replace — the canonical rules
+above.

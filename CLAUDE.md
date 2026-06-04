@@ -20,9 +20,10 @@ files here instead of duplicating them.
 ## Layout
 
 ```
-.claude/skills/java-tdd-guide/SKILL.md   Canonical Java TDD skill
-guides/CODE_WRITING_GUIDE.md             Canonical Java code conventions
-guides/TEST_WRITING_GUIDE.md             Canonical Java test conventions
+.claude/skills/java-tdd-guide/SKILL.md   Canonical Java TDD skill (JUnit Jupiter, Java 8 baseline)
+guides/CODE_WRITING_GUIDE.md             Canonical Java code conventions (Java 8 baseline)
+guides/CODE_WRITING_GUIDE-java21.md      Optional Java 21 supplement (records, switch expressions, etc.) — BAF-only today
+guides/TEST_WRITING_GUIDE.md             Canonical Java test conventions (JUnit Jupiter + Hamcrest)
 policies/javadoc-conventions.md          HTML-entity rules for Javadoc
 policies/spotbugs-suppressions.md        spotbugs-exclude.xml maintenance
 policies/jqwik-prompt-injection.md       jqwik pin + incident note
@@ -31,6 +32,32 @@ workflows/pull-request-workflow.md       gh / MCP PR steps
 templates/CLAUDE.md.template             Standard per-repo CLAUDE.md
 crossrepostatus.md                       Live cross-repo status table
 ```
+
+## Java version tier — important
+
+The canonical guides assume **Java 8 + JUnit Jupiter 6.1.0 + Hamcrest 3.0**
+because that is the lowest common denominator across the four sibling
+repos:
+
+| Repo | Java target | Source of evidence |
+|---|---|---|
+| `streambuffer` | Java 8 | `pom.xml` `<release>${java.version}</release>` |
+| `java-llama.cpp` | Java 8 | `pom.xml` `<release>8</release>` |
+| `llamacpp-ai-index-maven-plugin` | Java 8 | `pom.xml` `<release>8</release>` |
+| `BitcoinAddressFinder` | Java 21 | `pom.xml` `<source>21</source>/<target>21</target>` |
+
+BAF additionally follows the
+[`guides/CODE_WRITING_GUIDE-java21.md`](guides/CODE_WRITING_GUIDE-java21.md)
+supplement (records, switch expressions, text blocks, pattern matching,
+sealed types, `var`). The other three repos must NOT use those idioms.
+
+## Style ground truth
+
+BAF and streambuffer are hand-written by the owner and are the
+authoritative style references. `java-llama.cpp` and
+`llamacpp-ai-index-maven-plugin` are predominantly AI-generated;
+their patterns are useful as data points but should NOT be treated as
+canonical when they conflict with BAF/sb.
 
 ## How the cross-repo dependency works
 
