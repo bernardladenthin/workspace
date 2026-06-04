@@ -74,6 +74,10 @@ status table further down has been updated accordingly.
 - Versioned guide chain (`guides/src/{-8,-21}.md`, `guides/test/{-8,-21}.md`) ✅
 - Audit-driven SKILL.md rewrite (replaced 961 lines of fictional JUnit 4 content with Jupiter-first content matching BAF + sb actual conventions) ✅
 - Safe dependency bumps (logback patch, checker 4.2.0, fb-contrib 7.7.4, spotless 3.6.0, palantir 2.91.0, pitest 1.25.3 + surefire 3.5.6 for sb) ✅
+- BAF naming-audit follow-up renames beyond the original 4-item table:
+  - `KeyUtility.killBits` → `alignDown` (`cd72083`) + comprehensive Javadoc rewrite explaining the batch-alignment use case
+  - `OpenCLPlatformAssume.assumeOpenCLLibraryLoadable*` → `assumeOpenClLibraryAvailable*` (`15279d4`) — 31 references / 8 files; resolves the post-rename inconsistency between assume name and underlying `isOpenClNativeLibraryLoaded` check
+- BAF compile fix: stale `killBits` variable reference inside the trace-log branch of `AbstractProducer.createSecretBase` (`7180ea2`) — missed in the earlier `getKillBits` → `getLowBitMask` rename because the variable rename only updated the `keyUtility.killBits(...)` call line, not the `LOGGER.trace("killBits: " + killBits.toByteArray())` reference 8 lines below.
 
 ---
 
