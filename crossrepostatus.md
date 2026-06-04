@@ -63,7 +63,7 @@ status table further down has been updated accordingly.
 - All four repos have 13 distinct `-Xep:<Name>:ERROR` patterns wired (table seed said 12; actual count is 13 because one earlier rename happened upstream — minor; the substance is correct).
 - `-Werror`: jllama, plugin, sb have it set in `<arg>-Werror</arg>` (jllama `pom.xml:366`, plugin `:341`, sb `:351`); BAF has comments saying "intentionally NOT set yet" (BAF `:320`) — matches "❌ not yet flipped" status.
 - `<parameters>true</parameters>`: present in all four `pom.xml`.
-- `<release>` for main compile: ✅ jllama `:347`, ✅ plugin `:323`, ✅ sb `:328`; BAF still uses `<source>21</source>/<target>21</target>` at `:313-314` — matches "❌ main still source/target" status.
+- `<release>` for main compile: ✅ jllama `:347`, ✅ plugin `:323`, ✅ sb `:328`, ✅ BAF (closed in this session: `pom.xml:313` is now `<release>21</release>`; blocker was `ByteBufferUtility.java`'s `jdk.internal.misc.Unsafe` import, resolved by migrating to reflectively-resolved `sun.misc.Unsafe` with `@Nullable UNSAFE` field for non-HotSpot JVM portability — BAF commits `c2470b7` + `1b67ad0`).
 - PIT `<mutationThreshold>100</mutationThreshold>` wired in all four.
 - Checker Framework wired in all four.
 - `module-info.java` present in all four; module-level `@NullMarked` confirmed on jllama, plugin, sb (line `@org.jspecify.annotations.NullMarked` before `module ...`); BAF deliberately omits it (BAF `module-info.java:26` has no `@NullMarked` — matches the "intentionally NOT added" stance documented in BAF CLAUDE.md).
@@ -95,7 +95,7 @@ status table further down has been updated accordingly.
 | Error Prone bug patterns → ERROR (12 patterns) | ✅ verified (was seed ❌) | ✅ `855f447` | ✅ `034b553` | ✅ `ad95d66` |
 | `javac -Werror` + `-Xlint:all,-serial,-options` | ❌ not yet flipped (items 1–6 cleared; ready) | ✅ `3e2efbb` | ✅ | ✅ `7a4fbf0` |
 | `-parameters` javac arg | ✅ `pom.xml:315` (was seed ❌) | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
-| `--release N` instead of `-source`/`-target` | ⛔ **blocked** — `ByteBufferUtility.java:9` directly imports `jdk.internal.misc.Unsafe`. Local test (this session) confirmed `--release 21` rejects `--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED` with *"exporting a package from system module java.base is not allowed with --release"*. Switching to `--release` requires first refactoring `ByteBufferUtility` off `jdk.internal.misc.Unsafe` (alternatives: `sun.misc.Unsafe` is also blocked; `java.lang.foreign.MemorySegment` requires Java 22+). Keep `<source>21>/<target>21>` for now. | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
+| `--release N` instead of `-source`/`-target` | ✅ `<release>21</release>` at `pom.xml:313` (BAF commits `c2470b7` + `1b67ad0`). Blocker was `ByteBufferUtility.java:9` directly importing `jdk.internal.misc.Unsafe`; resolved by migrating to reflectively-resolved `sun.misc.Unsafe` (always-exported via `jdk.unsupported`). Defensive design: `@Nullable Unsafe UNSAFE` field — static initializer wraps reflective lookup in try/catch so non-HotSpot JVMs (OpenJ9, GraalVM Native Image, Android) get `UNSAFE == null` rather than `ExceptionInInitializerError`; `freeByteBuffer` gains a null guard so it becomes a no-op on those platforms (JVM Cleaner handles the buffer naturally). `default-testCompile` overrides back to `<source>/<target>` so tests can keep importing `jdk.internal.ref.Cleaner` and `sun.nio.ch.DirectBuffer` to assert Cleaner invocation. | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
 | PIT mutation threshold enforced (100%) | ✅ `BitHelper` (`pom.xml:711-717`) | ✅ `Pair` (`62f8a00`) | ✅ `AiCompletionParser` (renamed from `AiResponseNormalizer` in `6567b9e`) | ✅ whole package |
 | Checker Framework 2nd nullness pass | ✅ NullnessChecker + `objects.astub` | ✅ `c63870b` | ✅ | ✅ `5a9be1b` |
 | JPMS `module-info.java` | ✅ `src/main/java9/module-info.java` | ✅ `0fd066a`/`9528e79` (module-level `@NullMarked`) | ✅ — module-level `@NullMarked` set in module-info; CLAUDE.md note corrected in `9be6f17` | ✅ |
@@ -166,7 +166,6 @@ status table further down has been updated accordingly.
 
 **Stays open in BAF** (real remaining work):
 - `javac -Werror` flip (items 1–6 are clear, just hasn't been flipped)
-- `--release N` for main compile (still uses `<source>21</source>/<target>21>`)
 - ArchUnit `layeredArchitecture()` (not yet)
 - ArchUnit per-module banned-imports
 - SpotBugs `effort=Max`/`threshold=Low`
@@ -194,7 +193,7 @@ status table further down has been updated accordingly.
 
 ### BAF-only
 - `javac -Werror` flip — blockers cleared; the stale 6-item warning list in `pom.xml:319-326` was refreshed to point at the Error Prone long-tail TODO as the remaining gate (`2d99c4a`). The actual `<arg>-Werror</arg>` is still off.
-- ⛔ `--release 21` for main compile — **blocked** by `ByteBufferUtility.java:9` importing `jdk.internal.misc.Unsafe`; switching to `--release` rejects the `--add-exports` for system modules. Refactor `ByteBufferUtility` off internal-JDK first, or accept the current `<source>21>/<target>21>` style as the permanent answer.
+- ~~`--release 21` for main compile~~ ✅ **DONE** (BAF commits `c2470b7` + `1b67ad0`, this session). The `jdk.internal.misc.Unsafe` import in `ByteBufferUtility.java:9` was migrated to reflectively-resolved `sun.misc.Unsafe` (always-exported via `jdk.unsupported`) with a `@Nullable Unsafe UNSAFE` field; the static initializer wraps the reflective lookup in try/catch so non-HotSpot JVMs (OpenJ9, GraalVM Native Image, Android) get `UNSAFE == null` rather than `ExceptionInInitializerError`; `freeByteBuffer` gained a null guard so it becomes a no-op on those platforms (JVM Cleaner handles the buffer naturally). The duplicate system-module `--add-opens`/`--add-exports` in main `<compilerArgs>` were removed (runtime `<argLine>` keeps them for surefire). `default-testCompile` overrides the inherited `<release>` back to `<source>21</source><target>21</target>` so tests can keep importing `jdk.internal.ref.Cleaner` + `sun.nio.ch.DirectBuffer` to assert Cleaner invocation in `ByteBufferUtilityTest`. Verified end-to-end: clean `mvn compile` succeeds under `--release 21`; all 38 `ByteBufferUtilityTest` cases pass.
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
 - 3 large GPU design TODOs (Pre-compute HASHSET hash on GPU, Push TRUNCATED_LONG_64 into OpenCL, End-to-end GPU vision)
 - Persistence follow-ups (re-verified 2026-06-04): ~~4 stale `loadToMemoryCacheOnInit` example JSONs~~ ✅ DONE this session; JMH migration of `AddressLookupBenchmarkTest` (still under `persistence/`, NOT in `benchmark/` JMH module); open-addressing hash table backend; standalone `BloomFilterPersistence`; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item). Default backend remains `BLOOM`.
