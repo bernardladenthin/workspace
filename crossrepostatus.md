@@ -1,12 +1,18 @@
 # Cross-Repo Status Table — VERIFIED
 
-> **For a future session**: this file is the consolidated cross-repo status snapshot
-> at end of the previous session (2026-06-03). All changes referenced by commit
-> hash below are landed. The recommended next-task list lives in the
-> **"Quick prioritisation (cheapest → biggest)"** section near the bottom — start
-> there to pick up work. The richer per-repo design context lives in each repo's
-> own `CLAUDE.md` Open-TODOs section (especially BAF's persistence/GPU TODOs and
-> jllama's strictness-ladder commit ledger).
+> **Last full source verification:** 2026-06-04 (this session). Every
+> ✅ / ❌ in the universal-strictness section and the naming-audit
+> section was re-checked against actual `pom.xml`, source files, and
+> `ArchitectureTest` content on the current `claude/vigilant-gauss-7jXfW`
+> branch in each of the four sibling repos. The "fresh-verification
+> deltas" subsection just below lists what changed since the previous
+> session's snapshot.
+>
+> **For a future session**: the recommended next-task list lives in the
+> **"Quick prioritisation (cheapest → biggest)"** section near the bottom
+> — start there to pick up work. The richer per-repo design context lives
+> in each repo's own `CLAUDE.md` Open-TODOs section (especially BAF's
+> persistence/GPU TODOs and jllama's strictness-ladder commit ledger).
 
 Repos:
 - **BAF** = `/home/user/BitcoinAddressFinder`
@@ -17,6 +23,57 @@ Repos:
 Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 
 > **Audit method**: each row verified by reading `pom.xml`, source files, and `git rev-parse` against the working tree on the current branch. Seed claims that were wrong are flagged with → and the corrected state. See `/home/user/cross-repo-status-AUDIT-LOG.md` for the per-row evidence trail.
+
+---
+
+## Fresh-verification deltas (this session, 2026-06-04)
+
+Each item below was re-scanned against actual source code today; the
+status table further down has been updated accordingly.
+
+**Audit-count drift** (counts moved since the last snapshot):
+
+| Metric | Last snapshot | Actual today | Why it moved |
+|---|---|---|---|
+| BAF `@VisibleForTesting` usages | 19 sites × 6 files | **16 sites × 5 files** | 3 annotations dropped (`OpenClTask.getPrivateKeySourceArgument`, `ProducerOpenCL.waitTillFreeThreadsInPool`, `ProducerOpenCL.getFreeThreads` — commit `05d9ddf`). The 4 `cli/Main.FILE_EXTENSION_*` annotations are still present (constants used by production, tests reach them in-package via `MainConfigurationLoadingTest`). |
+| BAF LogCaptor test files | 5 | **7** | Two LogCaptor users added since the snapshot. |
+| BAF `@Nullable` sites in production | 53 | **50** | 3 sites removed as types tightened (no regressions; deep scan still finds the remainder legitimate). |
+| BAF stale `loadToMemoryCacheOnInit` example JSONs | 3 | **4** | `examples/config_AddressFilesToLMDB.json` also carries the dead key — the original CLAUDE.md TODO listed only the 3 `Find_*` configs but missed this one. |
+| sb `@Nullable` "zero in production" claim | 0 | **0 actual annotations** (2 grep hits are in Javadoc text, not annotations) — claim **stays accurate**. |
+
+**Items confirmed unchanged (still open, no source movement):**
+
+- BAF: `Finder.AWAIT_DURATION_TERMINATE` and `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` are still package-private, non-final, mutable statics (`Finder.java:44`, `ConsumerJava.java:48`).
+- BAF: `Main.runLatch` is still package-private (not made private with public getter) — `cli/Main.java:72,84`.
+- BAF: All five executor / lifecycle fields flagged for constructor injection still package-private with no injection seam: `Finder.producerExecutorService` (`:61`), `ConsumerJava.scheduledExecutorService` (`:95`, non-final), `ConsumerJava.consumeKeysExecutorService` (`:130`), `ProducerOpenCL.resultReaderThreadPoolExecutor`, `ProducerOpenCL.openCLContext`.
+- BAF: 4 naming-audit MODERATE/MINOR findings still in source: `BitHelper.getKillBits` (`:35`), `LMDBPersistence.getAllAmountsFromAddresses` (interface + impl), `OpenCLBuilder.isOpenCLnativeLibraryLoadable` (`:229`), `PrivateKeyValidator.returnValidPrivateKey` (`:89`).
+- plugin: `LlamaCppJniAiSummaryProvider` file still present (not renamed to `LlamaCppJniAiGenerationProvider`); `AiGenerationResult` still carries only the `body` field (line 19: `private final String body;`) — both naming-audit follow-ups remain open.
+- jllama: `setSpecDraftBackendSampling` — zero matches in `src/main/java` — confirmed still ❌ (deferred by policy).
+- All four repos: SpotBugs is on `effort=Default`, `threshold=Default` (BAF `:648-649`, jllama `:572-573`, plugin `:551-552`, sb `:541-542`) — confirmed ❌.
+- All four repos: zero `layeredArchitecture()` references in any `ArchitectureTest.java` — confirmed ❌.
+
+**Items confirmed DONE in source (matches the ✅ rows below):**
+
+- All four repos have 13 distinct `-Xep:<Name>:ERROR` patterns wired (table seed said 12; actual count is 13 because one earlier rename happened upstream — minor; the substance is correct).
+- `-Werror`: jllama, plugin, sb have it set in `<arg>-Werror</arg>` (jllama `pom.xml:366`, plugin `:341`, sb `:351`); BAF has comments saying "intentionally NOT set yet" (BAF `:320`) — matches "❌ not yet flipped" status.
+- `<parameters>true</parameters>`: present in all four `pom.xml`.
+- `<release>` for main compile: ✅ jllama `:347`, ✅ plugin `:323`, ✅ sb `:328`; BAF still uses `<source>21</source>/<target>21</target>` at `:313-314` — matches "❌ main still source/target" status.
+- PIT `<mutationThreshold>100</mutationThreshold>` wired in all four.
+- Checker Framework wired in all four.
+- `module-info.java` present in all four; module-level `@NullMarked` confirmed on jllama, plugin, sb (line `@org.jspecify.annotations.NullMarked` before `module ...`); BAF deliberately omits it (BAF `module-info.java:26` has no `@NullMarked` — matches the "intentionally NOT added" stance documented in BAF CLAUDE.md).
+- Maven Enforcer rules wired in all four; ArchUnit `ArchitectureTest.java` present in all four with `noSystemExit` / `noNewRandom` / `Thread.sleep` / sun/com.sun/jdk.internal bans + public-fields-final rule.
+- BAF persistence implementations all in place: `HashSetAddressPresence`, `TruncatedLong64SortedArrayPresence`, `BloomFilterAccelerator`, `AddressLookupBackend` enum, `AddressPresence` + `AddressLookup` interfaces, `AddressLookupBenchmarkTest`. The benchmark is still under `persistence/` (JUnit timing test) — NOT migrated to JMH `benchmark/` module. `HashSetPrecomputedHashAddressPresence` does NOT exist yet. `GridSizeSweepBenchmark` IS present in `benchmark/`.
+- jllama: `setSkipDownload` (`ModelParameters.java:1448`), `ModelUnavailableException`, `SkipDownloadFailureTranslator`, `LoggingSmokeTest`, `docs/feature-investigation-similar-projects.md`, README platform badge + similar-projects section — all confirmed in place.
+- sb: `getAvailableBytesExact()` at `:236` confirmed. All 7 naming-audit fixes confirmed (`validateOffsetAndLength*`, `shouldTrim`, `getBufferElementCount`-only, `waitForAtLeast`/`waitForAnyData`, `hasNoMissingBytes`, "unsecure" typo, `getBufferSize` deletion).
+- plugin: `AiCompletionParser.java` present (rename from `AiResponseNormalizer` done); `AiChecksumSupport` correctly uses CRC32 (`import java.util.zip.CRC32` at line 10).
+- jllama: `isUnset` (was `isDefault`) confirmed at `ModelParameters.java:1463`.
+
+**This session's new wins (already in the table below):**
+
+- Workspace shared layer (canonical guides, skill, policies, workflows, template) ✅
+- Versioned guide chain (`guides/src/{-8,-21}.md`, `guides/test/{-8,-21}.md`) ✅
+- Audit-driven SKILL.md rewrite (replaced 961 lines of fictional JUnit 4 content with Jupiter-first content matching BAF + sb actual conventions) ✅
+- Safe dependency bumps (logback patch, checker 4.2.0, fb-contrib 7.7.4, spotless 3.6.0, palantir 2.91.0, pitest 1.25.3 + surefire 3.5.6 for sb) ✅
 
 ---
 
@@ -39,13 +96,13 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | ArchUnit per-module banned-imports | ❌ | ❌ | ❌ | ➖ single-package |
 | SpotBugs `effort=Max` + `threshold=Low` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` |
 | **Logging / observability** | | | | |
-| LogCaptor smoke test | ✅ LogCaptor 2.12.6 + used in 5 tests (was seed ➖) | ✅ `3cedc6e` (this session) | ➖ no logging | ➖ no logging |
+| LogCaptor smoke test | ✅ LogCaptor 2.12.6 + used in 7 tests (re-verified 2026-06-04; up from 5) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
 | **This session's additions (sb)** | | | | |
 | `getAvailableBytesExact()` public long getter | ➖ | ➖ | ➖ | ✅ `aa5c6b8` — closes the >2 GB live-count API gap; verified across 441-commit upstream history that no equivalent ever existed before |
 | **Code-quality audits (continuous)** | | | | |
-| `@VisibleForTesting` audit (count) | 19 usages × 6 files | 0 | 0 | 0 |
+| `@VisibleForTesting` audit (count, re-verified 2026-06-04) | 16 usages × 5 files (was 19×6; 3 dropped via `05d9ddf`) | 0 | 0 | 0 |
 | `@VisibleForTesting` design-fit review | ✅ done this session — see "BAF @VisibleForTesting site-by-site audit" below | ➖ no usages | ➖ no usages | ➖ no usages |
-| Null-safety follow-up review | ✅ deep scan this session — 53 `@Nullable` sites all legitimate; no actionable changes | ✅ deep scan — 43 sites all legitimate, no TIGHTEN candidates | ✅ 17 sites all legitimate | ✅ zero `@Nullable` in production (verified) |
+| Null-safety follow-up review (re-verified 2026-06-04) | ✅ 50 `@Nullable` sites (down from 53), all legitimate | ✅ 43 sites all legitimate | ✅ 17 sites all legitimate | ✅ zero `@Nullable` annotations in production (2 grep hits are Javadoc text only) |
 | Package hierarchy review | ❌ | ❌ | ❌ | ❌ |
 | Class / method naming review | ❌ | ❌ | ❌ | ❌ |
 | **Cross-repo refactors** | | | | |
@@ -118,20 +175,25 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 - ~~Standardised CLAUDE.md template~~ ✅ **DONE this session** — `workspace/templates/CLAUDE.md.template`
 
 ### BAF-only
-- `javac -Werror` flip (next obvious move — blockers cleared)
-- `--release N` for main compile (not module-info only)
+- `javac -Werror` flip (next obvious move — blockers cleared; `pom.xml:320` still says "intentionally NOT set yet")
+- `--release 21` for main compile (still `<source>21</source>/<target>21</target>` at `pom.xml:313-314`; only `module-info-compile` uses `--release 9`)
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
-- CLAUDE.md staleness refresh (Persistence-backends TODO is partly done; per-repo strictness items are stale)
 - 3 large GPU design TODOs (Pre-compute HASHSET hash on GPU, Push TRUNCATED_LONG_64 into OpenCL, End-to-end GPU vision)
+- Persistence follow-ups (re-verified 2026-06-04): **4** stale `loadToMemoryCacheOnInit` example JSONs (not 3 — `config_AddressFilesToLMDB.json` also has the dead key); JMH migration of `AddressLookupBenchmarkTest` (still under `persistence/`, NOT in `benchmark/` JMH module); open-addressing hash table backend; standalone `BloomFilterPersistence`; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item)
+- `@VisibleForTesting` site-by-site cleanup: 16 sites remain (3 dropped in `05d9ddf`). The 2 highest-value items are still untouched — `Finder.AWAIT_DURATION_TERMINATE` + `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` mutable statics; the 5 executor-injection refactors (`Finder.producerExecutorService`, `ConsumerJava.{scheduledExecutorService,consumeKeysExecutorService}`, `ProducerOpenCL.{resultReaderThreadPoolExecutor,openCLContext}`) and the `Main.runLatch` field-to-private move
+- 4 naming-audit MODERATE/MINOR findings still in source: `BitHelper.getKillBits` → `getLowBitMask`; `LMDBPersistence.getAllAmountsFromAddresses` → `sumAmountsForAddresses`; `OpenCLBuilder.isOpenCLnativeLibraryLoadable` → `isOpenClNativeLibraryLoaded`; `PrivateKeyValidator.returnValidPrivateKey` → `coerceToValidPrivateKey`
 
 ### jllama-only
-- `setSkipDownload(boolean)` plumbing
-- `setSpecDraftBackendSampling(boolean)` plumbing (deferred — "add only on real user request")
+- ~~`setSkipDownload(boolean)` plumbing~~ ✅ DONE (`37754d4`)
+- `setSpecDraftBackendSampling(boolean)` plumbing — confirmed ❌ (zero matches in src/main/java; deferred policy)
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
+- GraalVM Native Image evaluation (design captured `23f8756`; implementation not started)
+- Feature-investigation first batch (UTF-8 boundary decoder + per-run timing line + jbang example + system-properties README table) — ~1-2 days, no JNI changes
 
 ### plugin-only
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
-- Fix stale CLAUDE.md bullet about module-level `@NullMarked`
+- ~~Fix stale CLAUDE.md bullet about module-level `@NullMarked`~~ ✅ DONE (`9be6f17`; re-verified — `module-info.java` carries `@org.jspecify.annotations.NullMarked` immediately before `module net.ladenthin.maven.llamacpp.aiindex`)
+- Naming follow-ups: `LlamaCppJniAiSummaryProvider` → `LlamaCppJniAiGenerationProvider` (file still named the old way; affects public Mojo `summaryProvider` parameter surface); `AiGenerationResult` shape/name reconciliation (`AiGenerationResult.java:19` still carries only the `body` field)
 
 ### sb-only
 - (none beyond universal items)
