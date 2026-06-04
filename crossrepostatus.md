@@ -91,13 +91,58 @@ status table further down has been updated accordingly.
 
 ---
 
+## Cross-repo sync audit (2026-06-04, this session)
+
+Systematic pom.xml + ArchUnit + module-info comparison across all 4 repos. The narrow goal: identify drift in the strictness ladder that should be brought back into parity.
+
+### In parity across all 4 repos (healthy — no action needed)
+
+| Dimension | Status |
+|---|---|
+| Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
+| NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
+| Tool versions | Identical: Checker 4.2.0, fb-contrib 7.7.4, spotless 3.6.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.4, surefire 3.5.6 |
+| Maven Enforcer `bannedDependencies` | Identical 7-entry list (commons-logging, log4j, old hamcrest split artifacts, legacy junit, etc.) |
+| `<parameters>true</parameters>` javac arg | All 4 ✅ |
+| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired (sb whole-package; BAF/jllama/plugin narrowed to one class as documented staging) |
+| Checker Framework as 2nd nullness pass | All 4 ✅ |
+| JPMS `module-info.java` present | All 4 ✅ |
+| ArchUnit `noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final | All 4 ✅ |
+
+### Drift worth fixing (cheapest → biggest)
+
+| Finding | BAF | jllama | plugin | sb | Recommended fix |
+|---|:--:|:--:|:--:|:--:|---|
+| **ArchUnit `noTestFrameworksInProduction` rule** | ✅ | ✅ | ✅ | ❌ | Backport to sb (mechanical; ~5 min). |
+| **ArchUnit `loggersArePrivateStaticFinal` rule** | ✅ | ✅ | ➖ uses Maven `Log` (not SLF4J) | ➖ no logging in production | N/A for sb + plugin — skip. |
+| **ArchUnit `noPackageCycles` rule** | ✅ | ✅ | ❌ | ❌ | Backport to sb + plugin as forward-looking guard (no-op today on single-package modules; cheap insurance). |
+| **`-Xlint` exclusion list missing `-processing`** | ❌ (`-Xlint:all,-serial,-options,-classfile`) | ✅ (`…,-classfile,-processing`) | ✅ | ✅ | BAF needs `-processing` added before flipping `-Werror`; otherwise AP-emitted notes will trip the build. One-character edit. |
+| **`-Werror` flipped** | ❌ (`pom.xml:319` comment "intentionally NOT set yet"; gated on EP long-tail) | ✅ | ✅ | ✅ | Separate larger task — flip BAF after the EP long-tail is cleared, bundling the `-processing` fix above. |
+| **Module-level `@NullMarked`** on the module descriptor | ❌ deliberate (per BAF CLAUDE.md — per-package `@NullMarked` covers same scope, avoids `requires JSpecify`) | ✅ `9528e79` | ✅ | ➖ kept per-package by design | Leave BAF as-is — documented intentional choice, not drift. |
+
+### Recommended sync order (smallest first)
+
+1. **sb**: add `noTestFrameworksInProduction` + `noPackageCycles` ArchUnit rules. ~10 min.
+2. **plugin**: add `noPackageCycles` ArchUnit rule (forward-looking guard; no-op today). ~5 min.
+3. **BAF**: add `-processing` to `-Xlint` exclusion list. ~1 min. Land alone now OR bundle with the `-Werror` flip later.
+4. **workspace**: this section already reflects the parity sync; refresh once the rules above land.
+5. **Larger, separate**: BAF `-Werror` long-tail Error Prone cleanup, then flip.
+
+### What NOT to touch
+- Plugin's NullAway `ExcludedFieldAnnotations` extension — repo-correct.
+- BAF's lack of module-level `@NullMarked` — documented intentional.
+- The PIT "narrow targetClasses" pattern in 3 of 4 repos — documented intentional staging.
+- The `-Xep` / `-XepOpt` / banned-dependencies sets — already in lock-step.
+
+---
+
 ## VERIFIED TABLE
 
 | TODO item | BAF | jllama | plugin | sb |
 |---|:--:|:--:|:--:|:--:|
 | **Strictness ladder** | | | | |
 | Error Prone bug patterns → ERROR (12 patterns) | ✅ verified (was seed ❌) | ✅ `855f447` | ✅ `034b553` | ✅ `ad95d66` |
-| `javac -Werror` + `-Xlint:all,-serial,-options` | ❌ not yet flipped (items 1–6 cleared; ready) | ✅ `3e2efbb` | ✅ | ✅ `7a4fbf0` |
+| `javac -Werror` + `-Xlint:all,-serial,-options` | ❌ **VERIFIED 2026-06-04**: pom.xml line 319 comment "intentionally NOT set yet" — no `<arg>-Werror</arg>` anywhere in `pom.xml`. `-Xlint:all,-serial,-options,-classfile` is on (note: **missing `-processing`** that the 3 ✅ repos all add — needs adding when BAF flips, or AP-emitted notes will become errors). Blockers 1–6 are cleared per `2d99c4a`; remaining gate is the Error Prone long-tail. | ✅ `3e2efbb` (verified 2026-06-04, line 366; `-Xlint:all,-serial,-options,-classfile,-processing`; compile clean under -Werror) | ✅ **`f7cf748`** (verified 2026-06-04, line 341; same flags; compile clean) | ✅ `7a4fbf0` (verified 2026-06-04, line 351; same flags; compile clean) |
 | `-parameters` javac arg | ✅ `pom.xml:315` (was seed ❌) | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
 | `--release N` instead of `-source`/`-target` | ✅ `<release>21</release>` at `pom.xml:313` (BAF commits `c2470b7` + `1b67ad0`). Blocker was `ByteBufferUtility.java:9` directly importing `jdk.internal.misc.Unsafe`; resolved by migrating to reflectively-resolved `sun.misc.Unsafe` (always-exported via `jdk.unsupported`). Defensive design: `@Nullable Unsafe UNSAFE` field — static initializer wraps reflective lookup in try/catch so non-HotSpot JVMs (OpenJ9, GraalVM Native Image, Android) get `UNSAFE == null` rather than `ExceptionInInitializerError`; `freeByteBuffer` gains a null guard so it becomes a no-op on those platforms (JVM Cleaner handles the buffer naturally). `default-testCompile` overrides back to `<source>/<target>` so tests can keep importing `jdk.internal.ref.Cleaner` and `sun.nio.ch.DirectBuffer` to assert Cleaner invocation. | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
 | PIT mutation threshold enforced (100%) | ✅ `BitHelper` (`pom.xml:711-717`) | ✅ `Pair` (`62f8a00`) | ✅ `AiCompletionParser` (renamed from `AiResponseNormalizer` in `6567b9e`) | ✅ whole package |
@@ -198,7 +243,7 @@ status table further down has been updated accordingly.
 - ~~Standardised CLAUDE.md template~~ ✅ **DONE this session** — `workspace/templates/CLAUDE.md.template`
 
 ### BAF-only
-- `javac -Werror` flip — blockers cleared; the stale 6-item warning list in `pom.xml:319-326` was refreshed to point at the Error Prone long-tail TODO as the remaining gate (`2d99c4a`). The actual `<arg>-Werror</arg>` is still off.
+- `javac -Werror` flip — **verified 2026-06-04**: still ❌. Confirmed via `grep "<arg>-Werror</arg>" pom.xml` returning zero hits; the explanatory comment block at `pom.xml:319` admits *"intentionally NOT set yet"*. Blockers 1–6 cleared per `2d99c4a`; remaining gate is the Error Prone long-tail. **One subtle gotcha noticed during the audit**: BAF's `-Xlint` flag (`-Xlint:all,-serial,-options,-classfile`) is missing `-processing`, while the 3 ✅ repos (streambuffer, plugin, jllama) all use `-Xlint:all,-serial,-options,-classfile,-processing`. When BAF flips `-Werror`, AP-emitted notes (typically a "No processor claimed any of these annotations" or similar) will trip the build unless `-processing` is added to the exclusion list at the same time. Either add it pre-emptively now, or remember to include it in the flip commit.
 - ~~`--release 21` for main compile~~ ✅ **DONE** (BAF commits `c2470b7` + `1b67ad0`, this session). The `jdk.internal.misc.Unsafe` import in `ByteBufferUtility.java:9` was migrated to reflectively-resolved `sun.misc.Unsafe` (always-exported via `jdk.unsupported`) with a `@Nullable Unsafe UNSAFE` field; the static initializer wraps the reflective lookup in try/catch so non-HotSpot JVMs (OpenJ9, GraalVM Native Image, Android) get `UNSAFE == null` rather than `ExceptionInInitializerError`; `freeByteBuffer` gained a null guard so it becomes a no-op on those platforms (JVM Cleaner handles the buffer naturally). The duplicate system-module `--add-opens`/`--add-exports` in main `<compilerArgs>` were removed (runtime `<argLine>` keeps them for surefire). `default-testCompile` overrides the inherited `<release>` back to `<source>21</source><target>21</target>` so tests can keep importing `jdk.internal.ref.Cleaner` + `sun.nio.ch.DirectBuffer` to assert Cleaner invocation in `ByteBufferUtilityTest`. Verified end-to-end: clean `mvn compile` succeeds under `--release 21`; all 38 `ByteBufferUtilityTest` cases pass.
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
 - 3 large GPU design TODOs (Pre-compute HASHSET hash on GPU, Push TRUNCATED_LONG_64 into OpenCL, End-to-end GPU vision)
