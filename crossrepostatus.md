@@ -47,7 +47,7 @@ status table further down has been updated accordingly.
 - BAF: `Main.runLatch` is still package-private (not made private with public getter) — `cli/Main.java:72,84`.
 - BAF: All five executor / lifecycle fields flagged for constructor injection still package-private with no injection seam: `Finder.producerExecutorService` (`:61`), `ConsumerJava.scheduledExecutorService` (`:95`, non-final), `ConsumerJava.consumeKeysExecutorService` (`:130`), `ProducerOpenCL.resultReaderThreadPoolExecutor`, `ProducerOpenCL.openCLContext`.
 - ~~BAF: 4 naming-audit MODERATE/MINOR findings still in source: `BitHelper.getKillBits` (`:35`), `LMDBPersistence.getAllAmountsFromAddresses` (interface + impl), `OpenCLBuilder.isOpenCLnativeLibraryLoadable` (`:229`), `PrivateKeyValidator.returnValidPrivateKey` (`:89`).~~ ✅ **ALL 4 FIXED this session** — commits `2509988`, `8ff90c9`, `81dd95b`, `a6531c9`.
-- plugin: `LlamaCppJniAiSummaryProvider` file still present (not renamed to `LlamaCppJniAiGenerationProvider`); `AiGenerationResult` still carries only the `body` field (line 19: `private final String body;`) — both naming-audit follow-ups remain open.
+- ~~plugin: `LlamaCppJniAiSummaryProvider` file still present~~ ✅ RESOLVED this session — renamed to `LlamaCppJniAiGenerationProvider` (`3007f03`); Mojo `@Parameter` field and Maven property renamed too. ~~`AiGenerationResult` shape/name~~ ✅ confirmed correct — body-only is the deliberate final state of a 2-step refactor; CLAUDE.md drift was the actual bug (fixed in `371faa6` + `09067a2`).
 - jllama: `setSpecDraftBackendSampling` — zero matches in `src/main/java` — confirmed still ❌ (deferred by policy).
 - All four repos: SpotBugs is on `effort=Default`, `threshold=Default` (BAF `:648-649`, jllama `:572-573`, plugin `:551-552`, sb `:541-542`) — confirmed ❌.
 - All four repos: zero `layeredArchitecture()` references in any `ArchitectureTest.java` — confirmed ❌.
@@ -197,7 +197,7 @@ status table further down has been updated accordingly.
 ### plugin-only
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
 - ~~Fix stale CLAUDE.md bullet about module-level `@NullMarked`~~ ✅ DONE (`9be6f17`; re-verified — `module-info.java` carries `@org.jspecify.annotations.NullMarked` immediately before `module net.ladenthin.maven.llamacpp.aiindex`)
-- Naming follow-ups: `LlamaCppJniAiSummaryProvider` → `LlamaCppJniAiGenerationProvider` (file still named the old way; affects public Mojo `summaryProvider` parameter surface); `AiGenerationResult` shape/name reconciliation (`AiGenerationResult.java:19` still carries only the `body` field)
+- ~~Naming follow-ups (5 items)~~ ✅ **ALL 5 RESOLVED this session** — `LlamaCppJniAiSummaryProvider` renamed (`3007f03`), `AiGenerationResult` confirmed correct (CLAUDE.md drift fixed `371faa6` + `09067a2`), `AiMdHeaderSupport` split (`856c085`), `AiSummaryResponse` deleted as stillborn DTO (`f11eb6b`), `AiPromptSupport` kept after sibling-pattern review. Plugin column of the cross-repo naming audit is now 7/7 complete.
 
 ### sb-only
 - (none beyond universal items)
@@ -296,15 +296,21 @@ The two CRITICAL findings are the highest-value: `getStartAddress`/`getEndAddres
 
 | File:Line | Current | What it actually does | Suggested | Severity |
 |---|---|---|---|---|
-| `LlamaCppJniAiSummaryProvider.java:20` | `LlamaCppJniAiSummaryProvider` | Implements `AiGenerationProvider`; produces summary AND keywords AND body via `generate(...)` — the "Summary" predates the generalization | `LlamaCppJniAiGenerationProvider` (mirrors `MockAiGenerationProvider`) | MODERATE |
-| `AiGenerationResult.java:18` | `AiGenerationResult` | Carries **only** a `body` string; CLAUDE.md describes it as "summary + keywords + body" — either name overpromises or shape is stale | `AiBodyResult` (if shape correct), or restore the missing fields (if name correct) | MODERATE |
+| ~~`LlamaCppJniAiSummaryProvider.java:20`~~ | ~~`LlamaCppJniAiSummaryProvider`~~ | Implements `AiGenerationProvider`; the "Summary" predated the generalization. Confirmed inconsistent **from initial commit a1df3e0 (2026-03-19)**, not refactoring residue — the interface, factory, and `MockAiGenerationProvider` sibling all already used "Generation" while only this JNI implementation and the operator-facing Mojo `@Parameter summaryProvider` used "Summary". | `LlamaCppJniAiGenerationProvider` (mirrors `MockAiGenerationProvider`); Mojo `@Parameter summaryProvider` → `generationProvider` + Maven property `aiIndex.summaryProvider` → `aiIndex.generationProvider` + `pom.xml:672` self-test config + README + TEST_WRITING_GUIDE updated | ✅ **FIXED** in `3007f03` (this session) |
+| ~~`AiGenerationResult.java:18`~~ | ~~`AiGenerationResult`~~ shape-or-name reconciliation | After deep git-history investigation: the body-only shape is the **deliberate final state of a multi-step refactor** (`5b799b9` created it with 3 fields, `87013e9` removed the `summary` field, `7916b15` removed `keywords` — `git log --follow` confirms). The class name and the body-only shape are both correct. The "shape mismatch" was actually CLAUDE.md documentation drift. | Keep class + shape; fix CLAUDE.md `s`/`k` + "summary + keywords + body" drift instead | ✅ **DOCS FIXED** in `371faa6` + `09067a2` (this session — CLAUDE.md header-field rows + project-tree drift cleared) |
 | ~~`AiChecksumSupport.java:13`~~ | `AiChecksumSupport` | Computes CRC32 (always has — `git log -S MessageDigest` empty). Class Javadoc + `c` field doc in `AiMdHeader` are correct; only CLAUDE.md was stale | docs fixed; class name kept (CRC32 is the right choice for change-detection) | ✅ **FIXED** in `8930e4d` (this session — CLAUDE.md line 196 corrected) |
-| `AiMdHeaderSupport.java:11` | `AiMdHeaderSupport` | Two unrelated operations: `shouldWrite(...)` rewrite-decision + `buildChecksumLine(...)` parent-checksum formatter; not "header manipulation" | Split into `AiMdRewriteDecision` + `AiMdChildChecksumLineFormatter` | MODERATE |
+| ~~`AiMdHeaderSupport.java:11`~~ | ~~`AiMdHeaderSupport`~~ — two unrelated operations | `shouldWrite(...)` rewrite-decision (used by both Indexers) + `buildChecksumLine(...)` package-child line formatter (used only by `PackageIndexer`). Git history confirmed both methods co-located since the **initial commit a1df3e0** by design — split is a code-cleanliness improvement, not a bug fix. | Keep `AiMdHeaderSupport` for `shouldWrite`; extract `buildChecksumLine` to new `AiMdChildEntryLineFormatter` (single caller, narrow purpose) | ✅ **FIXED** in `856c085` (this session) |
 | ~~`AiResponseNormalizer.java:65`~~ (class + method) | ~~`AiResponseNormalizer.normalize(String)`~~ | Strips `<thinking>` blocks **and throws `IOException`** if budget exhausted inside one — a parser with typed failure, not a pure normalizer | class → `AiCompletionParser`, method → `parseCompletion` (escalated from MINOR after deeper review confirmed class-name drift too) | ✅ **FIXED** in `6567b9e` (this session — class + method + test class + 4 PIT/README ref locations) |
-| `AiSummaryResponse.java:11` | `AiSummaryResponse` | Carries `summary` + `keywords` only; not a provider wire response (providers return `String`) | `AiSummaryAndKeywords` / `AiHeaderFields` | MINOR |
-| `AiPromptSupport.java:11` | `AiPromptSupport` | Registry of prompt templates + `buildPrompt(...)` renderer — concretely a template registry | `AiPromptTemplateRegistry` (or `AiPromptRenderer`) | MINOR |
+| ~~`AiSummaryResponse.java:11`~~ | ~~`AiSummaryResponse`~~ — proposed rename | Carries `(summary, keywords)` from the pre-refactor multi-output AI design. Git history confirmed the class was created in the initial commit (a1df3e0) but **never constructed in ANY of the 266 commits** — `git log -S 'new AiSummaryResponse'` returns zero hits. Stillborn DTO. | ~~Rename to `AiHeaderFields`~~ → **delete entirely** (not just rename). | ✅ **DELETED** in `f11eb6b` (this session) — file + 4 doc references (CLAUDE.md ×2, CODE_WRITING_GUIDE.md ×3 including replacing the illustrative GOOD/BAD record example with `AiPreparedPrompt` which actually exists) |
+| `AiPromptSupport.java:11` — proposed rename | `AiPromptSupport` is both registry (`templates` map) AND renderer (`buildPrompt(...)`). Sibling-pattern check confirmed: `AiModelDefinitionSupport` does the same registry+lookup for `AiModelDefinition` and keeps the `*Support` suffix. Renaming `AiPromptSupport` to `AiPromptTemplateRegistry` would break the established sibling pattern. | **Keep `AiPromptSupport`** — sibling consistency outweighs precision gain. | ✅ **NO ACTION** (verdict: keep as-is after deep review). |
 
-Top-priority for action in plugin: (1) `LlamaCppJniAiSummaryProvider` rename — affects the public Mojo configuration surface (`summaryProvider` parameter); (2) `AiGenerationResult` shape-or-name reconciliation; (3) `AiChecksumSupport` / `c` field — fix the algorithm/docs mismatch (CRC32 vs SHA-256) since that's worse than the naming itself.
+All five plugin naming-audit follow-ups closed this session. Deep git-history investigation (via fresh GitHub clone, walked all 266 commits) confirmed each verdict against actual code evolution rather than current-state-only reading:
+
+- (1) `LlamaCppJniAiSummaryProvider` — RENAMED (`3007f03`) including Mojo `@Parameter summaryProvider` → `generationProvider` and `pom.xml:672` self-test
+- (2) `AiGenerationResult` — DOCS FIXED only (`371faa6` + `09067a2`); body-only shape is intentional final state of a 2-step refactor, not a bug
+- (3) `AiMdHeaderSupport` — SPLIT (`856c085`) extracting `buildChecksumLine` to new `AiMdChildEntryLineFormatter`
+- (4) `AiSummaryResponse` — DELETED (`f11eb6b`); stillborn DTO never constructed in any of the 266 commits
+- (5) `AiPromptSupport` — KEPT; sibling pattern argument with `AiModelDefinitionSupport`
 
 ### jllama — 1 finding (1 MODERATE)
 
@@ -320,23 +326,25 @@ No class-drift, no typos, no plurality mismatches, no cryptic names. The 5 `hand
 |---|:--:|:--:|:--:|:--:|:--:|
 | BAF | 2 | 3 | 1 | 6 | **6 (all fixed)** — Bech32Helper `cc37a5d`; CKeyProducerJavaIncremental `83ada00`; BitHelper.getKillBits→getLowBitMask `2509988`; LMDBPersistence.getAllAmountsFromAddresses→sumAmountsForAddresses `8ff90c9`; OpenCLBuilder.isOpenCLnativeLibraryLoadable→isOpenClNativeLibraryLoaded `81dd95b`; PrivateKeyValidator.returnValidPrivateKey→coerceToValidPrivateKey `a6531c9` |
 | sb | 0 | 4 | 3 | 7 | 7 (all closed: typo `966595c` + 3 method renames `cf2b5fd` + final 3 cleanups `16f1df7`) |
-| plugin | 0 | 4 | 3 | 7 | 2 (CRC32 docs `8930e4d` + AiResponseNormalizer→AiCompletionParser rename `6567b9e`) |
+| plugin | 0 | 4 | 3 | 7 | **7 (all closed)** — CRC32 docs `8930e4d`; AiResponseNormalizer→AiCompletionParser `6567b9e`; AiSummaryResponse DELETED `f11eb6b` (stillborn DTO, never constructed); CLAUDE.md s/k drift fixed `371faa6` + `09067a2`; AiMdHeaderSupport split `856c085` (extract `AiMdChildEntryLineFormatter`); LlamaCppJniAiSummaryProvider → LlamaCppJniAiGenerationProvider `3007f03` (+ Mojo @Parameter rename + pom.xml self-test + README + TEST_WRITING_GUIDE); AiPromptSupport KEPT (sibling pattern with AiModelDefinitionSupport) |
 | jllama | 0 | 1 | 0 | 1 | 1 (isDefault → isUnset `ffbc06c`) |
-| **All** | **2** | **12** | **7** | **21** | **16 fixed, 5 remain** (both CRITICAL done; sb + BAF + jllama fully cleared; 5 open are all in plugin) |
+| **All** | **2** | **12** | **7** | **21** | **21 fixed (cross-repo naming audit complete)** — both CRITICAL done; sb + BAF + jllama + plugin all fully cleared. |
 
 **Top 5 to fix first (CRITICAL + highest-impact MODERATE):**
 1. ✅ BAF `CKeyProducerJavaIncremental.startAddress/endAddress` → `startPrivateKey/endPrivateKey` — public JSON config field rename. **Fixed in `83ada00`.**
 2. ✅ BAF `Bech32Helper.getWitnessPrograms` — plural name returns a single value. **Fixed in `cc37a5d`.**
 3. ✅ plugin `AiChecksumSupport` — turned out to be **docs-only drift** (`CLAUDE.md` was wrong; implementation has always been correct CRC32). **Fixed in `8930e4d`.**
-4. plugin `AiGenerationResult` — name says "summary + keywords + body" but the class carries only `body`. Either restore the missing fields or rename to `AiBodyResult`. (**Still open**)
-5. plugin `LlamaCppJniAiSummaryProvider` → `LlamaCppJniAiGenerationProvider` — predates generalization to `AiGenerationProvider`; rename to mirror `MockAiGenerationProvider` sibling. (**Still open** — earlier table mistakenly conflated this with the `AiResponseNormalizer` rename in `6567b9e`; that commit was a *different* plugin rename and did NOT touch this class)
+4. ✅ plugin `AiGenerationResult` — the "summary + keywords + body" claim was **CLAUDE.md documentation drift**, not a class-shape bug. Deep git-history investigation showed the body-only shape is the final state of a deliberate 2-step refactor (`5b799b9` created with 3 fields → `87013e9` removed `summary` → `7916b15` removed `keywords`). **Class kept; CLAUDE.md fixed in `371faa6` + `09067a2`.**
+5. ✅ plugin `LlamaCppJniAiSummaryProvider` → `LlamaCppJniAiGenerationProvider` — confirmed naming inconsistent from initial commit `a1df3e0`, not refactor residue (interface, factory, mock all already said "Generation"). **Fixed in `3007f03`** (class + test class + Mojo `@Parameter summaryProvider` → `generationProvider` + Maven property + `pom.xml:672` self-test + README + TEST_WRITING_GUIDE + CLAUDE.md).
 
 **This session's additional renames (not in the top-5 list)**:
 - ✅ sb `validateOffsetAndLength*` + `shouldTrim` bundle (`cf2b5fd`) — 3 MODERATE
 - ✅ plugin `AiResponseNormalizer` → `AiCompletionParser` + `normalize` → `parseCompletion` (`6567b9e`) — escalated from MINOR after class-name-drift verification confirmed the broader rename
 - ✅ jllama `isDefault` → `isUnset` (`ffbc06c`) — MODERATE
+- ✅ plugin `AiSummaryResponse` DELETED (`f11eb6b`) — never used in any commit (266-commit history checked)
+- ✅ plugin `AiMdHeaderSupport` split (`856c085`) — extracted `buildChecksumLine` to new `AiMdChildEntryLineFormatter`
 
-**Top-5 progress: 2 of 5 fixed (#2, #3). Open: 1 CRITICAL + 2 MODERATE.**
+**Top-5 progress: 5 of 5 fixed. The full 21-item cross-repo naming audit is now COMPLETE.**
 
 ---
 
