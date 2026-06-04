@@ -111,22 +111,22 @@ Systematic pom.xml + ArchUnit + module-info comparison across all 4 repos. The n
 
 ### Drift worth fixing (cheapest → biggest)
 
-| Finding | BAF | jllama | plugin | sb | Recommended fix |
+| Finding | BAF | jllama | plugin | sb | Status |
 |---|:--:|:--:|:--:|:--:|---|
-| **ArchUnit `noTestFrameworksInProduction` rule** | ✅ | ✅ | ✅ | ❌ | Backport to sb (mechanical; ~5 min). |
-| **ArchUnit `loggersArePrivateStaticFinal` rule** | ✅ | ✅ | ➖ uses Maven `Log` (not SLF4J) | ➖ no logging in production | N/A for sb + plugin — skip. |
-| **ArchUnit `noPackageCycles` rule** | ✅ | ✅ | ❌ | ❌ | Backport to sb + plugin as forward-looking guard (no-op today on single-package modules; cheap insurance). |
-| **`-Xlint` exclusion list missing `-processing`** | ❌ (`-Xlint:all,-serial,-options,-classfile`) | ✅ (`…,-classfile,-processing`) | ✅ | ✅ | BAF needs `-processing` added before flipping `-Werror`; otherwise AP-emitted notes will trip the build. One-character edit. |
-| **`-Werror` flipped** | ❌ (`pom.xml:319` comment "intentionally NOT set yet"; gated on EP long-tail) | ✅ | ✅ | ✅ | Separate larger task — flip BAF after the EP long-tail is cleared, bundling the `-processing` fix above. |
+| **ArchUnit `noTestFrameworksInProduction` rule** | ✅ | ✅ | ✅ | ✅ **`bbdb505`** (this session) | ✅ parity reached |
+| **ArchUnit `loggersArePrivateStaticFinal` rule** | ✅ | ✅ | ➖ uses Maven `Log` (not SLF4J) | ➖ no logging in production | N/A for sb + plugin — intentional skip |
+| **ArchUnit `noPackageCycles` rule** | ✅ | ✅ | ✅ **`26a4f7b`** (this session) | ✅ **`bbdb505`** (this session) | ✅ parity reached (sb + plugin use `allowEmptyShould(true)` since both are single-package) |
+| **`-Xlint` exclusion list carries `-processing`** | ✅ **`bddaf43`** (this session) — `-Xlint:all,-serial,-options,-classfile,-processing` | ✅ | ✅ | ✅ | ✅ parity reached |
+| **`-Werror` flipped** | ❌ (`pom.xml:319` comment "intentionally NOT set yet"; gated on EP long-tail) | ✅ | ✅ | ✅ | Separate larger task — flip BAF after the EP long-tail is cleared. The `-processing` blocker for the flip is now pre-emptively cleared (`bddaf43`). |
 | **Module-level `@NullMarked`** on the module descriptor | ❌ deliberate (per BAF CLAUDE.md — per-package `@NullMarked` covers same scope, avoids `requires JSpecify`) | ✅ `9528e79` | ✅ | ➖ kept per-package by design | Leave BAF as-is — documented intentional choice, not drift. |
 
-### Recommended sync order (smallest first)
+### Sync sequence (executed this session)
 
-1. **sb**: add `noTestFrameworksInProduction` + `noPackageCycles` ArchUnit rules. ~10 min.
-2. **plugin**: add `noPackageCycles` ArchUnit rule (forward-looking guard; no-op today). ~5 min.
-3. **BAF**: add `-processing` to `-Xlint` exclusion list. ~1 min. Land alone now OR bundle with the `-Werror` flip later.
-4. **workspace**: this section already reflects the parity sync; refresh once the rules above land.
-5. **Larger, separate**: BAF `-Werror` long-tail Error Prone cleanup, then flip.
+1. ✅ **sb**: added `noTestFrameworksInProduction` + `noPackageCycles` ArchUnit rules (`bbdb505`). Verified `mvn test -Dtest=StreamBufferArchitectureTest` green (10 tests).
+2. ✅ **plugin**: added `noPackageCycles` ArchUnit rule (`26a4f7b`). Verified `mvn test -Dtest=PluginArchitectureTest` green.
+3. ✅ **BAF**: added `-processing` to `-Xlint` exclusion list (`bddaf43`). Verified `mvn test -Dtest=BitcoinAddressFinderArchitectureTest` green (12 tests).
+4. ✅ **workspace**: this row updates (current commit).
+5. ⏭ **Next (larger, separate)**: BAF `-Werror` long-tail Error Prone cleanup, then flip the `<arg>-Werror</arg>` switch.
 
 ### What NOT to touch
 - Plugin's NullAway `ExcludedFieldAnnotations` extension — repo-correct.
