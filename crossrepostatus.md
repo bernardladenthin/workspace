@@ -90,9 +90,9 @@ status table further down has been updated accordingly.
 | `javac -Werror` + `-Xlint:all,-serial,-options` | ❌ not yet flipped (items 1–6 cleared; ready) | ✅ `3e2efbb` | ✅ | ✅ `7a4fbf0` |
 | `-parameters` javac arg | ✅ `pom.xml:315` (was seed ❌) | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
 | `--release N` instead of `-source`/`-target` | ❌ main still `<source>21</source>/<target>21>`; module-info uses `--release 9` | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
-| PIT mutation threshold enforced (100%) | ✅ `BitHelper` (`pom.xml:711-717`) | ✅ `Pair` (`62f8a00`) | ✅ `AiResponseNormalizer` | ✅ whole package |
+| PIT mutation threshold enforced (100%) | ✅ `BitHelper` (`pom.xml:711-717`) | ✅ `Pair` (`62f8a00`) | ✅ `AiCompletionParser` (renamed from `AiResponseNormalizer` in `6567b9e`) | ✅ whole package |
 | Checker Framework 2nd nullness pass | ✅ NullnessChecker + `objects.astub` | ✅ `c63870b` | ✅ | ✅ `5a9be1b` |
-| JPMS `module-info.java` | ✅ `src/main/java9/module-info.java` | ✅ `0fd066a`/`9528e79` (module-level `@NullMarked`) | ✅ — and module-level `@NullMarked` IS set (CLAUDE.md note "intentionally NOT added" is **stale**) | ✅ |
+| JPMS `module-info.java` | ✅ `src/main/java9/module-info.java` | ✅ `0fd066a`/`9528e79` (module-level `@NullMarked`) | ✅ — module-level `@NullMarked` set in module-info; CLAUDE.md note corrected in `9be6f17` | ✅ |
 | Banned-API enforcement (Enforcer + ArchUnit) | ✅ Enforcer @ `pom.xml:268-283`; ArchUnit `noSystemExit`/`noNewRandom`/`Thread.sleep` (was seed ❌) | ✅ `8baae0c`/`329d764`/`e6069da` | ✅ `d654442`/`fd8cf80`/`ad37355` | ✅ `c0148c8`/`eaf4337` |
 | ArchUnit public-fields-final | ✅ `ArchitectureTest:120-130` (was seed ❌) | ✅ `7b6667d` | ✅ `d2b1af9` | ✅ `5dd816d` |
 | ArchUnit ban internal-JDK imports (`sun.*`/`com.sun.*`/`jdk.internal.*`) | ✅ `ArchitectureTest:90-97` | ✅ `e6069da` | ✅ `ad37355` | ✅ `de29bd4` |
@@ -108,16 +108,21 @@ status table further down has been updated accordingly.
 | `@VisibleForTesting` design-fit review | ✅ done this session — see "BAF @VisibleForTesting site-by-site audit" below | ➖ no usages | ➖ no usages | ➖ no usages |
 | Null-safety follow-up review (re-verified 2026-06-04) | ✅ 50 `@Nullable` sites (down from 53), all legitimate | ✅ 43 sites all legitimate | ✅ 17 sites all legitimate | ✅ zero `@Nullable` annotations in production (2 grep hits are Javadoc text only) |
 | Package hierarchy review | ❌ | ❌ | ❌ | ❌ |
-| Class / method naming review | ❌ | ❌ | ❌ | ❌ |
+| Class / method naming review (21-item cross-repo audit) | ✅ 6/6 + 2 follow-ups (`alignDown`, `assumeOpenClLibraryAvailable*`) — see "BAF section" below | ✅ 1/1 (`isDefault` → `isUnset` `ffbc06c`) | ✅ 7/7 — see "plugin section" below | ✅ 7/7 (typo `966595c` + bundle `cf2b5fd` + cleanups `16f1df7`) |
 | **Cross-repo refactors** | | | | |
 | Workspace-shared guidelines layer (Java code/test conventions) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
 | Standardised `CLAUDE.md` template | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
 | Versioned workspace guide chain (`guides/src/-8.md` + `-21.md`, `guides/test/-8.md` + `-21.md`) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
 | Audit-driven SKILL.md rewrite (replaced fictional JUnit 4 / `DataProviderRunner` content with actual Jupiter + Hamcrest + `@MethodSource` stack) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
 | Safe dependency / plugin bumps (logback patch, checker 4.2.0, fb-contrib 7.7.4, spotless 3.6.0, palantir 2.91.0, pitest 1.25.3 + surefire 3.5.6 for sb) | ✅ `59f7ff1` | ✅ `0a97ae7` | ✅ `93c7c84` | ✅ `3ccb426` |
+| **Naming audit follow-ups (this session)** | | | | |
+| BAF naming-audit MODERATE/MINOR (4-item set) | ✅ all 4 fixed: `getKillBits` → `getLowBitMask` `2509988`; `getAllAmountsFromAddresses` → `sumAmountsForAddresses` `8ff90c9`; `isOpenCLnativeLibraryLoadable` → `isOpenClNativeLibraryLoaded` `81dd95b`; `returnValidPrivateKey` → `coerceToValidPrivateKey` `a6531c9` | ➖ | ➖ | ➖ |
+| BAF naming-audit follow-ups (deeper review) | ✅ `KeyUtility.killBits` → `alignDown` + Javadoc rewrite explaining the GPU batch-alignment use case (`cd72083`); `OpenCLPlatformAssume.assumeOpenCLLibraryLoadable*` → `assumeOpenClLibraryAvailable*` (31 references / 8 files, `15279d4`); compile fix for stale variable reference in `AbstractProducer` trace-log branch (`7180ea2`) | ➖ | ➖ | ➖ |
+| Plugin naming-audit MODERATE/MINOR (5-item set) | ➖ | ➖ | ✅ all 5 closed (deep git-history investigation): `AiSummaryResponse` DELETED `f11eb6b` (stillborn DTO, never constructed in 266 commits); CLAUDE.md `s`/`k` header-field drift fixed `371faa6` + `09067a2` (refactor 3 months old, docs were stale); `AiMdHeaderSupport` split → `AiMdChildEntryLineFormatter` `856c085`; `AiGenerationResult` shape confirmed correct (body-only is final state of 2-step refactor); `LlamaCppJniAiSummaryProvider` → `LlamaCppJniAiGenerationProvider` `3007f03` (incl. Mojo `@Parameter summaryProvider` → `generationProvider` + Maven property + `pom.xml:672` self-test + README + TEST_WRITING_GUIDE + CLAUDE.md). `AiPromptSupport` kept after sibling-pattern review with `AiModelDefinitionSupport`. | ➖ |
+| BAF README documentation: `batchSizeInBits` section + Full-DB backend warning + drop phantom `SORTED_ARRAY` reference | ✅ `8540157` (this session) + `4a49ea7` (Full-DB ⚠ hint + SORTED_ARRAY drop) + `eab518b` (explicit `addressLookupBackend: BLOOM` in 3 Find configs) + `3c4d558` (deleted dead `loadToMemoryCacheOnInit` from 4 example JSONs) | ➖ | ➖ | ➖ |
 | **BAF-specific big items** | | | | |
 | `-Werror` items 1–6 (BAF-internal pre-`-Werror` list) | ✅ all six cleared (`6eadc6f`) | ➖ | ➖ | ➖ |
-| Persistence-backends research/implementation | ✅ refresh DONE in `5b16c77` (this session) — TODO now reflects shipped state per plan item: HashSet snapshot, BloomFilterAccelerator extraction, TRUNCATED_LONG_64, AddressLookupBackend config enum, AddressPresence/AddressLookup chain contract, AddressLookupBenchmarkTest — all marked DONE. Remaining open: 3 stale example JSON `loadToMemoryCacheOnInit` lines, JMH migration of the benchmark, open-addressing hash table backend, standalone Bloom-only backend. | ➖ | ➖ | ➖ |
+| Persistence-backends research/implementation | ✅ HashSet snapshot, BloomFilterAccelerator extraction, TRUNCATED_LONG_64, AddressLookupBackend config enum, AddressPresence/AddressLookup chain contract, AddressLookupBenchmarkTest, 4 stale `loadToMemoryCacheOnInit` example JSONs cleaned up (`3c4d558`). Remaining open: JMH migration of the benchmark; open-addressing hash table backend; standalone Bloom-only backend; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item). | ➖ | ➖ | ➖ |
 | Pre-compute HASHSET hash on GPU | ❌ design captured (CLAUDE.md) | ➖ | ➖ | ➖ |
 | End-to-end GPU scan north star | ❌ vision captured | ➖ | ➖ | ➖ |
 | Push TRUNCATED_LONG_64 presence check into OpenCL | ❌ design captured | ➖ | ➖ | ➖ |
