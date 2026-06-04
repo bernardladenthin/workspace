@@ -103,8 +103,8 @@ status table further down has been updated accordingly.
 | Banned-API enforcement (Enforcer + ArchUnit) | ✅ Enforcer @ `pom.xml:268-283`; ArchUnit `noSystemExit`/`noNewRandom`/`Thread.sleep` (was seed ❌) | ✅ `8baae0c`/`329d764`/`e6069da` | ✅ `d654442`/`fd8cf80`/`ad37355` | ✅ `c0148c8`/`eaf4337` |
 | ArchUnit public-fields-final | ✅ `ArchitectureTest:120-130` (was seed ❌) | ✅ `7b6667d` | ✅ `d2b1af9` | ✅ `5dd816d` |
 | ArchUnit ban internal-JDK imports (`sun.*`/`com.sun.*`/`jdk.internal.*`) | ✅ `ArchitectureTest:90-97` | ✅ `e6069da` | ✅ `ad37355` | ✅ `de29bd4` |
-| ArchUnit `layeredArchitecture()` | ❌ | ❌ | ❌ | ➖ single-package |
-| ArchUnit per-module banned-imports | ❌ | ❌ | ❌ | ➖ single-package |
+| ArchUnit `layeredArchitecture()` | ❌ — 7 production packages (`cli`, `configuration`, `eckey`, `keyproducer`, `opencl`, `persistence`, root); the real candidate | ❌ — 3 production packages (`llama` root, `args`, `json`); minimal-value rule (root depends on both children) | ➖ single-package (all production code in `aiindex`) | ➖ single-package |
+| ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
 | SpotBugs `effort=Max` + `threshold=Low` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` |
 | **Logging / observability** | | | | |
 | LogCaptor smoke test | ✅ LogCaptor 2.12.6 + used in 7 tests (re-verified 2026-06-04; up from 5) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
