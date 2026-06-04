@@ -21,9 +21,10 @@ files here instead of duplicating them.
 
 ```
 .claude/skills/java-tdd-guide/SKILL.md   Canonical Java TDD skill (JUnit Jupiter, Java 8 baseline)
-guides/CODE_WRITING_GUIDE.md             Canonical Java code conventions (Java 8 baseline)
-guides/CODE_WRITING_GUIDE-java21.md      Optional Java 21 supplement (records, switch expressions, etc.) — BAF-only today
-guides/TEST_WRITING_GUIDE.md             Canonical Java test conventions (JUnit Jupiter + Hamcrest)
+guides/src/CODE_WRITING_GUIDE-8.md       Canonical production-code conventions (Java 8 baseline)
+guides/src/CODE_WRITING_GUIDE-21.md      Java 21 supplement (extends -8.md) — BAF-only today
+guides/test/TEST_WRITING_GUIDE-8.md      Canonical test conventions (JUnit Jupiter + Hamcrest, Java 8 baseline)
+guides/test/TEST_WRITING_GUIDE-21.md     Java 21 test supplement (extends -8.md) — BAF-only today
 policies/javadoc-conventions.md          HTML-entity rules for Javadoc
 policies/spotbugs-suppressions.md        spotbugs-exclude.xml maintenance
 policies/jqwik-prompt-injection.md       jqwik pin + incident note
@@ -47,9 +48,17 @@ repos:
 | `BitcoinAddressFinder` | Java 21 | `pom.xml` `<source>21</source>/<target>21</target>` |
 
 BAF additionally follows the
-[`guides/CODE_WRITING_GUIDE-java21.md`](guides/CODE_WRITING_GUIDE-java21.md)
-supplement (records, switch expressions, text blocks, pattern matching,
+[`guides/src/CODE_WRITING_GUIDE-21.md`](guides/src/CODE_WRITING_GUIDE-21.md)
+and
+[`guides/test/TEST_WRITING_GUIDE-21.md`](guides/test/TEST_WRITING_GUIDE-21.md)
+supplements (records, switch expressions, text blocks, pattern matching,
 sealed types, `var`). The other three repos must NOT use those idioms.
+
+**Version-chain convention.** Inside `guides/src/` and `guides/test/`,
+files are named `<NAME>-<JAVA-VERSION>.md`. A higher-version file
+**extends** every lower-version file in its chain — read every file
+from the lowest applicable version up to the highest one your repo's
+`pom.xml` `<release>` allows, and treat the chain as cumulative.
 
 ## Style ground truth
 

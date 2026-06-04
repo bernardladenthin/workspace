@@ -19,9 +19,10 @@ PR workflow.
 
 ```
 .claude/skills/java-tdd-guide/SKILL.md   Canonical Java TDD skill (Jupiter, Java 8 baseline)
-guides/CODE_WRITING_GUIDE.md             Canonical code conventions (Java 8 baseline)
-guides/CODE_WRITING_GUIDE-java21.md      Java 21 supplement (records, switch, text blocks)
-guides/TEST_WRITING_GUIDE.md             Canonical test conventions (Jupiter + Hamcrest)
+guides/src/CODE_WRITING_GUIDE-8.md       Production-code conventions (Java 8 baseline)
+guides/src/CODE_WRITING_GUIDE-21.md      Java 21 production-code supplement (extends -8.md)
+guides/test/TEST_WRITING_GUIDE-8.md      Test conventions (Java 8 baseline, Jupiter + Hamcrest)
+guides/test/TEST_WRITING_GUIDE-21.md     Java 21 test supplement (extends -8.md)
 policies/javadoc-conventions.md          HTML-entity rules for Javadoc
 policies/spotbugs-suppressions.md        spotbugs-exclude.xml maintenance
 policies/jqwik-prompt-injection.md       jqwik pin + incident note
@@ -31,12 +32,19 @@ templates/CLAUDE.md.template             Standard per-repo CLAUDE.md
 crossrepostatus.md                       Live cross-repo status table
 ```
 
-## Java version split
+## Versioned guide chain
 
-Canonical baseline is Java 8 (the lowest common denominator across
-`streambuffer`, `java-llama.cpp`, and `llamacpp-ai-index-maven-plugin`).
-`BitcoinAddressFinder` runs Java 21 and additionally follows the
-optional `CODE_WRITING_GUIDE-java21.md` supplement.
+Inside `guides/src/` and `guides/test/`, files are named
+`<NAME>-<JAVA-VERSION>.md`. A higher-version file **extends** every
+lower-version file in its chain — read every file from the lowest
+applicable version up to the highest one your repo's `pom.xml`
+`<release>` allows.
+
+The baseline `-8.md` files apply to every sibling repo.
+`BitcoinAddressFinder` is on Java 21 and additionally follows the
+`-21.md` supplements. The other three repos (`streambuffer`,
+`java-llama.cpp`, `llamacpp-ai-index-maven-plugin`) target Java 8 and
+must not use Java 21 idioms.
 
 ## Style ground truth
 

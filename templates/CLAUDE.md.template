@@ -48,7 +48,8 @@ components, data-flow.>
 required, network-restriction handling.>
 
 For canonical test conventions see
-[workspace/guides/TEST_WRITING_GUIDE.md](../workspace/guides/TEST_WRITING_GUIDE.md)
+[workspace/guides/test/TEST_WRITING_GUIDE-8.md](../workspace/guides/test/TEST_WRITING_GUIDE-8.md)
+(plus [TEST_WRITING_GUIDE-21.md](../workspace/guides/test/TEST_WRITING_GUIDE-21.md) on Java 21+ repos)
 **(workspace)**.
 
 ---
@@ -59,7 +60,8 @@ For canonical test conventions see
 e.g. C-prefixed POJOs for BAF, Maven `@Parameter` POJOs for the plugin.>
 
 For canonical code conventions see
-[workspace/guides/CODE_WRITING_GUIDE.md](../workspace/guides/CODE_WRITING_GUIDE.md)
+[workspace/guides/src/CODE_WRITING_GUIDE-8.md](../workspace/guides/src/CODE_WRITING_GUIDE-8.md)
+(plus [CODE_WRITING_GUIDE-21.md](../workspace/guides/src/CODE_WRITING_GUIDE-21.md) on Java 21+ repos)
 **(workspace)**.
 
 For TDD workflow see
@@ -95,10 +97,12 @@ For TDD workflow see
 After modifying or creating any `.java` file:
 
 - For `*Test.java` files, verify rules from
-  [workspace/guides/TEST_WRITING_GUIDE.md](../workspace/guides/TEST_WRITING_GUIDE.md)
+  [workspace/guides/test/TEST_WRITING_GUIDE-8.md](../workspace/guides/test/TEST_WRITING_GUIDE-8.md)
+(plus [TEST_WRITING_GUIDE-21.md](../workspace/guides/test/TEST_WRITING_GUIDE-21.md) on Java 21+ repos)
   and this repo's own `TEST_WRITING_GUIDE.md` (if present).
 - For production sources, verify rules from
-  [workspace/guides/CODE_WRITING_GUIDE.md](../workspace/guides/CODE_WRITING_GUIDE.md)
+  [workspace/guides/src/CODE_WRITING_GUIDE-8.md](../workspace/guides/src/CODE_WRITING_GUIDE-8.md)
+(plus [CODE_WRITING_GUIDE-21.md](../workspace/guides/src/CODE_WRITING_GUIDE-21.md) on Java 21+ repos)
   and this repo's own `CODE_WRITING_GUIDE.md` (if present).
 - Apply all fixable violations automatically; report only violations that
   cannot be resolved without a large refactor.

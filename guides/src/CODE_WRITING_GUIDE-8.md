@@ -1,24 +1,32 @@
-# Code Writing Guide — Workspace Canonical Conventions (Java 8 Baseline)
+# Code Writing Guide — Production Sources — Java 8 (baseline)
 
-> Canonical workspace guide. Applies to every sibling Java repo
-> (`BitcoinAddressFinder`, `java-llama.cpp`, `llamacpp-ai-index-maven-plugin`,
-> `streambuffer`). Each repo's own `CODE_WRITING_GUIDE.md` (if present)
-> contains only **project-specific supplements**.
+> **Versioned guide chain.** Files in this directory follow the naming
+> convention `CODE_WRITING_GUIDE-<JAVA-VERSION>.md`. A higher-version
+> file inherits all rules from every lower-version file in the chain
+> and may add new rules or override individual rules from below.
+> Read every file from the lowest applicable version up to the highest
+> one your repo's `pom.xml` `<release>` allows.
 >
-> **Baseline assumed by this guide:** Java 8 source/target. Three of
-> the four sibling repos (`streambuffer`, `java-llama.cpp`,
-> `llamacpp-ai-index-maven-plugin`) build to Java 8 bytecode (`<release>8</release>`
-> in their `pom.xml`). The rules here use only Java 8 idioms so they
-> apply uniformly across the fleet.
+> | File | Applies to | Inherits from |
+> |---|---|---|
+> | [`CODE_WRITING_GUIDE-8.md`](CODE_WRITING_GUIDE-8.md) (this file) | every sibling Java repo | — (baseline) |
+> | [`CODE_WRITING_GUIDE-21.md`](CODE_WRITING_GUIDE-21.md) | `BitcoinAddressFinder` only (Java 21) | `-8.md` |
 >
-> **Java 21 idioms** (records, switch expressions, text blocks, pattern
-> matching, sealed types) are documented in the optional supplement
-> [`CODE_WRITING_GUIDE-java21.md`](CODE_WRITING_GUIDE-java21.md).
-> Only `BitcoinAddressFinder` (`<source>21</source>/<target>21</target>`)
-> opts into that supplement today.
+> When a repo upgrades to a new LTS, add a new
+> `CODE_WRITING_GUIDE-<NEW>.md` file rather than editing older ones.
+> Old files keep working for repos that have not upgraded.
+>
+> **This file (Java 8 baseline):** applies to every sibling Java repo
+> (`BitcoinAddressFinder`, `java-llama.cpp`,
+> `llamacpp-ai-index-maven-plugin`, `streambuffer`). Three of the four
+> build to Java 8 bytecode (`<release>8</release>` in `pom.xml`); BAF
+> targets Java 21 but still follows everything below.
+>
+> Each repo's own `CODE_WRITING_GUIDE.md` (if present) contains only
+> **project-specific supplements** — not version-related rules.
 >
 > For TDD workflow see
-> [`../.claude/skills/java-tdd-guide/SKILL.md`](../.claude/skills/java-tdd-guide/SKILL.md).
+> [`../../.claude/skills/java-tdd-guide/SKILL.md`](../../.claude/skills/java-tdd-guide/SKILL.md).
 
 ---
 

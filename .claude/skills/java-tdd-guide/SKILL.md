@@ -17,7 +17,7 @@ by reading the test sources, not invented.
 **Baseline assumed by this skill:** Java 8 + JUnit Jupiter 6.1.0 +
 Hamcrest 3.0. Java 21 idioms (records, switch expressions, text blocks)
 are documented separately in
-[`../../../guides/CODE_WRITING_GUIDE-java21.md`](../../../guides/CODE_WRITING_GUIDE-java21.md);
+[`../../../guides/src/CODE_WRITING_GUIDE-21.md`](../../../guides/src/CODE_WRITING_GUIDE-21.md);
 only `BitcoinAddressFinder` targets Java 21 today.
 
 ---
@@ -429,7 +429,7 @@ and reinforce:
 For the Java 21 idioms (records, switch expressions, text blocks,
 pattern matching) that apply to BitcoinAddressFinder but not the
 Java-8 repos, see
-[`../../../guides/CODE_WRITING_GUIDE-java21.md`](../../../guides/CODE_WRITING_GUIDE-java21.md).
+[`../../../guides/src/CODE_WRITING_GUIDE-21.md`](../../../guides/src/CODE_WRITING_GUIDE-21.md).
 
 ---
 

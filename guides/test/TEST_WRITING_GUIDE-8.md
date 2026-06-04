@@ -1,10 +1,21 @@
-# Test Writing Guide — Workspace Canonical Conventions
+# Test Writing Guide — Test Sources — Java 8 (baseline)
 
-> Canonical workspace guide. Applies to every sibling Java repo
-> (`BitcoinAddressFinder`, `java-llama.cpp`, `llamacpp-ai-index-maven-plugin`,
-> `streambuffer`). Each repo's own `TEST_WRITING_GUIDE.md` (if present)
-> contains only **project-specific supplements**.
+> **Versioned guide chain.** Files in this directory follow the naming
+> convention `TEST_WRITING_GUIDE-<JAVA-VERSION>.md`. A higher-version
+> file inherits all rules from every lower-version file in the chain
+> and may add new rules or override individual rules from below.
+> Read every file from the lowest applicable version up to the highest
+> one your repo's `pom.xml` `<release>` allows.
 >
+> | File | Applies to | Inherits from |
+> |---|---|---|
+> | [`TEST_WRITING_GUIDE-8.md`](TEST_WRITING_GUIDE-8.md) (this file) | every sibling Java repo | — (baseline) |
+> | [`TEST_WRITING_GUIDE-21.md`](TEST_WRITING_GUIDE-21.md) | `BitcoinAddressFinder` only (Java 21) | `-8.md` |
+>
+> When a repo upgrades to a new LTS, add a new
+> `TEST_WRITING_GUIDE-<NEW>.md` file rather than editing older ones.
+>
+> **This file (Java 8 baseline):** applies to every sibling Java repo.
 > Reflects the conventions **actually in use** across the codebases —
 > verified by reading test sources, not invented. The owner's
 > ground-truth references are
@@ -15,7 +26,7 @@
 > AI-generated and have weaker style fidelity.
 >
 > For the TDD workflow and the larger framework rationale, see
-> [`../.claude/skills/java-tdd-guide/SKILL.md`](../.claude/skills/java-tdd-guide/SKILL.md).
+> [`../../.claude/skills/java-tdd-guide/SKILL.md`](../../.claude/skills/java-tdd-guide/SKILL.md).
 
 ---
 

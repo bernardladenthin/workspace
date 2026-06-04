@@ -1,14 +1,25 @@
-# Code Writing Guide — Java 21 Supplement
+# Code Writing Guide — Production Sources — Java 21 (supplement)
 
-> Optional supplement to the [Java 8 baseline canonical guide](CODE_WRITING_GUIDE.md).
-> Applies to repos that target Java 16+ (`<release>16</release>` or
-> later in `pom.xml`). At time of writing, only
-> `BitcoinAddressFinder` (`<source>21</source>/<target>21</target>`)
-> opts in.
+> **Versioned guide chain.** This file **extends**
+> [`CODE_WRITING_GUIDE-8.md`](CODE_WRITING_GUIDE-8.md). All rules in
+> the baseline apply unless an entry below explicitly overrides them.
+> Read `-8.md` first, then this file.
 >
-> `streambuffer`, `java-llama.cpp`, and `llamacpp-ai-index-maven-plugin`
-> target Java 8 (`<release>8</release>`) and MUST NOT use the idioms
-> below.
+> | File | Applies to | Inherits from |
+> |---|---|---|
+> | [`CODE_WRITING_GUIDE-8.md`](CODE_WRITING_GUIDE-8.md) | every sibling Java repo | — (baseline) |
+> | [`CODE_WRITING_GUIDE-21.md`](CODE_WRITING_GUIDE-21.md) (this file) | `BitcoinAddressFinder` only | `-8.md` |
+>
+> **Eligibility.** Applies to repos whose `pom.xml` has
+> `<release>16</release>` or later (records require Java 16+). Today
+> only `BitcoinAddressFinder` (`<source>21</source>/<target>21</target>`)
+> qualifies. `streambuffer`, `java-llama.cpp`, and
+> `llamacpp-ai-index-maven-plugin` target Java 8 (`<release>8</release>`)
+> and MUST NOT use the idioms below.
+>
+> **When BAF upgrades to a newer LTS** (Java 25 / 29 / ...): add
+> `CODE_WRITING_GUIDE-<NEW>.md` next to this file with the same
+> "extends previous" header. Do not modify older guide versions.
 
 ---
 
