@@ -95,20 +95,39 @@ stack, the rule had to be narrowed:
 
 | Repo | Real-world blocker | Current best rule |
 |---|---|---|
-| **BAF** | `configuration` POJOs reach into root for compile-time constants (`PublicKeyBytes.*`) and one helper (`BitHelper`); root and `keyproducer` both touch many siblings, making "root" the orchestration layer by accident rather than design | `configurationDoesNotDependOnRuntimeLayers` + `eckeyIsLowLevelCrypto` + `cliIsEntryPointOnly` (3 narrower rules; commit `bd58221`) |
+| **BAF** | One residual `configuration → root` edge after the `Secp256k1Constants` extraction (commit `ca75527`): `CKeyProducerJava.maxWorkSize` reads `PublicKeyBytes.BIT_COUNT_FOR_MAX_CHUNKS_ARRAY` (Java array-size cap — a producer-layer concern, not a secp256k1 spec value). Root and `keyproducer` still touch many siblings, making "root" the orchestration layer by accident rather than design. | `constantsPackageIsALeaf` + `configurationDoesNotDependOnRuntimeLayers` + `eckeyIsLowLevelCrypto` + `cliIsEntryPointOnly` (4 narrower rules; commits `bd58221` + `ca75527`) |
 | **jllama** | `json` parsers/serializers consume root-package DTOs (`Pair`, `ChatMessage`, `ContentPart`) AND the root API consumes `json` parsers — they are peers, not stackable | `argsPackageIsALeaf` (1 narrower rule; commit `e673471`) |
 | **plugin** | single production package (`aiindex`) | ➖ no layering possible |
 | **streambuffer** | single production class (`StreamBuffer`) | ➖ no layering possible |
 
-In each case the structural fix is non-trivial — for BAF: extract
-the constants `PublicKeyBytes` exposes, lift `BitHelper` into
-`configuration` or out of the POJO method, and split the root
-package into an explicit `core/` (DTOs) + `orchestration/`
+In each case the structural fix is non-trivial &mdash; for BAF: extract
+the remaining `BIT_COUNT_FOR_MAX_CHUNKS_ARRAY` producer-layer
+constant into its own leaf (mirroring how
+`Secp256k1Constants` was extracted in commit `ca75527`), then split
+the root package into an explicit `core/` (DTOs) + `orchestration/`
 (Finder, Producer*, Consumer*) layer. For jllama: split DTOs out
 of the root API package into a dedicated `value/` package, which
 breaks the published public-API FQNs (`net.ladenthin.llama.Pair`
 becomes `net.ladenthin.llama.value.Pair`) and therefore counts as
 a breaking change. Neither of those is a small commit.
+
+**Worked example &mdash; BAF `Secp256k1Constants` (commit `ca75527`).**
+Five spec scalars (`MIN_VALID_PRIVATE_KEY`, `MIN_VALID_PRIVATE_KEY_HEX`,
+`MAX_PRIVATE_KEY_HEX`, `MAX_PRIVATE_KEY`, `INVALID_PRIVATE_KEY_REPLACEMENT`)
+plus `PRIVATE_KEY_MAX_NUM_BITS` were moved out of the producer-side
+`PublicKeyBytes` DTO into a new
+`net.ladenthin.bitcoinaddressfinder.constants.Secp256k1Constants` class
+in a leaf package. Two `configuration → root` edges disappeared (the
+hex-default reads in `CKeyProducerJavaIncremental`); the
+`CProducer.getOverallWorkSize(BitHelper)` parameter was inlined in
+the same commit to close a third edge. A new
+`constantsPackageIsALeaf` ArchUnit rule was added to pin the new
+package's leaf property at build time. Pattern to copy when
+extracting the next leaf: (1) write the new class first with the
+constants in their natural unit and `@NullMarked` package-info,
+(2) update production callers to import from the new location,
+(3) update the test callers (often 5&ndash;10 files), (4) delete the
+originals, (5) add a `<name>PackageIsALeaf` ArchUnit rule.
 
 ### Procedure when a repo's turn comes up
 
