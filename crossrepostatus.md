@@ -38,7 +38,7 @@ status table further down has been updated accordingly.
 | BAF `@VisibleForTesting` usages | 19 sites × 6 files | **16 sites × 5 files** | 3 annotations dropped (`OpenClTask.getPrivateKeySourceArgument`, `ProducerOpenCL.waitTillFreeThreadsInPool`, `ProducerOpenCL.getFreeThreads` — commit `05d9ddf`). The 4 `cli/Main.FILE_EXTENSION_*` annotations are still present (constants used by production, tests reach them in-package via `MainConfigurationLoadingTest`). |
 | BAF LogCaptor test files | 5 | **7** | Two LogCaptor users added since the snapshot. |
 | BAF `@Nullable` sites in production | 53 | **50** | 3 sites removed as types tightened (no regressions; deep scan still finds the remainder legitimate). |
-| BAF stale `loadToMemoryCacheOnInit` example JSONs | 3 | **4** | `examples/config_AddressFilesToLMDB.json` also carries the dead key — the original CLAUDE.md TODO listed only the 3 `Find_*` configs but missed this one. |
+| BAF stale `loadToMemoryCacheOnInit` example JSONs | 3 | **0 — RESOLVED** | Original list was 3, actual was 4 (`config_AddressFilesToLMDB.json` was the missed one); all 4 lines deleted this session, JSON validity verified. Default backend remains `BLOOM` per `CLMDBConfigurationReadOnly.java:43`. |
 | sb `@Nullable` "zero in production" claim | 0 | **0 actual annotations** (2 grep hits are in Javadoc text, not annotations) — claim **stays accurate**. |
 
 **Items confirmed unchanged (still open, no source movement):**
@@ -179,7 +179,7 @@ status table further down has been updated accordingly.
 - `--release 21` for main compile (still `<source>21</source>/<target>21</target>` at `pom.xml:313-314`; only `module-info-compile` uses `--release 9`)
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
 - 3 large GPU design TODOs (Pre-compute HASHSET hash on GPU, Push TRUNCATED_LONG_64 into OpenCL, End-to-end GPU vision)
-- Persistence follow-ups (re-verified 2026-06-04): **4** stale `loadToMemoryCacheOnInit` example JSONs (not 3 — `config_AddressFilesToLMDB.json` also has the dead key); JMH migration of `AddressLookupBenchmarkTest` (still under `persistence/`, NOT in `benchmark/` JMH module); open-addressing hash table backend; standalone `BloomFilterPersistence`; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item)
+- Persistence follow-ups (re-verified 2026-06-04): ~~4 stale `loadToMemoryCacheOnInit` example JSONs~~ ✅ DONE this session; JMH migration of `AddressLookupBenchmarkTest` (still under `persistence/`, NOT in `benchmark/` JMH module); open-addressing hash table backend; standalone `BloomFilterPersistence`; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item). Default backend remains `BLOOM`.
 - `@VisibleForTesting` site-by-site cleanup: 16 sites remain (3 dropped in `05d9ddf`). The 2 highest-value items are still untouched — `Finder.AWAIT_DURATION_TERMINATE` + `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` mutable statics; the 5 executor-injection refactors (`Finder.producerExecutorService`, `ConsumerJava.{scheduledExecutorService,consumeKeysExecutorService}`, `ProducerOpenCL.{resultReaderThreadPoolExecutor,openCLContext}`) and the `Main.runLatch` field-to-private move
 - 4 naming-audit MODERATE/MINOR findings still in source: `BitHelper.getKillBits` → `getLowBitMask`; `LMDBPersistence.getAllAmountsFromAddresses` → `sumAmountsForAddresses`; `OpenCLBuilder.isOpenCLnativeLibraryLoadable` → `isOpenClNativeLibraryLoaded`; `PrivateKeyValidator.returnValidPrivateKey` → `coerceToValidPrivateKey`
 
