@@ -43,7 +43,7 @@ status table further down has been updated accordingly.
 
 **Items confirmed unchanged (still open, no source movement):**
 
-- BAF: `Finder.AWAIT_DURATION_TERMINATE` and `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` are still package-private, non-final, mutable statics (`Finder.java:44`, `ConsumerJava.java:48`).
+- ~~BAF: `Finder.AWAIT_DURATION_TERMINATE` and `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` are still package-private, non-final, mutable statics~~ ✅ **FIXED** this session (BAF commit `51ac43c`) — both mutable statics removed; replaced with `CFinder.awaitTerminateSeconds` (long, default ~100 k years) and `CConsumerJava.awaitQueueEmptySeconds` (long, default 60). Tests now inject the shortened timeout via the config POJO they construct anyway. `java.time.Duration` / `java.time.temporal.ChronoUnit` imports dropped from both production classes; `@VisibleForTesting` dropped from the call sites. Test-order hazard eliminated.
 - ~~BAF: `Main.runLatch` is still package-private~~ ✅ **FIXED** this session (`2d99c4a`) — field is now `private final`, `@VisibleForTesting` annotation dropped; tests reach state via the public `getRunLatch()` getter at `Main.java:84`.
 - ~~BAF: All five executor / lifecycle fields flagged for constructor injection~~ ✅ **ALL 5 CLOSED** this session via the audit-recommended test-friendly-constructor pattern (and an `isInitialized()` getter for the lifecycle handle):
   - `Finder.producerExecutorService` — `dda12e3` (3 FinderTest sites now construct an injected `ExecutorService`)
@@ -197,7 +197,7 @@ status table further down has been updated accordingly.
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
 - 3 large GPU design TODOs (Pre-compute HASHSET hash on GPU, Push TRUNCATED_LONG_64 into OpenCL, End-to-end GPU vision)
 - Persistence follow-ups (re-verified 2026-06-04): ~~4 stale `loadToMemoryCacheOnInit` example JSONs~~ ✅ DONE this session; JMH migration of `AddressLookupBenchmarkTest` (still under `persistence/`, NOT in `benchmark/` JMH module); open-addressing hash table backend; standalone `BloomFilterPersistence`; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item). Default backend remains `BLOOM`.
-- `@VisibleForTesting` site-by-site cleanup: **9 of 16 sites cleared this session.** Remaining: `Finder.AWAIT_DURATION_TERMINATE` + `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` mutable statics (the 2 highest-value items, biggest semantic change), plus the in-class `@VisibleForTesting` getters that are documentation-only (e.g. `getRunLatch()`, `getFreeThreads()`).
+- `@VisibleForTesting` site-by-site cleanup: **11 of 16 sites cleared (this session + commit `51ac43c`).** The 2 highest-value items (`Finder.AWAIT_DURATION_TERMINATE` + `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` mutable statics) were migrated to `CFinder.awaitTerminateSeconds` / `CConsumerJava.awaitQueueEmptySeconds` config fields — test-order hazard eliminated. Remaining sites are the public `@VisibleForTesting` getters (e.g. `getRunLatch()`, `getFreeThreads()`) — documentation-only since the access modifier is already public; could drop the annotation but it's pure noise.
 - ~~4 naming-audit MODERATE/MINOR findings still in source~~ ✅ ALL 4 FIXED this session: `BitHelper.getKillBits` → `getLowBitMask`; `LMDBPersistence.getAllAmountsFromAddresses` → `sumAmountsForAddresses`; `OpenCLBuilder.isOpenCLnativeLibraryLoadable` → `isOpenClNativeLibraryLoaded`; `PrivateKeyValidator.returnValidPrivateKey` → `coerceToValidPrivateKey`
 
 ### jllama-only
@@ -225,8 +225,8 @@ Project's own stated rule (BAF CLAUDE.md): *"@VisibleForTesting should be the la
 
 | File:Line | Entity | Current visibility | Why refactor |
 |---|---|---|---|
-| `Finder.java:43` | `static Duration AWAIT_DURATION_TERMINATE` | pkg-private static (**mutable!**) | FinderTest reassigns the static at runtime — test-order hazard. Inject via config. |
-| `ConsumerJava.java:47` | `static Duration AWAIT_DURATION_QUEUE_EMPTY` | pkg-private static (**mutable!**) | Same shared-mutable-static anti-pattern. |
+| ~~`Finder.java:43`~~ | ~~`static Duration AWAIT_DURATION_TERMINATE`~~ | pkg-private static (**mutable!**) | ✅ **FIXED** in `51ac43c` — migrated to `CFinder.awaitTerminateSeconds` (long, default ~100 k years). Tests inject via config POJO; static gone; `java.time.Duration` import dropped from `Finder`. Test-order hazard eliminated. |
+| ~~`ConsumerJava.java:47`~~ | ~~`static Duration AWAIT_DURATION_QUEUE_EMPTY`~~ | pkg-private static (**mutable!**) | ✅ **FIXED** in `51ac43c` — migrated to `CConsumerJava.awaitQueueEmptySeconds` (long, default 60). Same pattern, same hazard eliminated. |
 | `Finder.java:60` | `final ExecutorService producerExecutorService` | pkg-private | Test only calls `.isTerminated()`. Inject executor → field becomes `private`. |
 | `ConsumerJava.java:94` | `ScheduledExecutorService scheduledExecutorService` | pkg-private **non-final** | Test reads `.isShutdown()`. Inject; field becomes `private final`. |
 | `ConsumerJava.java:129` | `final ExecutorService consumeKeysExecutorService` | pkg-private | Same — inject. |
@@ -268,11 +268,11 @@ Project's own stated rule (BAF CLAUDE.md): *"@VisibleForTesting should be the la
 2. **Small (15 min)**: ✅ Partially done in `05d9ddf` — dropped misapplied annotations on `OpenClTask.getPrivateKeySourceArgument` + `ProducerOpenCL.waitTillFreeThreadsInPool` + `ProducerOpenCL.getFreeThreads`. **Still open**: make `Main.runLatch` field `private` (keep public getter); consider widening `ConsumerJava.keysQueueSize` to `public` or dropping the annotation.
 3. **Medium (30–60 min)**: replace `ConsumerJava.shouldRun` and `BIP39KeyProducer.counter` direct-field exposure with `isRunning()` getter / constructor parameter respectively.
 4. **Bigger (1–2 h)**: inject the 5 executor services via constructor; fields become `private final`. Tests pass their own executors and assert on them.
-5. **Biggest (carries semantic risk)**: kill the two mutable static `AWAIT_DURATION_*` fields. Convert to constructor-injected configuration; this is the highest-value cleanup but touches the most call sites.
+5. ~~**Biggest (carries semantic risk)**: kill the two mutable static `AWAIT_DURATION_*` fields.~~ ✅ **DONE** in `51ac43c` — both migrated to `long` seconds config fields on `CFinder` / `CConsumerJava`. `Duration` chosen against because Jackson lacks jsr310 in this project; `long` matches existing convention (`delayEmptyConsumer = 100`).
 
 ### Net story (updated this session)
 
-Of the 19 sites: **2 groups resolved this session** — (1) 4 `FILE_EXTENSION_*` constants via the `loadConfiguration` extraction + `cli/MainConfigurationLoadingTest.java`; (2) 3 misapplied annotations dropped in `05d9ddf` (`OpenClTask.getPrivateKeySourceArgument`, `ProducerOpenCL.waitTillFreeThreadsInPool`, `ProducerOpenCL.getFreeThreads`). 10 genuine "widen access for tests" smells remain; 2 are still KEEP.
+Of the 19 sites: **3 groups resolved this session** — (1) 4 `FILE_EXTENSION_*` constants via the `loadConfiguration` extraction + `cli/MainConfigurationLoadingTest.java`; (2) 3 misapplied annotations dropped in `05d9ddf` (`OpenClTask.getPrivateKeySourceArgument`, `ProducerOpenCL.waitTillFreeThreadsInPool`, `ProducerOpenCL.getFreeThreads`); (3) **the 2 highest-value mutable-static `AWAIT_DURATION_*` fields migrated to `CFinder.awaitTerminateSeconds` / `CConsumerJava.awaitQueueEmptySeconds` config fields in `51ac43c` — test-order hazard eliminated**. 8 genuine "widen access for tests" smells remain; 2 are still KEEP.
 
 ---
 
