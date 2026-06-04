@@ -46,7 +46,7 @@ status table further down has been updated accordingly.
 - BAF: `Finder.AWAIT_DURATION_TERMINATE` and `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` are still package-private, non-final, mutable statics (`Finder.java:44`, `ConsumerJava.java:48`).
 - BAF: `Main.runLatch` is still package-private (not made private with public getter) — `cli/Main.java:72,84`.
 - BAF: All five executor / lifecycle fields flagged for constructor injection still package-private with no injection seam: `Finder.producerExecutorService` (`:61`), `ConsumerJava.scheduledExecutorService` (`:95`, non-final), `ConsumerJava.consumeKeysExecutorService` (`:130`), `ProducerOpenCL.resultReaderThreadPoolExecutor`, `ProducerOpenCL.openCLContext`.
-- BAF: 4 naming-audit MODERATE/MINOR findings still in source: `BitHelper.getKillBits` (`:35`), `LMDBPersistence.getAllAmountsFromAddresses` (interface + impl), `OpenCLBuilder.isOpenCLnativeLibraryLoadable` (`:229`), `PrivateKeyValidator.returnValidPrivateKey` (`:89`).
+- ~~BAF: 4 naming-audit MODERATE/MINOR findings still in source: `BitHelper.getKillBits` (`:35`), `LMDBPersistence.getAllAmountsFromAddresses` (interface + impl), `OpenCLBuilder.isOpenCLnativeLibraryLoadable` (`:229`), `PrivateKeyValidator.returnValidPrivateKey` (`:89`).~~ ✅ **ALL 4 FIXED this session** — commits `2509988`, `8ff90c9`, `81dd95b`, `a6531c9`.
 - plugin: `LlamaCppJniAiSummaryProvider` file still present (not renamed to `LlamaCppJniAiGenerationProvider`); `AiGenerationResult` still carries only the `body` field (line 19: `private final String body;`) — both naming-audit follow-ups remain open.
 - jllama: `setSpecDraftBackendSampling` — zero matches in `src/main/java` — confirmed still ❌ (deferred by policy).
 - All four repos: SpotBugs is on `effort=Default`, `threshold=Default` (BAF `:648-649`, jllama `:572-573`, plugin `:551-552`, sb `:541-542`) — confirmed ❌.
@@ -181,7 +181,7 @@ status table further down has been updated accordingly.
 - 3 large GPU design TODOs (Pre-compute HASHSET hash on GPU, Push TRUNCATED_LONG_64 into OpenCL, End-to-end GPU vision)
 - Persistence follow-ups (re-verified 2026-06-04): ~~4 stale `loadToMemoryCacheOnInit` example JSONs~~ ✅ DONE this session; JMH migration of `AddressLookupBenchmarkTest` (still under `persistence/`, NOT in `benchmark/` JMH module); open-addressing hash table backend; standalone `BloomFilterPersistence`; `HashSetPrecomputedHashAddressPresence` (Pre-compute HASHSET hash item). Default backend remains `BLOOM`.
 - `@VisibleForTesting` site-by-site cleanup: 16 sites remain (3 dropped in `05d9ddf`). The 2 highest-value items are still untouched — `Finder.AWAIT_DURATION_TERMINATE` + `ConsumerJava.AWAIT_DURATION_QUEUE_EMPTY` mutable statics; the 5 executor-injection refactors (`Finder.producerExecutorService`, `ConsumerJava.{scheduledExecutorService,consumeKeysExecutorService}`, `ProducerOpenCL.{resultReaderThreadPoolExecutor,openCLContext}`) and the `Main.runLatch` field-to-private move
-- 4 naming-audit MODERATE/MINOR findings still in source: `BitHelper.getKillBits` → `getLowBitMask`; `LMDBPersistence.getAllAmountsFromAddresses` → `sumAmountsForAddresses`; `OpenCLBuilder.isOpenCLnativeLibraryLoadable` → `isOpenClNativeLibraryLoaded`; `PrivateKeyValidator.returnValidPrivateKey` → `coerceToValidPrivateKey`
+- ~~4 naming-audit MODERATE/MINOR findings still in source~~ ✅ ALL 4 FIXED this session: `BitHelper.getKillBits` → `getLowBitMask`; `LMDBPersistence.getAllAmountsFromAddresses` → `sumAmountsForAddresses`; `OpenCLBuilder.isOpenCLnativeLibraryLoadable` → `isOpenClNativeLibraryLoaded`; `PrivateKeyValidator.returnValidPrivateKey` → `coerceToValidPrivateKey`
 
 ### jllama-only
 - ~~`setSkipDownload(boolean)` plumbing~~ ✅ DONE (`37754d4`)
@@ -269,10 +269,10 @@ Goal stated by owner: *"not perfect, but at least good enough and clear"* — fl
 |---|---|---|---|---|
 | ~~`Bech32Helper.java:134`~~ | ~~`getWitnessPrograms(Bech32Data)`~~ | Returns a **single** witness program (`byte[]`) — bitcoinj upstream uses singular `witnessProgram()` | `getWitnessProgram` | ✅ **FIXED** in `cc37a5d` (this session) |
 | ~~`CKeyProducerJavaIncremental.java`~~ (fields + getters) | ~~`startAddress`/`endAddress`/`getStartAddress`/`getEndAddress`~~ | Return **private-key** range bounds (`BigInteger`); javadoc itself said "private-key range". In Bitcoin "address" = derived public hash — opposite end of the pipeline | `startPrivateKey` / `endPrivateKey` / `getStartPrivateKey` / `getEndPrivateKey` | ✅ **FIXED** in `83ada00` (this session — 6 files: POJO, impl, 2 tests, README, example JSON; no back-compat shim per direction) |
-| `BitHelper.java:35` | `getKillBits(int bits)` | Returns low-bits bitmask `2^bits - 1` (e.g. `0xFF` for `bits=8`) — used to mask, not "kill" | `getLowBitMask` | MODERATE |
-| `LMDBPersistence.java:388` (+ `Persistence` interface) | `getAllAmountsFromAddresses(List<ByteBuffer>)` | Returns the **sum** of all amounts as a single `Coin` — plural name implies a collection | `sumAmountsForAddresses` | MODERATE |
-| `opencl/OpenCLBuilder.java:229` | `isOpenCLnativeLibraryLoadable` | Reads a `nativeLibraryLoaded` boolean; (1) mid-word lowercase `n` in `CLn` violates Java conventions, (2) verb is `-able` but value is post-fact `-ed` | `isOpenClNativeLibraryLoaded` | MODERATE |
-| `PrivateKeyValidator.java:89` | `returnValidPrivateKey(secret)` | Returns input if valid, else the replacement constant — **coerces/sanitises**, not just returns | `coerceToValidPrivateKey` / `sanitizePrivateKey` | MINOR |
+| ~~`BitHelper.java:35`~~ | ~~`getKillBits(int bits)`~~ | Returns low-bits bitmask `2^bits - 1` (e.g. `0xFF` for `bits=8`) — used to mask, not "kill" | `getLowBitMask` | ✅ **FIXED** in this session (`BitHelper`, `AbstractProducer`, `BitHelperTest`, `BitcoinAddressProperties`, `BitHelperBenchmark`, `ProbeAddressesOpenCLTest`, `CommonDataProvider.DATA_PROVIDER_KILL_BITS`→`DATA_PROVIDER_LOW_BIT_MASK`) |
+| ~~`LMDBPersistence.java:388` (+ `Persistence` interface)~~ | ~~`getAllAmountsFromAddresses(List<ByteBuffer>)`~~ | Returns the **sum** of all amounts as a single `Coin` — plural name implies a collection | `sumAmountsForAddresses` | ✅ **FIXED** in this session (`Persistence.java`, `LMDBPersistence.java`; no other callers existed) |
+| ~~`opencl/OpenCLBuilder.java:229`~~ | ~~`isOpenCLnativeLibraryLoadable`~~ | Reads a `nativeLibraryLoaded` boolean; (1) mid-word lowercase `n` in `CLn` violates Java conventions, (2) verb is `-able` but value is post-fact `-ed` | `isOpenClNativeLibraryLoaded` | ✅ **FIXED** in this session (`OpenCLBuilder`, `OpenCLBuilderTest`, `OpenCLPlatformAssume`, `spotbugs-exclude.xml`). The broader `assumeOpenCLLibraryLoadable` helper rename across 8 test files / 31 call sites is intentionally out of scope. |
+| ~~`PrivateKeyValidator.java:89`~~ | ~~`returnValidPrivateKey(secret)`~~ | Returns input if valid, else the replacement constant — **coerces/sanitises**, not just returns | `coerceToValidPrivateKey` | ✅ **FIXED** in this session (`PrivateKeyValidator` definition + in-file caller in `replaceInvalidPrivateKeys`, `PrivateKeyValidatorTest`, plus doc updates in `CLAUDE.md` line 181 and `skills/tdd.md` line 134) |
 
 The two CRITICAL findings are the highest-value: `getStartAddress`/`getEndAddress` is a public JSON config field that actively misleads operators about what they're configuring (they think it's a Bitcoin address range; it's actually a private-key range).
 
@@ -314,11 +314,11 @@ No class-drift, no typos, no plurality mismatches, no cryptic names. The 5 `hand
 
 | Repo | CRITICAL | MODERATE | MINOR | Total | Fixed this session |
 |---|:--:|:--:|:--:|:--:|:--:|
-| BAF | 2 | 3 | 1 | 6 | 2 (Bech32Helper plural→singular `cc37a5d`; CKeyProducerJavaIncremental startAddress/endAddress→startPrivateKey/endPrivateKey `83ada00`) |
+| BAF | 2 | 3 | 1 | 6 | **6 (all fixed)** — Bech32Helper `cc37a5d`; CKeyProducerJavaIncremental `83ada00`; BitHelper.getKillBits→getLowBitMask `2509988`; LMDBPersistence.getAllAmountsFromAddresses→sumAmountsForAddresses `8ff90c9`; OpenCLBuilder.isOpenCLnativeLibraryLoadable→isOpenClNativeLibraryLoaded `81dd95b`; PrivateKeyValidator.returnValidPrivateKey→coerceToValidPrivateKey `a6531c9` |
 | sb | 0 | 4 | 3 | 7 | 7 (all closed: typo `966595c` + 3 method renames `cf2b5fd` + final 3 cleanups `16f1df7`) |
 | plugin | 0 | 4 | 3 | 7 | 2 (CRC32 docs `8930e4d` + AiResponseNormalizer→AiCompletionParser rename `6567b9e`) |
 | jllama | 0 | 1 | 0 | 1 | 1 (isDefault → isUnset `ffbc06c`) |
-| **All** | **2** | **12** | **7** | **21** | **12 fixed, 9 remain** (both CRITICAL done; sb fully cleared) |
+| **All** | **2** | **12** | **7** | **21** | **16 fixed, 5 remain** (both CRITICAL done; sb + BAF + jllama fully cleared; 5 open are all in plugin) |
 
 **Top 5 to fix first (CRITICAL + highest-impact MODERATE):**
 1. ✅ BAF `CKeyProducerJavaIncremental.startAddress/endAddress` → `startPrivateKey/endPrivateKey` — public JSON config field rename. **Fixed in `83ada00`.**
