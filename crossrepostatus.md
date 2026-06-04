@@ -51,6 +51,9 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | **Cross-repo refactors** | | | | |
 | Workspace-shared guidelines layer (Java code/test conventions) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
 | Standardised `CLAUDE.md` template | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
+| Versioned workspace guide chain (`guides/src/-8.md` + `-21.md`, `guides/test/-8.md` + `-21.md`) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
+| Audit-driven SKILL.md rewrite (replaced fictional JUnit 4 / `DataProviderRunner` content with actual Jupiter + Hamcrest + `@MethodSource` stack) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
+| Safe dependency / plugin bumps (logback patch, checker 4.2.0, fb-contrib 7.7.4, spotless 3.6.0, palantir 2.91.0, pitest 1.25.3 + surefire 3.5.6 for sb) | ✅ `59f7ff1` | ✅ `0a97ae7` | ✅ `93c7c84` | ✅ `3ccb426` |
 | **BAF-specific big items** | | | | |
 | `-Werror` items 1–6 (BAF-internal pre-`-Werror` list) | ✅ all six cleared (`6eadc6f`) | ➖ | ➖ | ➖ |
 | Persistence-backends research/implementation | ✅ refresh DONE in `5b16c77` (this session) — TODO now reflects shipped state per plan item: HashSet snapshot, BloomFilterAccelerator extraction, TRUNCATED_LONG_64, AddressLookupBackend config enum, AddressPresence/AddressLookup chain contract, AddressLookupBenchmarkTest — all marked DONE. Remaining open: 3 stale example JSON `loadToMemoryCacheOnInit` lines, JMH migration of the benchmark, open-addressing hash table backend, standalone Bloom-only backend. | ➖ | ➖ | ➖ |
