@@ -211,7 +211,7 @@ status table further down has been updated accordingly.
 - `setSpecDraftBackendSampling(boolean)` plumbing — confirmed ❌ (zero matches in src/main/java; deferred policy)
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
 - GraalVM Native Image evaluation (design captured `23f8756`; implementation not started)
-- Feature-investigation first batch (UTF-8 boundary decoder + per-run timing line + jbang example + system-properties README table) — ~1-2 days, no JNI changes
+- Feature-investigation first batch (UTF-8 boundary decoder + per-run timing line + jbang example + ~~system-properties README table~~) — ~~~~1-2 days, no JNI changes~~. **`system-properties README table` done in `e36f631` (this session)** — full 9-row deep-scan table in `README.md#system-properties-reference` (was 5 rows missing all 4 test-only nomic/vision properties); `CLAUDE.md` cross-links to it; surfaced 2 source-side inconsistencies as a new follow-up TODO (`LlamaSystemProperties.getLibName()` declared with zero callers; `OSInfo.java:390` bypasses the registry by reading the property string literally). Remaining items of the first-batch backlog: UTF-8 boundary-safe streaming decoder + per-run timing line + jbang example.
 
 ### plugin-only
 - ArchUnit `layeredArchitecture()` + per-module banned-imports
