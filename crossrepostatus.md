@@ -64,7 +64,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | ArchUnit leaf-layer rules | ✅ (3 rules: `constantsPackageIsALeaf`, `configurationDoesNotDependOnRuntimeLayers`, `cliIsEntryPointOnly`) | ✅ (`argsPackageIsALeaf`) | ➖ single-package | ➖ single-package |
 | ArchUnit full `layeredArchitecture()` | ❌ — needs DTO/orchestration split; touches public-API FQNs | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
 | ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
-| SpotBugs `effort=Max` + `threshold=Low` | ❌ pom both `Default`; **191** findings at Max+Low (USBR-Lombok suppression in `6ddd69e` already applied — that excluded 24 more). Top patterns: CRLF_INJECTION_LOGS 68, OPM 33, WEM 26. | ❌ pom both `Default`; **90** findings at Max+Low (USBR-Lombok suppression in `ce8b466` already applied). Top patterns: OPM 25, DRE 20, WEM 14. | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
+| SpotBugs `effort=Max` + `threshold=Low` | ❌ pom both `Default`; **123** findings at Max+Low (USBR-Lombok `6ddd69e` and CRLF layout `bd723f0` already applied — those excluded 24 + 68 = 92). Top patterns: OPM 33, WEM 26, THROWS_RUNTIMEEXCEPTION 15. | ❌ pom both `Default`; **90** findings at Max+Low (USBR-Lombok suppression in `ce8b466` already applied). Top patterns: OPM 25, DRE 20, WEM 14. | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
 | **Logging / observability** | | | | |
 | LogCaptor smoke test | ✅ LogCaptor 2.12.6 (7 tests) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
 | **Code-quality audits (continuous)** | | | | |
@@ -90,7 +90,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 
 ### Affects all 4 repos
-- **SpotBugs `effort=Max` + `threshold=Low`** — ✅ sb (`4374dea` + `e7e254a`), ✅ plugin (`0bddf2a`); ❌ open in BAF (**191**) and jllama (**90**). Path that worked for sb (replicated and extended in plugin): flip pom config, run `spotbugs:check`, fix each finding at source where reasonable, suppress narrowly with rationale where structural (Lombok-generated equals/hashCode, generator-emitted Mojo bytecode, Maven `@Parameter` reflection contract, etc.). See the [**SpotBugs Max+Low remaining findings tracker**](#spotbugs-maxlow-remaining-findings-tracker) below for the per-pattern breakdown.
+- **SpotBugs `effort=Max` + `threshold=Low`** — ✅ sb (`4374dea` + `e7e254a`), ✅ plugin (`0bddf2a`); ❌ open in BAF (**123**, down from 191 after CRLF layout fix `bd723f0`) and jllama (**90**). Path that worked for sb (replicated and extended in plugin): flip pom config, run `spotbugs:check`, fix each finding at source where reasonable, suppress narrowly with rationale where structural (Lombok-generated equals/hashCode, generator-emitted Mojo bytecode, Maven `@Parameter` reflection contract, CRLF-injection sanitised at the Logback PatternLayout layer, etc.). See the [**SpotBugs Max+Low remaining findings tracker**](#spotbugs-maxlow-remaining-findings-tracker) below for the per-pattern breakdown.
 - **Package hierarchy review** (recurring; centralised at [`policies/code-quality-todos.md`](policies/code-quality-todos.md)).
 
 ### SpotBugs Max+Low remaining findings tracker
@@ -114,7 +114,7 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 
 | Repo | Total | Δ vs initial snapshot | Effort/Threshold (pom default) |
 |---|---:|---:|---|
-| BAF | **191** | −24 | Default+Default (lift pending) |
+| BAF | **123** | −92 | Default+Default (lift pending) |
 | jllama | **90** | −18 | Default+Default (lift pending) |
 | plugin | **0** | −32 | ✅ Max+Low enforced (`0bddf2a`) |
 | sb | 0 | — | ✅ Max+Low enforced |
@@ -201,7 +201,7 @@ session can take down a whole group across multiple repos.
 | Pattern | BAF | jllama | plugin | Group / fix approach |
 |---|---:|---:|---:|---|
 | **Logging / I/O safety** | | | | |
-| `CRLF_INJECTION_LOGS` | 68 | — | — | Sanitise log inputs (strip `\r\n`); BAF-only because it carries the most logger calls. |
+| `CRLF_INJECTION_LOGS` | ~~68~~ **0** | — | — | ✅ **BAF cleared in `bd723f0`** by adding `src/main/resources/logback.xml` with a `%replace(%msg){'[\r\n]+', ' \| '}` PatternLayout wrap on every appender (and same on `examples/logbackConfiguration.xml`); project-wide `<Match>` in `spotbugs-exclude.xml` with full rationale + OWASP/SEI CERT/find-sec-bugs references. Zero source edits; the security control lives at the appender layer and covers every `LOGGER.*` call (including transitive dependency logs and future contributor additions). |
 | **Method-shape hygiene** | | | | |
 | `OPM_OVERLY_PERMISSIVE_METHOD` | 33 | 25 | ~~2~~ **0** | Tighten visibility (`public`→package-private) where no external caller exists. Cross-repo refactor. (Plugin's 2 sites done in `dbfe742`.) |
 | `UPM_UNCALLED_PRIVATE_METHOD` | 7 | — | — | Delete unused private methods. |
@@ -278,9 +278,17 @@ session can take down a whole group across multiple repos.
 9. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
    `public` method that genuinely is part of the public API gets a
    per-method `@SuppressFBWarnings` instead.
-10. **`CRLF_INJECTION_LOGS`** (BAF only, 68 sites) — sanitisation at the
-    logger boundary. Either a wrapping helper or a project-wide
-    pattern-match exclusion if the inputs are demonstrably trusted.
+10. ~~`CRLF_INJECTION_LOGS` (BAF only, 68 sites).~~ ✅ **Done** (BAF
+    `bd723f0`). Chose layout-level mitigation: bundled
+    `src/main/resources/logback.xml` ships a `%replace(%msg){'[\r\n]+', ' | '}`
+    PatternLayout wrap so every `LOGGER.*` call is sanitised at the
+    appender layer. Per-site wrapping rejected (68 mechanical edits,
+    fragile against future contributors); `org.owasp:security-logging-logback`
+    rejected (unmaintained since 2021-12-15 — equivalent function is
+    ~20 lines of regex wrapped as a `CompositeConverter`). Project-wide
+    suppression in `spotbugs-exclude.xml` documents the layout pattern
+    as the security control with OWASP / SEI CERT / find-sec-bugs
+    references inline. BAF total dropped 191 → 123.
 11. Remaining low-count categories — fix or suppress with rationale.
 
 Once a repo reaches zero outstanding findings at Max+Low, **flip the
