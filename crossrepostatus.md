@@ -187,7 +187,7 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 
 | Repo | Total | Δ vs initial snapshot | Effort/Threshold (pom default) |
 |---|---:|---:|---|
-| BAF | **82** | −133 | Default+Default (lift pending) |
+| BAF | **86** | −129 | Default+Default (lift pending) |
 | jllama | **90** | −18 | Default+Default (lift pending) |
 | plugin | **0** | −32 | ✅ Max+Low enforced (`0bddf2a`) |
 | sb | 0 | — | ✅ Max+Low enforced |
@@ -283,7 +283,7 @@ session can take down a whole group across multiple repos.
 | `URF_UNREAD_FIELD` | 1 | — | — | Delete the unused field. |
 | **Exception messaging** | | | | |
 | `WEM_WEAK_EXCEPTION_MESSAGING` | ~~26~~ **0** | 14 | ✅ 0 | ✅ **BAF cleared** via 3-batch source pass: Batch 1 (`c2c3d62`) enriched 8 leaf-utility / validator sites with in-scope state. Batch 2 (`4677831`) extended `AddressFormatNotAcceptedException` with new `(reason, detail)` and `(reason, detail, cause)` ctor overloads that preserve the `getReason()` aggregation contract while enriching `getMessage()` — same design now becomes the cross-repo recommendation per the typed-exception-unification audit row. 8 throw sites in `AddressTxtLine.fromLine` switched to the new ctors. Batch 3 (`dcee87d`) enriched 10 remaining mixed sites (`AddressTxtLine:248`, `AbstractProducer` ×2, `AbstractKeyProducerQueueBuffered` ×4, `BIP39KeyProducer`, `OpenClTask` ×2). Plugin: 1 `HelpMojo` site suppressed in `049c1ae`; 5 source sites enriched in `629d145` + `95ec43a`. |
-| `DRE_DECLARED_RUNTIME_EXCEPTION` | 10 | 20 | — | Remove `@throws RuntimeException` from Javadoc / `throws` clauses; replace with the actual subclass or drop. |
+| `DRE_DECLARED_RUNTIME_EXCEPTION` | ~~10~~ **0** | 20 | — | ✅ **BAF cleared in `5b72265`**: dropped `throws NoMoreSecretsAvailableException` / `throws RuntimeException` from 10 signatures where every declared exception is unchecked (JDK convention — advertise via Javadoc `@throws` only). Sites: `KeyProducer`/`SecretSupplier` interfaces, `AbstractKeyProducerQueueBuffered`, `KeyProducerJavaBip39`/`Incremental`/`Random`, `KeyUtility.createSecrets`, `BIP39KeyProducer.nextKey`, `KeyProducerJava.verifyWorkSize` (bonus: dropped misleading Javadoc tag — method throws `IllegalArgumentException` — and enriched message from "Unreasonable work size: <n>" to "overallWorkSize=<n> out of range [0, <max>]"), `Finder.getKeyProducer` (replaced generic `throws RuntimeException` with `@throws KeyProducerIdUnknownException` Javadoc on the typed exception already thrown). 459 tests green. |
 | `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | ~~15~~ **0** | 4 | — | ✅ **BAF cleared.** Groups A/B/C landed in `bd71766` (13 of 15 — `UncheckedIOException` ×2, `IllegalStateException` ×9, new `InterruptedRuntimeException` ×2). Group D landed in `40d3f09` (2 catch+cleanup+rethrow sites — narrow suppression with rationale + lifecycle TODO). Group D investigation rejected three custom-exception wrappers as semantically worse than suppression — see "Cross-repo open items" entry below for the documented "what NOT to do" so future maintainers do not re-derive it. |
 | `THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION` | 3 | 1 | — | Narrow `throws Exception` to a specific subclass. |
 | **Type / null hygiene** | | | | |
