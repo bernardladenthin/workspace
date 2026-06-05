@@ -64,7 +64,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | ArchUnit leaf-layer rules | ✅ (3 rules: `constantsPackageIsALeaf`, `configurationDoesNotDependOnRuntimeLayers`, `cliIsEntryPointOnly`) | ✅ (`argsPackageIsALeaf`) | ➖ single-package | ➖ single-package |
 | ArchUnit full `layeredArchitecture()` | ❌ — needs DTO/orchestration split; touches public-API FQNs | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
 | ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
-| SpotBugs `effort=Max` + `threshold=Low` | ❌ both `Default` | ❌ both `Default` | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
+| SpotBugs `effort=Max` + `threshold=Low` | ❌ pom both `Default`; **191** findings at Max+Low (USBR-Lombok suppression in `6ddd69e` already applied — that excluded 24 more). Top patterns: CRLF_INJECTION_LOGS 68, OPM 33, WEM 26. | ❌ pom both `Default`; **90** findings at Max+Low (USBR-Lombok suppression in `ce8b466` already applied). Top patterns: OPM 25, DRE 20, WEM 14. | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
 | **Logging / observability** | | | | |
 | LogCaptor smoke test | ✅ LogCaptor 2.12.6 (7 tests) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
 | **Code-quality audits (continuous)** | | | | |
@@ -90,7 +90,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 
 ### Affects all 4 repos
-- **SpotBugs `effort=Max` + `threshold=Low`** — open in BAF, jllama, plugin. **sb done** (`4374dea` + `e7e254a`). Path that worked for sb: flip pom config, run `spotbugs:check`, fix each finding at source rather than suppressing the pattern globally (`waitForAtLeast` assertion → IllegalArgumentException; 7 weak-exception-messaging sites gain state-dependent context in the message; explicit `toString()` snapshotting state under `bufferLock`). 290 tests pass; zero project-wide suppressions added. See the [**SpotBugs Max+Low remaining findings tracker**](#spotbugs-maxlow-remaining-findings-tracker) below for the per-pattern breakdown.
+- **SpotBugs `effort=Max` + `threshold=Low`** — ✅ sb (`4374dea` + `e7e254a`), ✅ plugin (`0bddf2a`); ❌ open in BAF (**191**) and jllama (**90**). Path that worked for sb (replicated and extended in plugin): flip pom config, run `spotbugs:check`, fix each finding at source where reasonable, suppress narrowly with rationale where structural (Lombok-generated equals/hashCode, generator-emitted Mojo bytecode, Maven `@Parameter` reflection contract, etc.). See the [**SpotBugs Max+Low remaining findings tracker**](#spotbugs-maxlow-remaining-findings-tracker) below for the per-pattern breakdown.
 - **Package hierarchy review** (recurring; centralised at [`policies/code-quality-todos.md`](policies/code-quality-todos.md)).
 
 ### SpotBugs Max+Low remaining findings tracker
@@ -100,6 +100,14 @@ Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 > suppression in their respective `spotbugs-exclude.xml`.** After that the only
 > remaining row in the table above is the green "✅ Max+Low enforced" cell per
 > repo.
+
+> **Status this session:** plugin and sb are green at the gate. BAF and
+> jllama still carry findings — the table below is the live state after
+> running `mvn spotbugs:check` with `<effort>Max</effort> +
+> <threshold>Low</threshold>` temporarily set in each repo's pom (then
+> reverted). BAF and jllama already carry the Lombok-USBR suppression
+> (commits `6ddd69e` and `ce8b466` respectively); those 48 findings are
+> already excluded from the totals below.
 
 Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 `Max` + `Low` (then reverted) on top of the Lombok-migration commits:
@@ -212,6 +220,9 @@ session can take down a whole group across multiple repos.
 | `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` | — | 1 | ~~3~~ **0** | Add `@Nullable` on the documented-nullable returns. (Plugin's 2 `HelpMojo` sites suppressed in `049c1ae`; the `GenerateMojo.resolveFileExtensions` site suppressed in `41d6141` after a source restructure attempt didn't satisfy fb-contrib.) |
 | `FORMAT_STRING_MANIPULATION` | — | 1 | ~~1~~ **0** | Use parameterised `String.format` instead of `+` concatenation in format args. (Plugin's site suppressed in `f56940c` — configurable prompt templates from POM are the plugin's feature.) |
 | `NP_LOAD_OF_KNOWN_NULL_VALUE` | 1 | — | — | Remove the redundant load. |
+| **Lombok-skip residue** | | | | |
+| `IMC_IMMATURE_CLASS_NO_EQUALS` | — | 2 | — | jllama: `CancellationToken` (lifecycle handle, identity-by-design) and `ChatRequest` (mutable builder, identity-by-design) — both deliberately got `@ToString` only during the Lombok migration. Either flip to value-equality or add a narrow `<Match>` per class with rationale (BAF pattern). |
+| `IMC_IMMATURE_CLASS_WRONG_FIELD_ORDER` | — | 2 | — | jllama: `LlamaModel` (native `ctx` field before the static parser-collaborator fields) and `ModelParameters` (same pattern). Move the static fields above the instance fields, or suppress (the native-handle placement is conventional). |
 | **Concurrency / threading** | | | | |
 | `MDM_THREAD_YIELD` | 5 | — | — | Replace `Thread.yield()` with `LockSupport.parkNanos` or document the busy-wait rationale. |
 | `MDM_WAIT_WITHOUT_TIMEOUT` | — | 4 | — | Add timeout to `Object.wait()` calls. |
