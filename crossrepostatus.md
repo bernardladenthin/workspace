@@ -108,15 +108,24 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 |---|---:|---:|---|
 | BAF | **191** | −24 | Default+Default (lift pending) |
 | jllama | **90** | −18 | Default+Default (lift pending) |
-| plugin | **26** | −6 | Default+Default (lift pending) |
+| plugin | **13** | −19 | Default+Default (lift pending) |
 | sb | 0 | — | ✅ Max+Low enforced |
 
-**Δ source:** Lombok-USBR suppression landed in all three repos
-(BAF `6ddd69e`, jllama `ce8b466`, plugin `4bd4dc0`) via a single
-`<Match>` per `spotbugs-exclude.xml` matching the
-`USBR_UNNECESSARY_STORE_BEFORE_RETURN` bug pattern on the four method
-names Lombok can emit (`equals`, `hashCode`, `canEqual`, `toString`).
-Total cleared: **48 findings** across the three repos, no source change.
+**Δ source so far:**
+1. Lombok-USBR suppression in all three Lombok-using repos
+   (BAF `6ddd69e`, jllama `ce8b466`, plugin `4bd4dc0`). Single
+   `<Match>` per `spotbugs-exclude.xml` matching the
+   `USBR_UNNECESSARY_STORE_BEFORE_RETURN` bug pattern on the four method
+   names Lombok can emit (`equals`, `hashCode`, `canEqual`, `toString`).
+   Cleared **48 findings**, no source change.
+2. Plugin HelpMojo class-scoped exclude extended from 3 to 7 patterns
+   (`AI_ANNOTATION_ISSUES_NEEDS_NULLABLE`, `WEM_WEAK_EXCEPTION_MESSAGING`,
+   `UI_INHERITANCE_UNSAFE_GETRESOURCE`, `SPP_FIELD_COULD_BE_STATIC`) plus
+   a new SPP suppression for the eight `@Parameter` instance fields on
+   `GenerateMojo` / `AggregatePackagesMojo` (Maven's plugin contract
+   requires INSTANCE fields for reflection-based per-execution
+   injection; static would skip injection). Plugin commit `049c1ae`.
+   Cleared **13 findings** (5 on HelpMojo + 8 on the project Mojos).
 
 **Per-pattern matrix** (counts at Max+Low; entries marked `—` are zero on
 that repo). Patterns are grouped by remediation approach so a single
@@ -129,11 +138,11 @@ session can take down a whole group across multiple repos.
 | **Method-shape hygiene** | | | | |
 | `OPM_OVERLY_PERMISSIVE_METHOD` | 33 | 25 | 2 | Tighten visibility (`public`→package-private) where no external caller exists. Cross-repo refactor. |
 | `UPM_UNCALLED_PRIVATE_METHOD` | 7 | — | — | Delete unused private methods. |
-| `SPP_FIELD_COULD_BE_STATIC` | — | 1 | 9 | Plugin's are Maven `@Parameter` fields (false positives, suppress at class level with rationale); jllama site needs case-by-case judgement. |
+| `SPP_FIELD_COULD_BE_STATIC` | — | 1 | ~~9~~ **0** | jllama site needs case-by-case judgement. Plugin's were structural false positives on Maven `@Parameter` fields plus the auto-generated `HelpMojo.goal`; suppressed in plugin `049c1ae`. |
 | `MS_SHOULD_BE_FINAL` | 1 | — | — | Mark mutable static `final`. |
 | `URF_UNREAD_FIELD` | 1 | — | — | Delete the unused field. |
 | **Exception messaging** | | | | |
-| `WEM_WEAK_EXCEPTION_MESSAGING` | 26 | 14 | 6 | Add state-dependent context to `throw new …Exception("…")` sites (sb's pattern). Cross-repo. |
+| `WEM_WEAK_EXCEPTION_MESSAGING` | 26 | 14 | ~~6~~ **5** | Add state-dependent context to `throw new …Exception("…")` sites (sb's pattern). Cross-repo. (Plugin's 1 `HelpMojo` site suppressed in `049c1ae`.) |
 | `DRE_DECLARED_RUNTIME_EXCEPTION` | 10 | 20 | — | Remove `@throws RuntimeException` from Javadoc / `throws` clauses; replace with the actual subclass or drop. |
 | `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | 15 | 4 | — | Same family; signature cleanup. |
 | `THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION` | 3 | 1 | — | Narrow `throws Exception` to a specific subclass. |
@@ -141,7 +150,7 @@ session can take down a whole group across multiple repos.
 | `BC_UNCONFIRMED_CAST` | 9 | — | — | Add `instanceof` guards or explicit `@SuppressWarnings` with rationale. |
 | `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` | — | 3 | 4 | Delete the redundant null check (NullAway already proves non-null). |
 | `OI_OPTIONAL_ISSUES_CHECKING_REFERENCE` | — | 2 | — | `if (opt != null)` → `if (opt.isPresent())`. |
-| `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` | — | 1 | 3 | Add `@Nullable` on the documented-nullable returns. |
+| `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` | — | 1 | ~~3~~ **1** | Add `@Nullable` on the documented-nullable returns. (Plugin's 2 `HelpMojo` sites suppressed in `049c1ae`; 1 remaining on `GenerateMojo.resolveFileExtensions`.) |
 | `NP_LOAD_OF_KNOWN_NULL_VALUE` | 1 | — | — | Remove the redundant load. |
 | **Concurrency / threading** | | | | |
 | `MDM_THREAD_YIELD` | 5 | — | — | Replace `Thread.yield()` with `LockSupport.parkNanos` or document the busy-wait rationale. |
@@ -156,7 +165,7 @@ session can take down a whole group across multiple repos.
 | `REC_CATCH_EXCEPTION` | — | 1 | — | Replace `catch (Exception)` with the specific subclasses. |
 | `CWO_CLOSED_WITHOUT_OPENED` | — | 1 | — | Close-without-open false positive likely; suppress with rationale or restructure. |
 | `FORMAT_STRING_MANIPULATION` | — | 1 | 1 | Use parameterised `String.format` instead of `+` concatenation in format args. |
-| `UI_INHERITANCE_UNSAFE_GETRESOURCE` | — | — | 1 | Inside auto-generated `HelpMojo`; already covered by class-scoped suppression — extend the existing `Match` to include this pattern. |
+| `UI_INHERITANCE_UNSAFE_GETRESOURCE` | — | — | ~~1~~ **0** | Inside auto-generated `HelpMojo`; suppressed in plugin `049c1ae`. |
 | **Crypto / security** | | | | |
 | `HARD_CODE_KEY` | 1 | — | — | Likely the BAF secp256k1 generator constant; suppress with rationale (public curve parameter, not a key). |
 
@@ -165,14 +174,15 @@ session can take down a whole group across multiple repos.
 1. ~~Apply the `USBR_UNNECESSARY_STORE_BEFORE_RETURN` Lombok suppression
    in all three repos.~~ ✅ **Done** (BAF `6ddd69e`, jllama `ce8b466`,
    plugin `4bd4dc0`). 48 findings cleared.
-2. Extend plugin's `HelpMojo` class-scoped exclude to cover
-   `SPP_FIELD_COULD_BE_STATIC`, `UI_INHERITANCE_UNSAFE_GETRESOURCE`, and
-   the three `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` (all on the auto-
-   generated source). Clears 13 plugin findings.
+2. ~~Extend plugin's `HelpMojo` class-scoped exclude (4 patterns) and
+   suppress `SPP_FIELD_COULD_BE_STATIC` on the project's own
+   `@Parameter` Mojos.~~ ✅ **Done** (plugin `049c1ae`). 13 findings
+   cleared (5 on HelpMojo + 8 structural false positives on Maven
+   `@Parameter` instance fields). Plugin is now at 13 total.
 3. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — delete the redundant
    null checks. Mechanical fix; 7 sites across jllama+plugin.
 4. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
-   sb's pattern. 46 sites; the highest-impact source change.
+   sb's pattern. ~46 sites; the highest-impact source change.
 5. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
    `public` method that genuinely is part of the public API gets a
    per-method `@SuppressFBWarnings` instead.
