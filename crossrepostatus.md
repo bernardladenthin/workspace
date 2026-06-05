@@ -72,6 +72,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | Null-safety follow-up review | ✅ 50 sites all legitimate | ✅ 43 sites all legitimate | ✅ 17 sites all legitimate | ✅ zero `@Nullable` in production |
 | Package hierarchy review | ❌ | ❌ | ❌ | ❌ |
 | Class / method naming review (21-item cross-repo audit) | ✅ 6/6 | ✅ 1/1 | ✅ 7/7 | ✅ 7/7 |
+| Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | ❌ | ❌ | ❌ | ❌ |
 | **Cross-repo refactors** | | | | |
 | Workspace-shared guidelines layer | ✅ | ✅ | ✅ | ✅ |
 | Standardised `CLAUDE.md` template | ✅ | ✅ | ✅ | ✅ |
@@ -92,6 +93,48 @@ Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 ### Affects all 4 repos
 - **SpotBugs `effort=Max` + `threshold=Low`** — ✅ sb (`4374dea` + `e7e254a`), ✅ plugin (`0bddf2a`); ❌ open in BAF (**123**, down from 191 after CRLF layout fix `bd723f0`) and jllama (**90**). Path that worked for sb (replicated and extended in plugin): flip pom config, run `spotbugs:check`, fix each finding at source where reasonable, suppress narrowly with rationale where structural (Lombok-generated equals/hashCode, generator-emitted Mojo bytecode, Maven `@Parameter` reflection contract, CRLF-injection sanitised at the Logback PatternLayout layer, etc.). See the [**SpotBugs Max+Low remaining findings tracker**](#spotbugs-maxlow-remaining-findings-tracker) below for the per-pattern breakdown.
 - **Package hierarchy review** (recurring; centralised at [`policies/code-quality-todos.md`](policies/code-quality-todos.md)).
+- **Typed-exception unification audit.** Every custom exception class
+  across the four repos should follow one shared shape, so that
+  ergonomics (`throw new …Exception(…)`), debugging (`getMessage()` /
+  `getCause()` / any aggregation accessor like `getReason()`), and
+  documentation (Javadoc on the class and on each constructor) are
+  predictable for a contributor moving between repos. Concrete
+  checklist for each `*Exception` class:
+    1. **Constructor matrix.** At minimum: `(String message)` and
+       `(String message, Throwable cause)`. Add `(…, String detail)`
+       and `(…, String detail, Throwable cause)` overloads when the
+       message has an aggregation key separate from the per-call
+       runtime detail (BAF's `AddressFormatNotAcceptedException` is
+       the precedent — `reason` is the aggregation key, `detail`
+       is the offending input). Don't ship a single-arg `(Throwable)`
+       form without a `(String, Throwable)` companion — operators lose
+       the human-readable context.
+    2. **Aggregation accessor naming.** If the exception participates
+       in counter aggregation (like `incrementUnsupported(getReason())`),
+       expose the key as `getReason()` (BAF convention). Don't reuse
+       `getMessage()` for aggregation — `getMessage()` is the verbose
+       human-readable form including the detail.
+    3. **Class-level Javadoc shape.** First sentence states *when* the
+       exception is thrown (the throwing condition, not "thrown when an
+       exception occurs"). Second sentence describes what the recipient
+       can do about it. List any aggregation contract explicitly.
+    4. **Constructor Javadoc shape.** Every parameter described in
+       terms of the exception's *contract* (what each value means for
+       `getMessage()` / `getReason()` / cause chaining), not by
+       restating the Java type.
+    5. **Equality semantics.** Exceptions extend `Throwable`, which
+       uses identity equality — keep it that way (don't add Lombok
+       `@EqualsAndHashCode`). The BAF `spotbugs-exclude.xml` Match
+       suppressing `IMC_IMMATURE_CLASS_NO_EQUALS` on the three BAF
+       exception classes is the precedent.
+    6. **Test class per exception.** Pattern: `<Name>ExceptionTest`
+       with one test per constructor (verifies the message shape and
+       any aggregation accessor) plus one round-trip via the throwing
+       call site for non-trivial detail formatting.
+  Triggering this audit now because the WEM cleanup on BAF surfaced
+  the need to extend `AddressFormatNotAcceptedException` with a
+  `(reason, detail)` overload — that's the right design across every
+  custom exception in the four repos, not just one.
 
 ### SpotBugs Max+Low remaining findings tracker
 
