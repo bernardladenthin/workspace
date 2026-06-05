@@ -90,8 +90,98 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 
 ### Affects all 4 repos
-- **SpotBugs `effort=Max` + `threshold=Low`** — open in BAF, jllama, plugin. **sb done** (`4374dea` + `e7e254a`). Path that worked for sb: flip pom config, run `spotbugs:check`, fix each finding at source rather than suppressing the pattern globally (`waitForAtLeast` assertion → IllegalArgumentException; 7 weak-exception-messaging sites gain state-dependent context in the message; explicit `toString()` snapshotting state under `bufferLock`). 290 tests pass; zero project-wide suppressions added. The 3 remaining repos have larger surface (plugin ~49, jllama ~105, BAF ~238 findings at Max+Low); each will need the same per-site treatment.
+- **SpotBugs `effort=Max` + `threshold=Low`** — open in BAF, jllama, plugin. **sb done** (`4374dea` + `e7e254a`). Path that worked for sb: flip pom config, run `spotbugs:check`, fix each finding at source rather than suppressing the pattern globally (`waitForAtLeast` assertion → IllegalArgumentException; 7 weak-exception-messaging sites gain state-dependent context in the message; explicit `toString()` snapshotting state under `bufferLock`). 290 tests pass; zero project-wide suppressions added. See the [**SpotBugs Max+Low remaining findings tracker**](#spotbugs-maxlow-remaining-findings-tracker) below for the per-pattern breakdown.
 - **Package hierarchy review** (recurring; centralised at [`policies/code-quality-todos.md`](policies/code-quality-todos.md)).
+
+### SpotBugs Max+Low remaining findings tracker
+
+> **Lifecycle note.** This section is a transient working table. **Delete it once
+> all four repos either fix every finding at source or carry a documented
+> suppression in their respective `spotbugs-exclude.xml`.** After that the only
+> remaining row in the table above is the green "✅ Max+Low enforced" cell per
+> repo.
+
+Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
+`Max` + `Low` (then reverted) on top of the Lombok-migration commits:
+
+| Repo | Total | Effort/Threshold (pom default) |
+|---|---:|---|
+| BAF | 215 | Default+Default (lift pending) |
+| jllama | 108 | Default+Default (lift pending) |
+| plugin | 32 | Default+Default (lift pending) |
+| sb | 0 | ✅ Max+Low enforced |
+
+**Per-pattern matrix** (counts at Max+Low; entries marked `—` are zero on
+that repo). Patterns are grouped by remediation approach so a single
+session can take down a whole group across multiple repos.
+
+| Pattern | BAF | jllama | plugin | Group / fix approach |
+|---|---:|---:|---:|---|
+| **Logging / I/O safety** | | | | |
+| `CRLF_INJECTION_LOGS` | 68 | — | — | Sanitise log inputs (strip `\r\n`); BAF-only because it carries the most logger calls. |
+| **Method-shape hygiene** | | | | |
+| `OPM_OVERLY_PERMISSIVE_METHOD` | 33 | 25 | 2 | Tighten visibility (`public`→package-private) where no external caller exists. Cross-repo refactor. |
+| `UPM_UNCALLED_PRIVATE_METHOD` | 7 | — | — | Delete unused private methods. |
+| `SPP_FIELD_COULD_BE_STATIC` | — | 1 | 9 | Plugin's are Maven `@Parameter` fields (false positives, suppress at class level with rationale); jllama site needs case-by-case judgement. |
+| `MS_SHOULD_BE_FINAL` | 1 | — | — | Mark mutable static `final`. |
+| `URF_UNREAD_FIELD` | 1 | — | — | Delete the unused field. |
+| **Exception messaging** | | | | |
+| `WEM_WEAK_EXCEPTION_MESSAGING` | 26 | 14 | 6 | Add state-dependent context to `throw new …Exception("…")` sites (sb's pattern). Cross-repo. |
+| `DRE_DECLARED_RUNTIME_EXCEPTION` | 10 | 20 | — | Remove `@throws RuntimeException` from Javadoc / `throws` clauses; replace with the actual subclass or drop. |
+| `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | 15 | 4 | — | Same family; signature cleanup. |
+| `THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION` | 3 | 1 | — | Narrow `throws Exception` to a specific subclass. |
+| **Lombok-generated artefacts** | | | | |
+| `USBR_UNNECESSARY_STORE_BEFORE_RETURN` | 24 | 18 | 6 | Triggered by Lombok's polynomial `hashCode` (`int result = 1; result = result*59+…; return result;`). **Project-wide suppression by `@lombok.Generated` annotation match** is the right answer — already emitted by `lombok.addLombokGeneratedAnnotation = true` in every `lombok.config`. Apply once per repo. |
+| **Type / null hygiene** | | | | |
+| `BC_UNCONFIRMED_CAST` | 9 | — | — | Add `instanceof` guards or explicit `@SuppressWarnings` with rationale. |
+| `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` | — | 3 | 4 | Delete the redundant null check (NullAway already proves non-null). |
+| `OI_OPTIONAL_ISSUES_CHECKING_REFERENCE` | — | 2 | — | `if (opt != null)` → `if (opt.isPresent())`. |
+| `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` | — | 1 | 3 | Add `@Nullable` on the documented-nullable returns. |
+| `NP_LOAD_OF_KNOWN_NULL_VALUE` | 1 | — | — | Remove the redundant load. |
+| **Concurrency / threading** | | | | |
+| `MDM_THREAD_YIELD` | 5 | — | — | Replace `Thread.yield()` with `LockSupport.parkNanos` or document the busy-wait rationale. |
+| `MDM_WAIT_WITHOUT_TIMEOUT` | — | 4 | — | Add timeout to `Object.wait()` calls. |
+| `MDM_RANDOM_SEED` | 2 | — | — | Avoid seeded `new Random()`; use `ThreadLocalRandom.current()` or `SecureRandom`. |
+| **Misc Java idioms** | | | | |
+| `UVA_USE_VAR_ARGS` | 3 | 5 | — | Convert array-parameter overloads to varargs where source-compatible. |
+| `DLS_DEAD_LOCAL_STORE` | 4 | 1 | — | Remove the dead assignment. |
+| `PRMC_POSSIBLY_REDUNDANT_METHOD_CALLS` | 1 | 1 | — | Hoist invariant method calls out of loops. |
+| `BIT_PRIMITIVE` | 1 | — | — | Replace `byteVal & 0xFF` style with explicit `Byte.toUnsignedInt(b)`. |
+| `LO_SUSPECT_LOG_CLASS` | — | 1 | — | Pass the correct `Class` to `LoggerFactory.getLogger`. |
+| `REC_CATCH_EXCEPTION` | — | 1 | — | Replace `catch (Exception)` with the specific subclasses. |
+| `CWO_CLOSED_WITHOUT_OPENED` | — | 1 | — | Close-without-open false positive likely; suppress with rationale or restructure. |
+| `FORMAT_STRING_MANIPULATION` | — | 1 | 1 | Use parameterised `String.format` instead of `+` concatenation in format args. |
+| `UI_INHERITANCE_UNSAFE_GETRESOURCE` | — | — | 1 | Inside auto-generated `HelpMojo`; already covered by class-scoped suppression — extend the existing `Match` to include this pattern. |
+| **Crypto / security** | | | | |
+| `HARD_CODE_KEY` | 1 | — | — | Likely the BAF secp256k1 generator constant; suppress with rationale (public curve parameter, not a key). |
+
+**Suggested execution order** (lowest-risk → highest):
+
+1. Apply the **`USBR_UNNECESSARY_STORE_BEFORE_RETURN` Lombok suppression**
+   in all three repos' `spotbugs-exclude.xml` (single `Match` block per
+   repo matching the `@lombok.Generated` annotation). Clears 48 findings
+   with zero source changes.
+2. Extend plugin's `HelpMojo` class-scoped exclude to cover
+   `SPP_FIELD_COULD_BE_STATIC`, `UI_INHERITANCE_UNSAFE_GETRESOURCE`, and
+   the three `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` (all on the auto-
+   generated source). Clears 13 plugin findings.
+3. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — delete the redundant
+   null checks. Mechanical fix; 7 sites across jllama+plugin.
+4. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
+   sb's pattern. 46 sites; the highest-impact source change.
+5. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
+   `public` method that genuinely is part of the public API gets a
+   per-method `@SuppressFBWarnings` instead.
+6. **`CRLF_INJECTION_LOGS`** (BAF only, 68 sites) — sanitisation at the
+   logger boundary. Either a wrapping helper or a project-wide
+   pattern-match exclusion if the inputs are demonstrably trusted.
+7. Remaining low-count categories — fix or suppress with rationale.
+
+Once a repo reaches zero outstanding findings at Max+Low, **flip the
+pom.xml `<effort>` to `Max` and `<threshold>` to `Low` in the same
+commit** and update the "SpotBugs `effort=Max` + `threshold=Low`" row in
+the top table. When all four repos are green here, **delete this entire
+"SpotBugs Max+Low remaining findings tracker" section**.
 
 ### Affects BAF + jllama (multi-package repos)
 - **ArchUnit `layeredArchitecture().consideringAllDependencies()`** — both repos have leaf-package rules instead of the full form. BAF needs DTO/orchestration split (`Finder`, `Producer*`, `Consumer*`); jllama needs DTOs in a `value/` package. Both moves break public-API FQNs.
