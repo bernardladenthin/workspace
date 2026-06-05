@@ -64,7 +64,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | ArchUnit leaf-layer rules | ✅ (3 rules: `constantsPackageIsALeaf`, `configurationDoesNotDependOnRuntimeLayers`, `cliIsEntryPointOnly`) | ✅ (`argsPackageIsALeaf`) | ➖ single-package | ➖ single-package |
 | ArchUnit full `layeredArchitecture()` | ❌ — needs DTO/orchestration split; touches public-API FQNs | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
 | ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
-| SpotBugs `effort=Max` + `threshold=Low` | ❌ pom both `Default`; **123** findings at Max+Low (USBR-Lombok `6ddd69e` and CRLF layout `bd723f0` already applied — those excluded 24 + 68 = 92). Top patterns: OPM 33, WEM 26, THROWS_RUNTIMEEXCEPTION 15. | ❌ pom both `Default`; **90** findings at Max+Low (USBR-Lombok suppression in `ce8b466` already applied). Top patterns: OPM 25, DRE 20, WEM 14. | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
+| SpotBugs `effort=Max` + `threshold=Low` | ❌ pom both `Default`; **97** findings at Max+Low (USBR-Lombok `6ddd69e` + CRLF layout `bd723f0` + WEM 3-batch source pass `c2c3d62` / `4677831` / `dcee87d` already applied — those excluded 24 + 68 + 26 = 118). Top patterns: OPM 33, THROWS_RUNTIMEEXCEPTION 15, DRE 10. | ❌ pom both `Default`; **90** findings at Max+Low (USBR-Lombok suppression in `ce8b466` already applied). Top patterns: OPM 25, DRE 20, WEM 14. | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
 | **Logging / observability** | | | | |
 | LogCaptor smoke test | ✅ LogCaptor 2.12.6 (7 tests) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
 | **Code-quality audits (continuous)** | | | | |
@@ -91,7 +91,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 
 ### Affects all 4 repos
-- **SpotBugs `effort=Max` + `threshold=Low`** — ✅ sb (`4374dea` + `e7e254a`), ✅ plugin (`0bddf2a`); ❌ open in BAF (**123**, down from 191 after CRLF layout fix `bd723f0`) and jllama (**90**). Path that worked for sb (replicated and extended in plugin): flip pom config, run `spotbugs:check`, fix each finding at source where reasonable, suppress narrowly with rationale where structural (Lombok-generated equals/hashCode, generator-emitted Mojo bytecode, Maven `@Parameter` reflection contract, CRLF-injection sanitised at the Logback PatternLayout layer, etc.). See the [**SpotBugs Max+Low remaining findings tracker**](#spotbugs-maxlow-remaining-findings-tracker) below for the per-pattern breakdown.
+- **SpotBugs `effort=Max` + `threshold=Low`** — ✅ sb (`4374dea` + `e7e254a`), ✅ plugin (`0bddf2a`); ❌ open in BAF (**97**, down from 191: CRLF layout fix `bd723f0` cleared 68, WEM 3-batch source pass `c2c3d62` / `4677831` / `dcee87d` cleared 26) and jllama (**90**). Path that worked for sb (replicated and extended in plugin): flip pom config, run `spotbugs:check`, fix each finding at source where reasonable, suppress narrowly with rationale where structural (Lombok-generated equals/hashCode, generator-emitted Mojo bytecode, Maven `@Parameter` reflection contract, CRLF-injection sanitised at the Logback PatternLayout layer, etc.). See the [**SpotBugs Max+Low remaining findings tracker**](#spotbugs-maxlow-remaining-findings-tracker) below for the per-pattern breakdown.
 - **Package hierarchy review** (recurring; centralised at [`policies/code-quality-todos.md`](policies/code-quality-todos.md)).
 - **Typed-exception unification audit.** Every custom exception class
   across the four repos should follow one shared shape, so that
@@ -157,7 +157,7 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 
 | Repo | Total | Δ vs initial snapshot | Effort/Threshold (pom default) |
 |---|---:|---:|---|
-| BAF | **123** | −92 | Default+Default (lift pending) |
+| BAF | **97** | −118 | Default+Default (lift pending) |
 | jllama | **90** | −18 | Default+Default (lift pending) |
 | plugin | **0** | −32 | ✅ Max+Low enforced (`0bddf2a`) |
 | sb | 0 | — | ✅ Max+Low enforced |
@@ -252,7 +252,7 @@ session can take down a whole group across multiple repos.
 | `MS_SHOULD_BE_FINAL` | 1 | — | — | Mark mutable static `final`. |
 | `URF_UNREAD_FIELD` | 1 | — | — | Delete the unused field. |
 | **Exception messaging** | | | | |
-| `WEM_WEAK_EXCEPTION_MESSAGING` | 26 | 14 | ✅ 0 | Add state-dependent context to `throw new …Exception("…")` sites (sb's pattern). Cross-repo. (Plugin: 1 `HelpMojo` site suppressed in `049c1ae`; 5 source sites enriched in `629d145` + `95ec43a`.) |
+| `WEM_WEAK_EXCEPTION_MESSAGING` | ~~26~~ **0** | 14 | ✅ 0 | ✅ **BAF cleared** via 3-batch source pass: Batch 1 (`c2c3d62`) enriched 8 leaf-utility / validator sites with in-scope state. Batch 2 (`4677831`) extended `AddressFormatNotAcceptedException` with new `(reason, detail)` and `(reason, detail, cause)` ctor overloads that preserve the `getReason()` aggregation contract while enriching `getMessage()` — same design now becomes the cross-repo recommendation per the typed-exception-unification audit row. 8 throw sites in `AddressTxtLine.fromLine` switched to the new ctors. Batch 3 (`dcee87d`) enriched 10 remaining mixed sites (`AddressTxtLine:248`, `AbstractProducer` ×2, `AbstractKeyProducerQueueBuffered` ×4, `BIP39KeyProducer`, `OpenClTask` ×2). Plugin: 1 `HelpMojo` site suppressed in `049c1ae`; 5 source sites enriched in `629d145` + `95ec43a`. |
 | `DRE_DECLARED_RUNTIME_EXCEPTION` | 10 | 20 | — | Remove `@throws RuntimeException` from Javadoc / `throws` clauses; replace with the actual subclass or drop. |
 | `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | 15 | 4 | — | Same family; signature cleanup. |
 | `THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION` | 3 | 1 | — | Narrow `throws Exception` to a specific subclass. |
@@ -315,9 +315,14 @@ session can take down a whole group across multiple repos.
 7. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — remaining 3 sites
    in jllama. Mechanical fix per site, or apply the same fail-fast
    pattern plugin landed in step 5.
-8. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
-   sb's pattern. ~40 sites across BAF+jllama; the highest-impact source
-   change.
+8. ~~`WEM_WEAK_EXCEPTION_MESSAGING` on BAF.~~ ✅ **Done** (BAF 3-batch
+   source pass `c2c3d62` / `4677831` / `dcee87d`). 26 → 0 on BAF.
+   The Batch 2 design — new `(reason, detail)` and
+   `(reason, detail, cause)` constructor overloads on
+   `AddressFormatNotAcceptedException` that preserve the `getReason()`
+   aggregation contract — became the precedent for the cross-repo
+   typed-exception unification audit row added above. Still open:
+   jllama (14 sites) — same pattern applies.
 9. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
    `public` method that genuinely is part of the public API gets a
    per-method `@SuppressFBWarnings` instead.
