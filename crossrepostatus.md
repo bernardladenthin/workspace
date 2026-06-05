@@ -15,7 +15,7 @@ Repos:
 - **plugin** = `/home/user/llamacpp-ai-index-maven-plugin`
 - **sb** = `/home/user/streambuffer`
 
-Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
+Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing policy
 
 ---
 
@@ -64,7 +64,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | ArchUnit leaf-layer rules | ✅ (3 rules: `constantsPackageIsALeaf`, `configurationDoesNotDependOnRuntimeLayers`, `cliIsEntryPointOnly`) | ✅ (`argsPackageIsALeaf`) | ➖ single-package | ➖ single-package |
 | ArchUnit full `layeredArchitecture()` | ❌ — needs DTO/orchestration split; touches public-API FQNs | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
 | ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
-| SpotBugs `effort=Max` + `threshold=Low` | ❌ pom both `Default`; **97** findings at Max+Low (USBR-Lombok `6ddd69e` + CRLF layout `bd723f0` + WEM 3-batch source pass `c2c3d62` / `4677831` / `dcee87d` already applied — those excluded 24 + 68 + 26 = 118). Top patterns: OPM 33, THROWS_RUNTIMEEXCEPTION 15, DRE 10. | ❌ pom both `Default`; **90** findings at Max+Low (USBR-Lombok suppression in `ce8b466` already applied). Top patterns: OPM 25, DRE 20, WEM 14. | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
+| SpotBugs `effort=Max` + `threshold=Low` | ❌ pom both `Default`; **84** findings at Max+Low (suppression + source chain so far: USBR-Lombok `6ddd69e` (−24) + CRLF layout `bd723f0` (−68) + WEM 3-batch `c2c3d62` / `4677831` / `dcee87d` (−26) + THROWS Groups A/B/C `bd71766` (−13) = −131). Top patterns: OPM 33, DRE 10, BC_UNCONFIRMED_CAST 9. | ❌ pom both `Default`; **90** findings at Max+Low (USBR-Lombok suppression in `ce8b466` already applied). Top patterns: OPM 25, DRE 20, WEM 14. | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
 | **Logging / observability** | | | | |
 | LogCaptor smoke test | ✅ LogCaptor 2.12.6 (7 tests) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
 | **Code-quality audits (continuous)** | | | | |
@@ -72,7 +72,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | Null-safety follow-up review | ✅ 50 sites all legitimate | ✅ 43 sites all legitimate | ✅ 17 sites all legitimate | ✅ zero `@Nullable` in production |
 | Package hierarchy review | ❌ | ❌ | ❌ | ❌ |
 | Class / method naming review (21-item cross-repo audit) | ✅ 6/6 | ✅ 1/1 | ✅ 7/7 | ✅ 7/7 |
-| Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | ❌ | ❌ | ❌ | ❌ |
+| Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | 🚧 first concrete BAF entry: `AddressFormatNotAcceptedException` `(reason, detail)` overloads (`4677831`) + new `InterruptedRuntimeException` per checklist (`bd71766`) | ❌ | ❌ | ❌ |
 | **Cross-repo refactors** | | | | |
 | Workspace-shared guidelines layer | ✅ | ✅ | ✅ | ✅ |
 | Standardised `CLAUDE.md` template | ✅ | ✅ | ✅ | ✅ |
@@ -157,7 +157,7 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 
 | Repo | Total | Δ vs initial snapshot | Effort/Threshold (pom default) |
 |---|---:|---:|---|
-| BAF | **97** | −118 | Default+Default (lift pending) |
+| BAF | **84** | −131 | Default+Default (lift pending) |
 | jllama | **90** | −18 | Default+Default (lift pending) |
 | plugin | **0** | −32 | ✅ Max+Low enforced (`0bddf2a`) |
 | sb | 0 | — | ✅ Max+Low enforced |
@@ -254,7 +254,7 @@ session can take down a whole group across multiple repos.
 | **Exception messaging** | | | | |
 | `WEM_WEAK_EXCEPTION_MESSAGING` | ~~26~~ **0** | 14 | ✅ 0 | ✅ **BAF cleared** via 3-batch source pass: Batch 1 (`c2c3d62`) enriched 8 leaf-utility / validator sites with in-scope state. Batch 2 (`4677831`) extended `AddressFormatNotAcceptedException` with new `(reason, detail)` and `(reason, detail, cause)` ctor overloads that preserve the `getReason()` aggregation contract while enriching `getMessage()` — same design now becomes the cross-repo recommendation per the typed-exception-unification audit row. 8 throw sites in `AddressTxtLine.fromLine` switched to the new ctors. Batch 3 (`dcee87d`) enriched 10 remaining mixed sites (`AddressTxtLine:248`, `AbstractProducer` ×2, `AbstractKeyProducerQueueBuffered` ×4, `BIP39KeyProducer`, `OpenClTask` ×2). Plugin: 1 `HelpMojo` site suppressed in `049c1ae`; 5 source sites enriched in `629d145` + `95ec43a`. |
 | `DRE_DECLARED_RUNTIME_EXCEPTION` | 10 | 20 | — | Remove `@throws RuntimeException` from Javadoc / `throws` clauses; replace with the actual subclass or drop. |
-| `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | 15 | 4 | — | Same family; signature cleanup. |
+| `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | ~~15~~ **2** | 4 | — | BAF Groups A/B/C landed in `bd71766` (13 of 15 cleared, the 2 catch+cleanup+rethrow patterns on `AbstractProducer.produceKeys` and `LMDBPersistence` deferred to Group D for separate evaluation). Replacement types used: JDK `UncheckedIOException` ×2 for `IOException` re-throws, JDK `IllegalStateException` ×9 for invariant / config violations, new BAF `InterruptedRuntimeException` ×2 for `InterruptedException` re-throws (first concrete entry under the typed-exception unification audit). |
 | `THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION` | 3 | 1 | — | Narrow `throws Exception` to a specific subclass. |
 | **Type / null hygiene** | | | | |
 | `BC_UNCONFIRMED_CAST` | 9 | — | — | Add `instanceof` guards or explicit `@SuppressWarnings` with rationale. |
