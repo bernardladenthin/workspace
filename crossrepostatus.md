@@ -108,7 +108,7 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 |---|---:|---:|---|
 | BAF | **191** | −24 | Default+Default (lift pending) |
 | jllama | **90** | −18 | Default+Default (lift pending) |
-| plugin | **13** | −19 | Default+Default (lift pending) |
+| plugin | **9** | −23 | Default+Default (lift pending) |
 | sb | 0 | — | ✅ Max+Low enforced |
 
 **Δ source so far:**
@@ -126,6 +126,22 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
    requires INSTANCE fields for reflection-based per-execution
    injection; static would skip injection). Plugin commit `049c1ae`.
    Cleared **13 findings** (5 on HelpMojo + 8 on the project Mojos).
+3. Plugin tail cleanup landed as three independently-revertible commits:
+   - `dbfe742` — drop `AiMdDocumentCodec.read(List)` and
+     `write(AiMdDocument)` to package-private (test-seam overloads;
+     production reaches them through the `Path` forms). Source fix,
+     clears 2 × `OPM_OVERLY_PERMISSIVE_METHOD`.
+   - `41d6141` — scoped suppression for
+     `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` on
+     `GenerateMojo.resolveFileExtensions`. Tried a source restructure
+     (hoist field to local) first; fb-contrib's analyzer is too coarse
+     to track the narrowing. Rationale: method provably cannot return
+     null, so adding `@Nullable` would lie about the contract.
+   - `f56940c` — scoped suppression for `FORMAT_STRING_MANIPULATION`
+     on the prompt-template pipeline (`Java8CompatibilityHelper` +
+     `AiPromptSupport`). Rationale: configurable prompt templates
+     from POM `<configuration>` ARE the plugin's feature; a malformed
+     template raises `IllegalFormatException` at build time.
 
 **Per-pattern matrix** (counts at Max+Low; entries marked `—` are zero on
 that repo). Patterns are grouped by remediation approach so a single
@@ -136,7 +152,7 @@ session can take down a whole group across multiple repos.
 | **Logging / I/O safety** | | | | |
 | `CRLF_INJECTION_LOGS` | 68 | — | — | Sanitise log inputs (strip `\r\n`); BAF-only because it carries the most logger calls. |
 | **Method-shape hygiene** | | | | |
-| `OPM_OVERLY_PERMISSIVE_METHOD` | 33 | 25 | 2 | Tighten visibility (`public`→package-private) where no external caller exists. Cross-repo refactor. |
+| `OPM_OVERLY_PERMISSIVE_METHOD` | 33 | 25 | ~~2~~ **0** | Tighten visibility (`public`→package-private) where no external caller exists. Cross-repo refactor. (Plugin's 2 sites done in `dbfe742`.) |
 | `UPM_UNCALLED_PRIVATE_METHOD` | 7 | — | — | Delete unused private methods. |
 | `SPP_FIELD_COULD_BE_STATIC` | — | 1 | ~~9~~ **0** | jllama site needs case-by-case judgement. Plugin's were structural false positives on Maven `@Parameter` fields plus the auto-generated `HelpMojo.goal`; suppressed in plugin `049c1ae`. |
 | `MS_SHOULD_BE_FINAL` | 1 | — | — | Mark mutable static `final`. |
@@ -150,7 +166,8 @@ session can take down a whole group across multiple repos.
 | `BC_UNCONFIRMED_CAST` | 9 | — | — | Add `instanceof` guards or explicit `@SuppressWarnings` with rationale. |
 | `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` | — | 3 | 4 | Delete the redundant null check (NullAway already proves non-null). |
 | `OI_OPTIONAL_ISSUES_CHECKING_REFERENCE` | — | 2 | — | `if (opt != null)` → `if (opt.isPresent())`. |
-| `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` | — | 1 | ~~3~~ **1** | Add `@Nullable` on the documented-nullable returns. (Plugin's 2 `HelpMojo` sites suppressed in `049c1ae`; 1 remaining on `GenerateMojo.resolveFileExtensions`.) |
+| `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` | — | 1 | ~~3~~ **0** | Add `@Nullable` on the documented-nullable returns. (Plugin's 2 `HelpMojo` sites suppressed in `049c1ae`; the `GenerateMojo.resolveFileExtensions` site suppressed in `41d6141` after a source restructure attempt didn't satisfy fb-contrib.) |
+| `FORMAT_STRING_MANIPULATION` | — | 1 | ~~1~~ **0** | Use parameterised `String.format` instead of `+` concatenation in format args. (Plugin's site suppressed in `f56940c` — configurable prompt templates from POM are the plugin's feature.) |
 | `NP_LOAD_OF_KNOWN_NULL_VALUE` | 1 | — | — | Remove the redundant load. |
 | **Concurrency / threading** | | | | |
 | `MDM_THREAD_YIELD` | 5 | — | — | Replace `Thread.yield()` with `LockSupport.parkNanos` or document the busy-wait rationale. |
@@ -164,7 +181,6 @@ session can take down a whole group across multiple repos.
 | `LO_SUSPECT_LOG_CLASS` | — | 1 | — | Pass the correct `Class` to `LoggerFactory.getLogger`. |
 | `REC_CATCH_EXCEPTION` | — | 1 | — | Replace `catch (Exception)` with the specific subclasses. |
 | `CWO_CLOSED_WITHOUT_OPENED` | — | 1 | — | Close-without-open false positive likely; suppress with rationale or restructure. |
-| `FORMAT_STRING_MANIPULATION` | — | 1 | 1 | Use parameterised `String.format` instead of `+` concatenation in format args. |
 | `UI_INHERITANCE_UNSAFE_GETRESOURCE` | — | — | ~~1~~ **0** | Inside auto-generated `HelpMojo`; suppressed in plugin `049c1ae`. |
 | **Crypto / security** | | | | |
 | `HARD_CODE_KEY` | 1 | — | — | Likely the BAF secp256k1 generator constant; suppress with rationale (public curve parameter, not a key). |
@@ -179,17 +195,25 @@ session can take down a whole group across multiple repos.
    `@Parameter` Mojos.~~ ✅ **Done** (plugin `049c1ae`). 13 findings
    cleared (5 on HelpMojo + 8 structural false positives on Maven
    `@Parameter` instance fields). Plugin is now at 13 total.
-3. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — delete the redundant
-   null checks. Mechanical fix; 7 sites across jllama+plugin.
-4. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
-   sb's pattern. ~46 sites; the highest-impact source change.
-5. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
+3. ~~Plugin tail cleanup: 2 × `OPM`, 1 × `AI_ANNOTATION`,
+   1 × `FORMAT_STRING_MANIPULATION`.~~ ✅ **Done** (plugin `dbfe742`,
+   `41d6141`, `f56940c`). 4 findings cleared. Plugin now at 9 total —
+   in striking distance of flipping the pom to `Max+Low` permanently.
+4. **Plugin's final 9** (5 × `WEM` + 4 × `RCN`): mostly mechanical
+   per-site source fixes following sb's pattern. Once cleared, flip
+   plugin pom to `Max+Low` and mark it green here.
+5. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — delete the redundant
+   null checks. Mechanical fix; remaining 3 sites in jllama.
+6. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
+   sb's pattern. ~40 sites across BAF+jllama; the highest-impact source
+   change.
+7. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
    `public` method that genuinely is part of the public API gets a
    per-method `@SuppressFBWarnings` instead.
-6. **`CRLF_INJECTION_LOGS`** (BAF only, 68 sites) — sanitisation at the
+8. **`CRLF_INJECTION_LOGS`** (BAF only, 68 sites) — sanitisation at the
    logger boundary. Either a wrapping helper or a project-wide
    pattern-match exclusion if the inputs are demonstrably trusted.
-7. Remaining low-count categories — fix or suppress with rationale.
+9. Remaining low-count categories — fix or suppress with rationale.
 
 Once a repo reaches zero outstanding findings at Max+Low, **flip the
 pom.xml `<effort>` to `Max` and `<threshold>` to `Low` in the same
