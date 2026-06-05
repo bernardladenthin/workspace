@@ -64,7 +64,7 @@ Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
 | ArchUnit leaf-layer rules | ✅ (3 rules: `constantsPackageIsALeaf`, `configurationDoesNotDependOnRuntimeLayers`, `cliIsEntryPointOnly`) | ✅ (`argsPackageIsALeaf`) | ➖ single-package | ➖ single-package |
 | ArchUnit full `layeredArchitecture()` | ❌ — needs DTO/orchestration split; touches public-API FQNs | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
 | ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
-| SpotBugs `effort=Max` + `threshold=Low` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
+| SpotBugs `effort=Max` + `threshold=Low` | ❌ both `Default` | ❌ both `Default` | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
 | **Logging / observability** | | | | |
 | LogCaptor smoke test | ✅ LogCaptor 2.12.6 (7 tests) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
 | **Code-quality audits (continuous)** | | | | |
@@ -108,7 +108,7 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 |---|---:|---:|---|
 | BAF | **191** | −24 | Default+Default (lift pending) |
 | jllama | **90** | −18 | Default+Default (lift pending) |
-| plugin | **3** | −29 | Default+Default (lift pending) |
+| plugin | **0** | −32 | ✅ Max+Low enforced (`0bddf2a`) |
 | sb | 0 | — | ✅ Max+Low enforced |
 
 **Δ source so far:**
@@ -154,6 +154,37 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
      (static prefix + the relevant in-scope value): `AggregatePackagesMojo`,
      `GenerateMojo`, `SourceFileIndexer`, `AiCompletionParser`.
    Total cleared by step 4: 1 RCN + 5 WEM = **6 findings**.
+5. Plugin fail-fast pass on `@Parameter`-list ingestion (`086d8c2`):
+   - `AiPromptSupport` / `AiModelDefinitionSupport` constructors
+     replace silent-skip `if (... != null)` with
+     `Objects.requireNonNull(field, Supplier<String>)` carrying a
+     rich message (list index + bad entry via Lombok `@ToString`).
+   - `AbstractAiIndexMojo.buildPromptSupport` /
+     `buildAiModelDefinitionSupport` wrap construction with
+     `try/catch (NullPointerException)` and rethrow as
+     `MojoExecutionException` so Maven reports user-config errors
+     under the framework's "fix your POM" framing instead of as a
+     plugin bug.
+   - `Objects.requireNonNull` is not pattern-matched by fb-contrib's
+     RCN (it's a method call, not a syntactic `x != null` check), so
+     the 3 RCN findings clear without any project-wide suppression.
+     Single DCN suppression for the deliberate NPE catch in the Mojo
+     bridge, with the full rationale recorded inline.
+   - Test rewrite:
+     `getConfig_definitionWithNullKey_ignoredDuringConstruction` →
+     `constructor_definitionWithNullKey_throwsWithIndexAndBadEntry`.
+   - Two pattern regressions surfaced and fixed in the same commit:
+     `PSC_PRESIZE_COLLECTIONS` (now both ctors presize their HashMap
+     with a load-factor-corrected formula) and `POTENTIAL_XML_INJECTION`
+     (dropped the `<configuration>` literal from the wrapped message).
+   Total cleared by step 5: 3 RCN + 2 secondary = **5 findings to 0**.
+6. Plugin pom permanently flipped to
+   `<effort>Max</effort> + <threshold>Low</threshold>` (`0bddf2a`).
+   Plugin row in the top table goes ✅. Second repo green at the gate
+   after sb. The load-factor presize formula was later extracted into
+   `Java8CompatibilityHelper.hashMapCapacityFor(int)` (`b987f3c`) — same
+   value as JDK 19+'s `HashMap.newHashMap(int)`, no duplication left
+   across the two support ctors.
 
 **Per-pattern matrix** (counts at Max+Low; entries marked `—` are zero on
 that repo). Patterns are grouped by remediation approach so a single
@@ -170,13 +201,13 @@ session can take down a whole group across multiple repos.
 | `MS_SHOULD_BE_FINAL` | 1 | — | — | Mark mutable static `final`. |
 | `URF_UNREAD_FIELD` | 1 | — | — | Delete the unused field. |
 | **Exception messaging** | | | | |
-| `WEM_WEAK_EXCEPTION_MESSAGING` | 26 | 14 | ~~6~~ **0** | Add state-dependent context to `throw new …Exception("…")` sites (sb's pattern). Cross-repo. (Plugin: 1 `HelpMojo` site suppressed in `049c1ae`; 5 source sites enriched in `629d145` + `95ec43a`.) |
+| `WEM_WEAK_EXCEPTION_MESSAGING` | 26 | 14 | ✅ 0 | Add state-dependent context to `throw new …Exception("…")` sites (sb's pattern). Cross-repo. (Plugin: 1 `HelpMojo` site suppressed in `049c1ae`; 5 source sites enriched in `629d145` + `95ec43a`.) |
 | `DRE_DECLARED_RUNTIME_EXCEPTION` | 10 | 20 | — | Remove `@throws RuntimeException` from Javadoc / `throws` clauses; replace with the actual subclass or drop. |
 | `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | 15 | 4 | — | Same family; signature cleanup. |
 | `THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION` | 3 | 1 | — | Narrow `throws Exception` to a specific subclass. |
 | **Type / null hygiene** | | | | |
 | `BC_UNCONFIRMED_CAST` | 9 | — | — | Add `instanceof` guards or explicit `@SuppressWarnings` with rationale. |
-| `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` | — | 3 | ~~4~~ **3** | Delete the redundant null check (NullAway already proves non-null). (Plugin: `PackageIndexer:246` cleared in `629d145` by hardening the `AiGenerationResult` ctor with `Objects.requireNonNull`. 3 remaining sites on `@Parameter`-list ingestion constructors awaiting design call — runtime checks may be legitimate against Maven reflection injection.) |
+| `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` | — | 3 | ✅ 0 | Delete the redundant null check (NullAway already proves non-null). (Plugin: `PackageIndexer:246` cleared in `629d145` by hardening the `AiGenerationResult` ctor with `Objects.requireNonNull`. The 3 sites on `@Parameter`-list ingestion ctors cleared in `086d8c2` by switching to the fail-fast `Objects.requireNonNull(field, Supplier<String>)` pattern with `NullPointerException` → `MojoExecutionException` translation in the Mojo bridge.) |
 | `OI_OPTIONAL_ISSUES_CHECKING_REFERENCE` | — | 2 | — | `if (opt != null)` → `if (opt.isPresent())`. |
 | `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` | — | 1 | ~~3~~ **0** | Add `@Nullable` on the documented-nullable returns. (Plugin's 2 `HelpMojo` sites suppressed in `049c1ae`; the `GenerateMojo.resolveFileExtensions` site suppressed in `41d6141` after a source restructure attempt didn't satisfy fb-contrib.) |
 | `FORMAT_STRING_MANIPULATION` | — | 1 | ~~1~~ **0** | Use parameterised `String.format` instead of `+` concatenation in format args. (Plugin's site suppressed in `f56940c` — configurable prompt templates from POM are the plugin's feature.) |
@@ -211,31 +242,35 @@ session can take down a whole group across multiple repos.
    1 × `FORMAT_STRING_MANIPULATION`.~~ ✅ **Done** (plugin `dbfe742`,
    `41d6141`, `f56940c`). 4 findings cleared. Plugin now at 9 total —
    in striking distance of flipping the pom to `Max+Low` permanently.
-4. ~~Plugin RCN + WEM source pass.~~ ✅ **Mostly done** (`629d145`
-   + `95ec43a`). 6 findings cleared (1 RCN + 5 WEM). Plugin now at
-   3 total. **Remaining 3** on plugin are all the same shape:
-   `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` on `@Parameter`-list
-   ingestion constructors (`AiModelDefinitionSupport`,
-   `AiPromptSupport`). Awaiting a design call — runtime checks may
-   be legitimate against Maven reflection injection, in which case
-   the answer is a scoped suppression with rationale; if the call
-   instead is to enforce the contract upstream (Mojo validation),
-   the source pass continues.
-5. After step 4 lands, plugin flips `<effort>Max</effort>` +
-   `<threshold>Low</threshold>` in pom.xml permanently and the
-   plugin row in the top table goes ✅.
-6. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — delete the redundant
-   null checks. Mechanical fix; remaining 3 sites in jllama.
-7. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
+4. ~~Plugin RCN + WEM source pass.~~ ✅ **Done** (`629d145` + `95ec43a`).
+   6 findings cleared (1 RCN + 5 WEM).
+5. ~~Plugin's final 3 RCN findings on `@Parameter`-list ingestion
+   constructors.~~ ✅ **Done** (`086d8c2`) — chose the
+   fail-fast-with-rich-error answer: `Objects.requireNonNull(field, ()
+   -> "list[i].field is required (bad entry: ...)")` in the support
+   ctors, `try/catch (NullPointerException)` in the Mojo helpers
+   rethrowing as `MojoExecutionException`. One DCN suppression for the
+   deliberate NPE catch; rationale recorded in `spotbugs-exclude.xml`.
+   The associated test was rewritten to assert the new fail-fast
+   contract (`constructor_definitionWithNullKey_throwsWithIndexAndBadEntry`).
+6. ~~Plugin pom flip to permanent Max+Low.~~ ✅ **Done** (`0bddf2a`).
+   Plugin is the second repo green at the gate after sb. The
+   load-factor presize formula was later extracted to
+   `Java8CompatibilityHelper.hashMapCapacityFor(int)` (`b987f3c`) to
+   remove duplication across the two support ctors.
+7. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — remaining 3 sites
+   in jllama. Mechanical fix per site, or apply the same fail-fast
+   pattern plugin landed in step 5.
+8. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
    sb's pattern. ~40 sites across BAF+jllama; the highest-impact source
    change.
-8. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
+9. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
    `public` method that genuinely is part of the public API gets a
    per-method `@SuppressFBWarnings` instead.
-9. **`CRLF_INJECTION_LOGS`** (BAF only, 68 sites) — sanitisation at the
-   logger boundary. Either a wrapping helper or a project-wide
-   pattern-match exclusion if the inputs are demonstrably trusted.
-10. Remaining low-count categories — fix or suppress with rationale.
+10. **`CRLF_INJECTION_LOGS`** (BAF only, 68 sites) — sanitisation at the
+    logger boundary. Either a wrapping helper or a project-wide
+    pattern-match exclusion if the inputs are demonstrably trusted.
+11. Remaining low-count categories — fix or suppress with rationale.
 
 Once a repo reaches zero outstanding findings at Max+Low, **flip the
 pom.xml `<effort>` to `Max` and `<threshold>` to `Low` in the same
