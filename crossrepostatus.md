@@ -104,12 +104,19 @@ Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 `Max` + `Low` (then reverted) on top of the Lombok-migration commits:
 
-| Repo | Total | Effort/Threshold (pom default) |
-|---|---:|---|
-| BAF | 215 | Default+Default (lift pending) |
-| jllama | 108 | Default+Default (lift pending) |
-| plugin | 32 | Default+Default (lift pending) |
-| sb | 0 | ✅ Max+Low enforced |
+| Repo | Total | Δ vs initial snapshot | Effort/Threshold (pom default) |
+|---|---:|---:|---|
+| BAF | **191** | −24 | Default+Default (lift pending) |
+| jllama | **90** | −18 | Default+Default (lift pending) |
+| plugin | **26** | −6 | Default+Default (lift pending) |
+| sb | 0 | — | ✅ Max+Low enforced |
+
+**Δ source:** Lombok-USBR suppression landed in all three repos
+(BAF `6ddd69e`, jllama `ce8b466`, plugin `4bd4dc0`) via a single
+`<Match>` per `spotbugs-exclude.xml` matching the
+`USBR_UNNECESSARY_STORE_BEFORE_RETURN` bug pattern on the four method
+names Lombok can emit (`equals`, `hashCode`, `canEqual`, `toString`).
+Total cleared: **48 findings** across the three repos, no source change.
 
 **Per-pattern matrix** (counts at Max+Low; entries marked `—` are zero on
 that repo). Patterns are grouped by remediation approach so a single
@@ -130,8 +137,6 @@ session can take down a whole group across multiple repos.
 | `DRE_DECLARED_RUNTIME_EXCEPTION` | 10 | 20 | — | Remove `@throws RuntimeException` from Javadoc / `throws` clauses; replace with the actual subclass or drop. |
 | `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | 15 | 4 | — | Same family; signature cleanup. |
 | `THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION` | 3 | 1 | — | Narrow `throws Exception` to a specific subclass. |
-| **Lombok-generated artefacts** | | | | |
-| `USBR_UNNECESSARY_STORE_BEFORE_RETURN` | 24 | 18 | 6 | Triggered by Lombok's polynomial `hashCode` (`int result = 1; result = result*59+…; return result;`). **Project-wide suppression by `@lombok.Generated` annotation match** is the right answer — already emitted by `lombok.addLombokGeneratedAnnotation = true` in every `lombok.config`. Apply once per repo. |
 | **Type / null hygiene** | | | | |
 | `BC_UNCONFIRMED_CAST` | 9 | — | — | Add `instanceof` guards or explicit `@SuppressWarnings` with rationale. |
 | `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` | — | 3 | 4 | Delete the redundant null check (NullAway already proves non-null). |
@@ -157,10 +162,9 @@ session can take down a whole group across multiple repos.
 
 **Suggested execution order** (lowest-risk → highest):
 
-1. Apply the **`USBR_UNNECESSARY_STORE_BEFORE_RETURN` Lombok suppression**
-   in all three repos' `spotbugs-exclude.xml` (single `Match` block per
-   repo matching the `@lombok.Generated` annotation). Clears 48 findings
-   with zero source changes.
+1. ~~Apply the `USBR_UNNECESSARY_STORE_BEFORE_RETURN` Lombok suppression
+   in all three repos.~~ ✅ **Done** (BAF `6ddd69e`, jllama `ce8b466`,
+   plugin `4bd4dc0`). 48 findings cleared.
 2. Extend plugin's `HelpMojo` class-scoped exclude to cover
    `SPP_FIELD_COULD_BE_STATIC`, `UI_INHERITANCE_UNSAFE_GETRESOURCE`, and
    the three `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` (all on the auto-
