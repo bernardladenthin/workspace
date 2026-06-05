@@ -108,7 +108,7 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
 |---|---:|---:|---|
 | BAF | **191** | −24 | Default+Default (lift pending) |
 | jllama | **90** | −18 | Default+Default (lift pending) |
-| plugin | **9** | −23 | Default+Default (lift pending) |
+| plugin | **3** | −29 | Default+Default (lift pending) |
 | sb | 0 | — | ✅ Max+Low enforced |
 
 **Δ source so far:**
@@ -142,6 +142,18 @@ Snapshot taken with the per-repo SpotBugs effort temporarily flipped to
      `AiPromptSupport`). Rationale: configurable prompt templates
      from POM `<configuration>` ARE the plugin's feature; a malformed
      template raises `IllegalFormatException` at build time.
+4. Plugin RCN + WEM source pass landed as two commits:
+   - `629d145` — harden `AiGenerationResult` ctor with
+     `Objects.requireNonNull(body)` so the `@NonNull` contract is
+     enforced at the boundary; delete the now-redundant
+     `(result.body() == null)` check at `PackageIndexer:246`. Also
+     incidentally enriches `PackageIndexer.writePackageFile`'s
+     `IllegalArgumentException` with the offending `directory`.
+     Cleared 1 RCN + 1 WEM.
+   - `95ec43a` — 4 more WEM enrichments following the same pattern
+     (static prefix + the relevant in-scope value): `AggregatePackagesMojo`,
+     `GenerateMojo`, `SourceFileIndexer`, `AiCompletionParser`.
+   Total cleared by step 4: 1 RCN + 5 WEM = **6 findings**.
 
 **Per-pattern matrix** (counts at Max+Low; entries marked `—` are zero on
 that repo). Patterns are grouped by remediation approach so a single
@@ -158,13 +170,13 @@ session can take down a whole group across multiple repos.
 | `MS_SHOULD_BE_FINAL` | 1 | — | — | Mark mutable static `final`. |
 | `URF_UNREAD_FIELD` | 1 | — | — | Delete the unused field. |
 | **Exception messaging** | | | | |
-| `WEM_WEAK_EXCEPTION_MESSAGING` | 26 | 14 | ~~6~~ **5** | Add state-dependent context to `throw new …Exception("…")` sites (sb's pattern). Cross-repo. (Plugin's 1 `HelpMojo` site suppressed in `049c1ae`.) |
+| `WEM_WEAK_EXCEPTION_MESSAGING` | 26 | 14 | ~~6~~ **0** | Add state-dependent context to `throw new …Exception("…")` sites (sb's pattern). Cross-repo. (Plugin: 1 `HelpMojo` site suppressed in `049c1ae`; 5 source sites enriched in `629d145` + `95ec43a`.) |
 | `DRE_DECLARED_RUNTIME_EXCEPTION` | 10 | 20 | — | Remove `@throws RuntimeException` from Javadoc / `throws` clauses; replace with the actual subclass or drop. |
 | `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` | 15 | 4 | — | Same family; signature cleanup. |
 | `THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION` | 3 | 1 | — | Narrow `throws Exception` to a specific subclass. |
 | **Type / null hygiene** | | | | |
 | `BC_UNCONFIRMED_CAST` | 9 | — | — | Add `instanceof` guards or explicit `@SuppressWarnings` with rationale. |
-| `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` | — | 3 | 4 | Delete the redundant null check (NullAway already proves non-null). |
+| `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` | — | 3 | ~~4~~ **3** | Delete the redundant null check (NullAway already proves non-null). (Plugin: `PackageIndexer:246` cleared in `629d145` by hardening the `AiGenerationResult` ctor with `Objects.requireNonNull`. 3 remaining sites on `@Parameter`-list ingestion constructors awaiting design call — runtime checks may be legitimate against Maven reflection injection.) |
 | `OI_OPTIONAL_ISSUES_CHECKING_REFERENCE` | — | 2 | — | `if (opt != null)` → `if (opt.isPresent())`. |
 | `AI_ANNOTATION_ISSUES_NEEDS_NULLABLE` | — | 1 | ~~3~~ **0** | Add `@Nullable` on the documented-nullable returns. (Plugin's 2 `HelpMojo` sites suppressed in `049c1ae`; the `GenerateMojo.resolveFileExtensions` site suppressed in `41d6141` after a source restructure attempt didn't satisfy fb-contrib.) |
 | `FORMAT_STRING_MANIPULATION` | — | 1 | ~~1~~ **0** | Use parameterised `String.format` instead of `+` concatenation in format args. (Plugin's site suppressed in `f56940c` — configurable prompt templates from POM are the plugin's feature.) |
@@ -199,21 +211,31 @@ session can take down a whole group across multiple repos.
    1 × `FORMAT_STRING_MANIPULATION`.~~ ✅ **Done** (plugin `dbfe742`,
    `41d6141`, `f56940c`). 4 findings cleared. Plugin now at 9 total —
    in striking distance of flipping the pom to `Max+Low` permanently.
-4. **Plugin's final 9** (5 × `WEM` + 4 × `RCN`): mostly mechanical
-   per-site source fixes following sb's pattern. Once cleared, flip
-   plugin pom to `Max+Low` and mark it green here.
-5. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — delete the redundant
+4. ~~Plugin RCN + WEM source pass.~~ ✅ **Mostly done** (`629d145`
+   + `95ec43a`). 6 findings cleared (1 RCN + 5 WEM). Plugin now at
+   3 total. **Remaining 3** on plugin are all the same shape:
+   `RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE` on `@Parameter`-list
+   ingestion constructors (`AiModelDefinitionSupport`,
+   `AiPromptSupport`). Awaiting a design call — runtime checks may
+   be legitimate against Maven reflection injection, in which case
+   the answer is a scoped suppression with rationale; if the call
+   instead is to enforce the contract upstream (Mojo validation),
+   the source pass continues.
+5. After step 4 lands, plugin flips `<effort>Max</effort>` +
+   `<threshold>Low</threshold>` in pom.xml permanently and the
+   plugin row in the top table goes ✅.
+6. **`RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE`** — delete the redundant
    null checks. Mechanical fix; remaining 3 sites in jllama.
-6. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
+7. **`WEM_WEAK_EXCEPTION_MESSAGING`** — add contextful messages following
    sb's pattern. ~40 sites across BAF+jllama; the highest-impact source
    change.
-7. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
+8. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
    `public` method that genuinely is part of the public API gets a
    per-method `@SuppressFBWarnings` instead.
-8. **`CRLF_INJECTION_LOGS`** (BAF only, 68 sites) — sanitisation at the
+9. **`CRLF_INJECTION_LOGS`** (BAF only, 68 sites) — sanitisation at the
    logger boundary. Either a wrapping helper or a project-wide
    pattern-match exclusion if the inputs are demonstrably trusted.
-9. Remaining low-count categories — fix or suppress with rationale.
+10. Remaining low-count categories — fix or suppress with rationale.
 
 Once a repo reaches zero outstanding findings at Max+Low, **flip the
 pom.xml `<effort>` to `Max` and `<threshold>` to `Low` in the same
