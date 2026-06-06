@@ -276,7 +276,7 @@ session can take down a whole group across multiple repos.
 | **Logging / I/O safety** | | | | |
 | `CRLF_INJECTION_LOGS` | ~~68~~ **0** | — | — | ✅ **BAF cleared in `bd723f0`** by adding `src/main/resources/logback.xml` with a `%replace(%msg){'[\r\n]+', ' \| '}` PatternLayout wrap on every appender (and same on `examples/logbackConfiguration.xml`); project-wide `<Match>` in `spotbugs-exclude.xml` with full rationale + OWASP/SEI CERT/find-sec-bugs references. Zero source edits; the security control lives at the appender layer and covers every `LOGGER.*` call (including transitive dependency logs and future contributor additions). |
 | **Method-shape hygiene** | | | | |
-| `OPM_OVERLY_PERMISSIVE_METHOD` | 33 | 25 | ~~2~~ **0** | Tighten visibility (`public`→package-private) where no external caller exists. Cross-repo refactor. (Plugin's 2 sites done in `dbfe742`.) |
+| `OPM_OVERLY_PERMISSIVE_METHOD` | **suppressed** (was 33) | **suppressed** (was 25) | ~~2~~ **0** | **BAF + jllama suppressed project-wide** (BAF `52c8c95`, jllama `07109cc`) until the planned package-architecture refactor lands — current single-root package layout would mass-flag tomorrow's correctly-`public` methods as "should be package-private" today. Re-enable once layers split. Plugin's 2 sites already done in `dbfe742`. See "OPM scope-tightening — after package refactor" entry below. |
 | `UPM_UNCALLED_PRIVATE_METHOD` | 7 | — | — | Delete unused private methods. |
 | `SPP_FIELD_COULD_BE_STATIC` | — | 1 | ~~9~~ **0** | jllama site needs case-by-case judgement. Plugin's were structural false positives on Maven `@Parameter` fields plus the auto-generated `HelpMojo.goal`; suppressed in plugin `049c1ae`. |
 | `MS_SHOULD_BE_FINAL` | 1 | — | — | Mark mutable static `final`. |
@@ -353,9 +353,15 @@ session can take down a whole group across multiple repos.
    aggregation contract — became the precedent for the cross-repo
    typed-exception unification audit row added above. Still open:
    jllama (14 sites) — same pattern applies.
-9. **`OPM_OVERLY_PERMISSIVE_METHOD`** — tighten visibility. Careful: any
-   `public` method that genuinely is part of the public API gets a
-   per-method `@SuppressFBWarnings` instead.
+9. ~~`OPM_OVERLY_PERMISSIVE_METHOD` — tighten visibility.~~ ✅ **Suppressed
+   project-wide in BAF (`52c8c95`) and jllama (`07109cc`)** pending the
+   package-architecture refactor. Plugin's 2 sites already done in
+   `dbfe742`. Re-enable the rule (delete each repo's project-wide
+   `<Match>` block) the week the layered package structure stabilises;
+   at that point genuine "method exposed beyond its actual call site"
+   findings become stable, fixable signals. Full rationale + per-category
+   breakdown in the "OPM scope-tightening — after package refactor"
+   entry below.
 10. ~~`CRLF_INJECTION_LOGS` (BAF only, 68 sites).~~ ✅ **Done** (BAF
     `bd723f0`). Chose layout-level mitigation: bundled
     `src/main/resources/logback.xml` ships a `%replace(%msg){'[\r\n]+', ' | '}`
@@ -378,6 +384,24 @@ the top table. When all four repos are green here, **delete this entire
 ### Affects BAF + jllama (multi-package repos)
 - **ArchUnit `layeredArchitecture().consideringAllDependencies()`** — both repos have leaf-package rules instead of the full form. BAF needs DTO/orchestration split (`Finder`, `Producer*`, `Consumer*`); jllama needs DTOs in a `value/` package. Both moves break public-API FQNs.
 - **ArchUnit per-module banned-imports** — not implemented in either.
+- **OPM scope-tightening — after package refactor.** fb-contrib
+  `OPM_OVERLY_PERMISSIVE_METHOD` is suppressed PROJECT-WIDE in both BAF
+  (`spotbugs-exclude.xml`) and jllama (`spotbugs-exclude.xml`) until the
+  package refactor above settles. Rationale: the current single-root
+  package groups production code so that every method called only by
+  same-package callers is flagged as "should be package-private" — true
+  today, false tomorrow once layers split, because cross-layer calls
+  will need `public`. Tightening every site now creates churn the
+  refactor will revert. **Re-enable this rule (delete the project-wide
+  `<Match>` from each repo's `spotbugs-exclude.xml`) the same week the
+  package layout stabilises.** At that point genuine "method exposed
+  beyond its actual call site" findings become stable, fixable signals.
+  Per-category breakdown at the moment of suppression (BAF, 33 sites):
+  Main CLI internal helpers (~8), test-only public surface (~5),
+  abstract-class constructors (~4), concrete-class constructors needing
+  per-class audit (~5), internal helpers (~9), one enum.valueOf false
+  positive. jllama: 25 sites of similar shape (not categorised in
+  detail; will re-categorise when the suppression is lifted).
 
 ---
 
