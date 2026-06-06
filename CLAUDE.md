@@ -28,6 +28,7 @@ guides/test/TEST_WRITING_GUIDE-21.md     Java 21 test supplement (extends -8.md)
 policies/javadoc-conventions.md          HTML-entity rules for Javadoc
 policies/spotbugs-suppressions.md        spotbugs-exclude.xml maintenance
 policies/jqwik-prompt-injection.md       jqwik pin + incident note
+policies/lombok-config.md                Canonical lombok.config content for Lombok-using repos
 policies/code-quality-todos.md           Recurring per-repo audits
 workflows/pull-request-workflow.md       gh / MCP PR steps
 templates/CLAUDE.md.template             Standard per-repo CLAUDE.md

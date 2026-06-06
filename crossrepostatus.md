@@ -81,6 +81,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | Safe dependency / plugin bumps | ✅ `59f7ff1` | ✅ `0a97ae7` | ✅ `93c7c84` | ✅ `3ccb426` |
 | Per-repo `TODO.md` extraction (open work moved out of `CLAUDE.md`) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
 | Lombok 1.18.46 `@ToString` / `@EqualsAndHashCode` adoption (clears IMC_NO_TOSTRING + IMC_NO_EQUALS at SpotBugs Max+Low) | ✅ (BAF Lombok loop — 56 classes, 0 handwritten Object methods left) | ✅ `9be73a3` (this session) — 23 classes annotated; OSInfo / exceptions / enums / interfaces / non-instantiable utilities intentionally skipped | ✅ `39e1a59` + `6955357` (this session) — 6 `@ConvertToRecord` value types migrated, 19 service/codec/Mojo classes annotated, IMC_NO_EQUALS suppressed for identity-semantic Mojos / JavaBeans / service classes with rationale | ➖ excluded by design (user choice) |
+| Canonical `lombok.config` content (see [`policies/lombok-config.md`](policies/lombok-config.md)) including `doNotUseGetters = true` for `@EqualsAndHashCode`/`@ToString` | ❌ pending — missing the two `doNotUseGetters` lines | ✅ `6ddd225` (this session) — added `doNotUseGetters` after fb-contrib `OI_OPTIONAL_ISSUES_CHECKING_REFERENCE` audit on `ChatRequest`/`ChatMessage` Optional-wrapping getters; SpotBugs Max+Low 6 → 2 | ❌ pending — missing the two `doNotUseGetters` lines | ➖ no Lombok dependency |
 | **Standing policies** | | | | |
 | DO NOT UPGRADE jqwik past 1.9.3 | 📌 active | 📌 active | 📌 active | 📌 active |
 
