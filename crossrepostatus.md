@@ -1,12 +1,13 @@
-# Cross-Repo Status Table — VERIFIED
+# Cross-Repo Status Table
 
-> **For a future session**: this file is the consolidated cross-repo status snapshot
-> at end of the previous session (2026-06-03). All changes referenced by commit
-> hash below are landed. The recommended next-task list lives in the
-> **"Quick prioritisation (cheapest → biggest)"** section near the bottom — start
-> there to pick up work. The richer per-repo design context lives in each repo's
-> own `CLAUDE.md` Open-TODOs section (especially BAF's persistence/GPU TODOs and
-> jllama's strictness-ladder commit ledger).
+This file tracks **only items that span ≥ 2 of the four sibling repos**. Single-repo open work has been moved into each repo's own `TODO.md`:
+
+- [`../BitcoinAddressFinder/TODO.md`](../BitcoinAddressFinder/TODO.md)
+- [`../java-llama.cpp/TODO.md`](../java-llama.cpp/TODO.md)
+- [`../llamacpp-ai-index-maven-plugin/TODO.md`](../llamacpp-ai-index-maven-plugin/TODO.md)
+- [`../streambuffer/TODO.md`](../streambuffer/TODO.md)
+
+Recurring per-repo audits (mostly cross-repo by nature but living per-repo today) are documented in [`policies/code-quality-todos.md`](policies/code-quality-todos.md).
 
 Repos:
 - **BAF** = `/home/user/BitcoinAddressFinder`
@@ -14,268 +15,192 @@ Repos:
 - **plugin** = `/home/user/llamacpp-ai-index-maven-plugin`
 - **sb** = `/home/user/streambuffer`
 
-Legend: ✅ done · ❌ open · ➖ N/A · 📌 standing policy
-
-> **Audit method**: each row verified by reading `pom.xml`, source files, and `git rev-parse` against the working tree on the current branch. Seed claims that were wrong are flagged with → and the corrected state. See `/home/user/cross-repo-status-AUDIT-LOG.md` for the per-row evidence trail.
+Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing policy
 
 ---
 
-## VERIFIED TABLE
+## In parity across all 4 repos (no action needed)
+
+| Dimension | Status |
+|---|---|
+| Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
+| NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
+| Tool versions | Identical: Checker 4.2.0, fb-contrib 7.7.4, spotless 3.6.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.4, surefire 3.5.6 |
+| Maven Enforcer `bannedDependencies` | Identical 7-entry list |
+| `<parameters>true</parameters>` javac arg | All 4 ✅ |
+| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired (sb whole-package; BAF/jllama/plugin narrowed to one class as documented staging) |
+| Checker Framework as 2nd nullness pass | All 4 ✅ |
+| JPMS `module-info.java` present | All 4 ✅ |
+| ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
+| `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing` | All 4 ✅ |
+
+## Deliberate non-parity (NOT drift)
+
+- Plugin's NullAway `ExcludedFieldAnnotations` extension — repo-correct (Mojo POJOs).
+- BAF's lack of module-level `@NullMarked` — documented intentional (per-package `@NullMarked` covers the same scope, avoids `requires JSpecify`).
+- sb keeps per-package `@NullMarked` — by design.
+- The PIT "narrow targetClasses" pattern in 3 of 4 repos — documented intentional staging.
+
+---
+
+## VERIFIED TABLE (cross-repo rows only)
 
 | TODO item | BAF | jllama | plugin | sb |
 |---|:--:|:--:|:--:|:--:|
 | **Strictness ladder** | | | | |
-| Error Prone bug patterns → ERROR (12 patterns) | ✅ verified (was seed ❌) | ✅ `855f447` | ✅ `034b553` | ✅ `ad95d66` |
-| `javac -Werror` + `-Xlint:all,-serial,-options` | ❌ not yet flipped (items 1–6 cleared; ready) | ✅ `3e2efbb` | ✅ | ✅ `7a4fbf0` |
-| `-parameters` javac arg | ✅ `pom.xml:315` (was seed ❌) | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
-| `--release N` instead of `-source`/`-target` | ❌ main still `<source>21</source>/<target>21>`; module-info uses `--release 9` | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
-| PIT mutation threshold enforced (100%) | ✅ `BitHelper` (`pom.xml:711-717`) | ✅ `Pair` (`62f8a00`) | ✅ `AiResponseNormalizer` | ✅ whole package |
-| Checker Framework 2nd nullness pass | ✅ NullnessChecker + `objects.astub` | ✅ `c63870b` | ✅ | ✅ `5a9be1b` |
-| JPMS `module-info.java` | ✅ `src/main/java9/module-info.java` | ✅ `0fd066a`/`9528e79` (module-level `@NullMarked`) | ✅ — and module-level `@NullMarked` IS set (CLAUDE.md note "intentionally NOT added" is **stale**) | ✅ |
-| Banned-API enforcement (Enforcer + ArchUnit) | ✅ Enforcer @ `pom.xml:268-283`; ArchUnit `noSystemExit`/`noNewRandom`/`Thread.sleep` (was seed ❌) | ✅ `8baae0c`/`329d764`/`e6069da` | ✅ `d654442`/`fd8cf80`/`ad37355` | ✅ `c0148c8`/`eaf4337` |
-| ArchUnit public-fields-final | ✅ `ArchitectureTest:120-130` (was seed ❌) | ✅ `7b6667d` | ✅ `d2b1af9` | ✅ `5dd816d` |
-| ArchUnit ban internal-JDK imports (`sun.*`/`com.sun.*`/`jdk.internal.*`) | ✅ `ArchitectureTest:90-97` | ✅ `e6069da` | ✅ `ad37355` | ✅ `de29bd4` |
-| ArchUnit `layeredArchitecture()` | ❌ | ❌ | ❌ | ➖ single-package |
-| ArchUnit per-module banned-imports | ❌ | ❌ | ❌ | ➖ single-package |
-| SpotBugs `effort=Max` + `threshold=Low` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` | ❌ both `Default` |
+| Error Prone bug patterns → ERROR (12+ patterns) | ✅ | ✅ `855f447` | ✅ `034b553` | ✅ `ad95d66` |
+| `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing` | ✅ `2881c96` (this session) | ✅ `3e2efbb` | ✅ `f7cf748` | ✅ `7a4fbf0` |
+| `-parameters` javac arg | ✅ `pom.xml:315` | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
+| `--release N` instead of `-source`/`-target` | ✅ `<release>21</release>` (`c2470b7` + `1b67ad0`) | ✅ `4350cf2` | ✅ `7ae3279` | ✅ `912f14b` |
+| PIT mutation threshold enforced (100%) | ✅ `BitHelper` | ✅ `Pair` (`62f8a00`) | ✅ `AiCompletionParser` | ✅ whole package |
+| Checker Framework 2nd nullness pass | ✅ | ✅ `c63870b` | ✅ | ✅ `5a9be1b` |
+| JPMS `module-info.java` | ✅ `src/main/java9/` | ✅ `0fd066a` / `9528e79` | ✅ | ✅ |
+| Banned-API enforcement (Enforcer + ArchUnit) | ✅ | ✅ `8baae0c` / `329d764` / `e6069da` | ✅ `d654442` / `fd8cf80` / `ad37355` | ✅ `c0148c8` / `eaf4337` |
+| ArchUnit public-fields-final | ✅ | ✅ `7b6667d` | ✅ `d2b1af9` | ✅ `5dd816d` |
+| ArchUnit ban internal-JDK imports (`sun.*` / `com.sun.*` / `jdk.internal.*`) | ✅ | ✅ `e6069da` | ✅ `ad37355` | ✅ `de29bd4` |
+| ArchUnit `noTestFrameworksInProduction` | ✅ | ✅ | ✅ | ✅ `bbdb505` (this session) |
+| ArchUnit `noPackageCycles` | ✅ | ✅ | ✅ `26a4f7b` (this session) | ✅ `bbdb505` (this session) |
+| ArchUnit `loggersArePrivateStaticFinal` | ✅ | ✅ | ➖ uses Maven `Log` | ➖ no logging |
+| ArchUnit leaf-layer rules | ✅ (3 rules: `constantsPackageIsALeaf`, `configurationDoesNotDependOnRuntimeLayers`, `cliIsEntryPointOnly`) | ✅ (`argsPackageIsALeaf`) | ➖ single-package | ➖ single-package |
+| ArchUnit full `layeredArchitecture()` | ❌ — needs DTO/orchestration split; touches public-API FQNs | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
+| ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
+| SpotBugs `effort=Max` + `threshold=Low` | ✅ `76fd1a7` — permanent flip; clean at the gate. Full chain: USBR-Lombok `6ddd69e` + CRLF layout `bd723f0` + WEM 3-batch `c2c3d62` / `4677831` / `dcee87d` + THROWS A/B/C `bd71766` + THROWS Group D `40d3f09` + DRE `5b72265` + 3× MDM structural refactors (AbstractProducer `892b76a`, ConsumerJava `99f390f`, ProducerOpenCL `09c5d52`) + MDM narrow suppression `cb02c70` + OPM project-wide suppression pending package refactor `52c8c95` + final 36-finding sweep `76fd1a7` (7 source fixes + 29 narrow `<Match>` suppressions with rationale). | ✅ `c3a26b9` (this session) — permanent flip; clean at the gate. Full chain: InferenceParameters wither refactor `4f1fbd7` + Lombok `doNotUseGetters` cross-repo sync `6ddd225` + remaining-findings sweep `14091bf` (DLS source fix + USBR/OPM/ChatRequest-EI/LlamaModel-ctx-SPP suppressions) + gate-flip cleanup `c3a26b9` (2 IMC field-order source fixes + 6 narrow `<Match>` suppressions for identity-IMC / TimingsLogger public logger name / formatted-wrapper / ToolHandler-FI / requireNonNull precondition guard). | ✅ `0bddf2a` — permanent flip; clean at the gate with documented suppression chain (Lombok-USBR, HelpMojo auto-gen family, Maven `@Parameter` SPP, identity-IMC, prompt-template FORMAT_STRING, fb-contrib flow-coarseness sites, NPE→MojoExecutionException bridge) plus source fixes (Lombok adoption, `Objects.requireNonNull` fail-fast in support ctors, enriched WEM messages, presized HashMaps). | ✅ `4374dea` + `e7e254a` — flipped to Max+Low, all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions |
 | **Logging / observability** | | | | |
-| LogCaptor smoke test | ✅ LogCaptor 2.12.6 + used in 5 tests (was seed ➖) | ✅ `3cedc6e` (this session) | ➖ no logging | ➖ no logging |
-| **This session's additions (sb)** | | | | |
-| `getAvailableBytesExact()` public long getter | ➖ | ➖ | ➖ | ✅ `aa5c6b8` — closes the >2 GB live-count API gap; verified across 441-commit upstream history that no equivalent ever existed before |
+| LogCaptor smoke test | ✅ LogCaptor 2.12.6 (7 tests) | ✅ `3cedc6e` | ➖ no logging | ➖ no logging |
 | **Code-quality audits (continuous)** | | | | |
-| `@VisibleForTesting` audit (count) | 19 usages × 6 files | 0 | 0 | 0 |
-| `@VisibleForTesting` design-fit review | ✅ done this session — see "BAF @VisibleForTesting site-by-site audit" below | ➖ no usages | ➖ no usages | ➖ no usages |
-| Null-safety follow-up review | ✅ deep scan this session — 53 `@Nullable` sites all legitimate; no actionable changes | ✅ deep scan — 43 sites all legitimate, no TIGHTEN candidates | ✅ 17 sites all legitimate | ✅ zero `@Nullable` in production (verified) |
+| `@VisibleForTesting` audit | ✅ 10 sites all legitimate per design-fit review | ➖ no usages | ➖ no usages | ➖ no usages |
+| Null-safety follow-up review | ✅ 50 sites all legitimate | ✅ 43 sites all legitimate | ✅ 17 sites all legitimate | ✅ zero `@Nullable` in production |
 | Package hierarchy review | ❌ | ❌ | ❌ | ❌ |
-| Class / method naming review | ❌ | ❌ | ❌ | ❌ |
+| Class / method naming review (21-item cross-repo audit) | ✅ 6/6 | ✅ 1/1 | ✅ 7/7 | ✅ 7/7 |
+| Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | 🚧 BAF concrete entries: `AddressFormatNotAcceptedException` `(reason, detail)` overloads (`4677831`), new `InterruptedRuntimeException` per checklist (`bd71766`), and `UncheckedRuntimeException`-style wrapper rejected with rationale (`40d3f09`) — the "what NOT to do" precedent is recorded in the audit text below | ❌ | ❌ | ❌ |
 | **Cross-repo refactors** | | | | |
-| Workspace-shared guidelines layer (Java code/test conventions) | ❌ | ❌ | ❌ | ❌ |
-| Standardised `CLAUDE.md` template | ❌ | ❌ | ❌ | ❌ |
-| **BAF-specific big items** | | | | |
-| `-Werror` items 1–6 (BAF-internal pre-`-Werror` list) | ✅ all six cleared (`6eadc6f`) | ➖ | ➖ | ➖ |
-| Persistence-backends research/implementation | ✅ refresh DONE in `5b16c77` (this session) — TODO now reflects shipped state per plan item: HashSet snapshot, BloomFilterAccelerator extraction, TRUNCATED_LONG_64, AddressLookupBackend config enum, AddressPresence/AddressLookup chain contract, AddressLookupBenchmarkTest — all marked DONE. Remaining open: 3 stale example JSON `loadToMemoryCacheOnInit` lines, JMH migration of the benchmark, open-addressing hash table backend, standalone Bloom-only backend. | ➖ | ➖ | ➖ |
-| Pre-compute HASHSET hash on GPU | ❌ design captured (CLAUDE.md) | ➖ | ➖ | ➖ |
-| End-to-end GPU scan north star | ❌ vision captured | ➖ | ➖ | ➖ |
-| Push TRUNCATED_LONG_64 presence check into OpenCL | ❌ design captured | ➖ | ➖ | ➖ |
-| GraalVM Native Image evaluation (CLI / serverless / fast-startup target) | ➖ | ❌ design captured in `23f8756` (this session) | ➖ | ➖ |
-| README polish: platform badge + pure-Java sibling-projects subsection | ➖ | ✅ `23f8756` (this session) | ➖ | ➖ |
-| Feature investigation across 6 similar projects (5 pure-Java + llamacpp4j) | ➖ | ✅ `7b8cf74` (this session) — ships `docs/feature-investigation-similar-projects.md`; 18 candidate items with effort × priority backlog. Recommended first batch: UTF-8 boundary decoder + per-run timing line + jbang example + system-properties README table. | ➖ | ➖ |
-| GPU grid-size JMH benchmark (idea from cjherm/BAF23 fork) | ✅ **DONE** in `b9f475a` + `11c8868` (this session). `GridSizeSweepBenchmark` ships under `src/test/java/.../benchmark/` (compile-clean; runs on the owner's GPU host). The fork's companion **context-reuse / init-cost-amortisation sweep** (`CtxRoundsIteratorBenchmark`) was inspected and **explicitly rejected as inapplicable** to BAF — `ProducerOpenCL` creates one `OpenCLContext` for the lifetime of a scan session (10⁶+ launches per init), so the amortisation curve has no operator-actionable value. Rationale recorded in CLAUDE.md to prevent future re-import. | ➖ | ➖ | ➖ |
-| **jllama-specific** | | | | |
-| Expose `common_params::skip_download` | ➖ | ✅ `37754d4` — `ModelFlag.SKIP_DOWNLOAD` + `ModelParameters.setSkipDownload(boolean)` + `hasFlag` helper + new public `ModelUnavailableException` (extends now-public `LlamaException`) + Java-side heuristic translator. 104 tests pass. No JNI rebuild needed because upstream catches `common_skip_download_exception` inside its own arg-parser and surfaces it as a `false` return. | ➖ | ➖ |
-| Expose `--spec-draft-backend-sampling` | ➖ | ❌ no `setSpecDraft*` in `src/main/java` ("add only on real user request") | ➖ | ➖ |
-| **This session's deltas** | | | | |
-| Enum typo `DUMPED_RIVATE_KEY` → `DUMPED_PRIVATE_KEY` | ✅ `23a3053` | ➖ | ➖ | ➖ |
-| `Main.run` switch → arrow form | ✅ `27c2ace` | ➖ | ➖ | ➖ |
-| `KeyProducerJavaRandom` switch → expression form (`yield`) | ✅ `2cdfcc5` | ➖ | ➖ | ➖ |
-| LogCaptor smoke tests (`LoggingSmokeTest`) | ➖ | ✅ `3cedc6e` | ➖ | ➖ |
-| CLAUDE.md TODO refresh (mark already-solved DONE) | ✅ `6eadc6f` | ✅ `fcb77b8` | ✅ `485f9cf` | ✅ `fcac664` |
+| Workspace-shared guidelines layer | ✅ | ✅ | ✅ | ✅ |
+| Standardised `CLAUDE.md` template | ✅ | ✅ | ✅ | ✅ |
+| Versioned workspace guide chain (`guides/src/-8.md` + `-21.md`, `guides/test/-8.md` + `-21.md`) | ✅ | ✅ | ✅ | ✅ |
+| Audit-driven SKILL.md rewrite | ✅ | ✅ | ✅ | ✅ |
+| Safe dependency / plugin bumps | ✅ `59f7ff1` | ✅ `0a97ae7` | ✅ `93c7c84` | ✅ `3ccb426` |
+| Per-repo `TODO.md` extraction (open work moved out of `CLAUDE.md`) | ✅ (this session) | ✅ (this session) | ✅ (this session) | ✅ (this session) |
+| Lombok 1.18.46 `@ToString` / `@EqualsAndHashCode` adoption (clears IMC_NO_TOSTRING + IMC_NO_EQUALS at SpotBugs Max+Low) | ✅ (BAF Lombok loop — 56 classes, 0 handwritten Object methods left) | ✅ `9be73a3` (this session) — 23 classes annotated; OSInfo / exceptions / enums / interfaces / non-instantiable utilities intentionally skipped | ✅ `39e1a59` + `6955357` (this session) — 6 `@ConvertToRecord` value types migrated, 19 service/codec/Mojo classes annotated, IMC_NO_EQUALS suppressed for identity-semantic Mojos / JavaBeans / service classes with rationale | ➖ excluded by design (user choice) |
+| Canonical `lombok.config` content (see [`policies/lombok-config.md`](policies/lombok-config.md)) including `doNotUseGetters = true` for `@EqualsAndHashCode`/`@ToString` | ✅ `61e7996` (this session) — full Lombok-class audit (56 files) found one Bucket 3 outlier (`CKeyProducerJavaIncremental` BigInteger-parsing getters) whose behavior shift to String-form equality is semantically more correct for a JSON-roundtrip config POJO; 71 surefire reports green | ✅ `6ddd225` (this session) — added `doNotUseGetters` after fb-contrib `OI_OPTIONAL_ISSUES_CHECKING_REFERENCE` audit on `ChatRequest`/`ChatMessage` Optional-wrapping getters; SpotBugs Max+Low 6 → 2 | ✅ `3c61b88` (this session) — Bucket 1 / Bucket 4 only (zero Optional-wrapping getters); 53 tests green | ➖ no Lombok dependency |
 | **Standing policies** | | | | |
 | DO NOT UPGRADE jqwik past 1.9.3 | 📌 active | 📌 active | 📌 active | 📌 active |
 
 ---
 
-## What materially changed vs. the seed
+## Cross-repo open items (compact summary)
 
-**BAF column had the most drift** (its CLAUDE.md TODO list is stale relative to the actual `pom.xml` on this branch):
+Items that affect ≥ 2 repos. Single-repo items are in each repo's `TODO.md`.
 
-1. **Error Prone → ERROR** — was claimed ❌ "~30 warnings remain"; actually ✅ — 12 patterns are at ERROR in `pom.xml:344`, same as the other 3 repos. Only items NOT yet at ERROR are the long tail of EP warnings tracked separately.
-2. **`-parameters`** — was ❌; actually ✅ at `pom.xml:315` (set for main compile; off only for default-testCompile by design).
-3. **Banned-API enforcement** — was ❌; actually ✅ — Enforcer `bannedDependencies`/`dependencyConvergence` at `pom.xml:268-283`, plus ArchUnit `noSystemExit`/`noNewRandom`/`Thread.sleep` rules in `BitcoinAddressFinderArchitectureTest`.
-4. **ArchUnit public-fields-final** — was ❌; actually ✅ at `ArchitectureTest:120-130`.
-5. **LogCaptor smoke test** — was ➖ "logback different"; actually ✅ — LogCaptor 2.12.6 declared at `pom.xml:84,847` and exercised in 5 test files. Already done long before the jllama work this session.
-6. **Persistence-backends TODO** — self-labels "research-only / out of scope" but `BloomFilterAccelerator`, `HashSetAddressPresence`, `TruncatedLong64SortedArrayPresence` are all already implemented. CLAUDE.md needs a status refresh.
+### Affects all 4 repos
+- **SpotBugs `effort=Max` + `threshold=Low`** — ✅ ALL FOUR REPOS now permanently enforce Max+Low at the gate with zero unsuppressed findings: sb (`4374dea` + `e7e254a`), plugin (`0bddf2a`), BAF (`76fd1a7`), jllama (`c3a26b9` — this session, closing the last open row in this cluster). Cross-repo pattern: flip pom config, run `spotbugs:check`, fix each finding at source where reasonable, suppress narrowly with rationale where structural (Lombok-generated equals/hashCode, generator-emitted Mojo bytecode, Maven `@Parameter` reflection contract, CRLF-injection sanitised at the Logback PatternLayout layer, generic-erasure CHECKCAST in keyproducer hierarchy, identity-managed lifecycle handles, public logger contract names that intentionally differ from the enclosing class FQN, runtime-format-string backport wrappers, etc.).
+- **Package hierarchy review** (recurring; centralised at [`policies/code-quality-todos.md`](policies/code-quality-todos.md)).
+- **Typed-exception unification audit.** Every custom exception class
+  across the four repos should follow one shared shape, so that
+  ergonomics (`throw new …Exception(…)`), debugging (`getMessage()` /
+  `getCause()` / any aggregation accessor like `getReason()`), and
+  documentation (Javadoc on the class and on each constructor) are
+  predictable for a contributor moving between repos. Concrete
+  checklist for each `*Exception` class:
+    1. **Constructor matrix.** At minimum: `(String message)` and
+       `(String message, Throwable cause)`. Add `(…, String detail)`
+       and `(…, String detail, Throwable cause)` overloads when the
+       message has an aggregation key separate from the per-call
+       runtime detail (BAF's `AddressFormatNotAcceptedException` is
+       the precedent — `reason` is the aggregation key, `detail`
+       is the offending input). Don't ship a single-arg `(Throwable)`
+       form without a `(String, Throwable)` companion — operators lose
+       the human-readable context.
+    2. **Aggregation accessor naming.** If the exception participates
+       in counter aggregation (like `incrementUnsupported(getReason())`),
+       expose the key as `getReason()` (BAF convention). Don't reuse
+       `getMessage()` for aggregation — `getMessage()` is the verbose
+       human-readable form including the detail.
+    3. **Class-level Javadoc shape.** First sentence states *when* the
+       exception is thrown (the throwing condition, not "thrown when an
+       exception occurs"). Second sentence describes what the recipient
+       can do about it. List any aggregation contract explicitly.
+    4. **Constructor Javadoc shape.** Every parameter described in
+       terms of the exception's *contract* (what each value means for
+       `getMessage()` / `getReason()` / cause chaining), not by
+       restating the Java type.
+    5. **Equality semantics.** Exceptions extend `Throwable`, which
+       uses identity equality — keep it that way (don't add Lombok
+       `@EqualsAndHashCode`). The BAF `spotbugs-exclude.xml` Match
+       suppressing `IMC_IMMATURE_CLASS_NO_EQUALS` on the three BAF
+       exception classes is the precedent.
+    6. **Test class per exception.** Pattern: `<Name>ExceptionTest`
+       with one test per constructor (verifies the message shape and
+       any aggregation accessor) plus one round-trip via the throwing
+       call site for non-trivial detail formatting.
+  Triggering this audit now because the WEM cleanup on BAF surfaced
+  the need to extend `AddressFormatNotAcceptedException` with a
+  `(reason, detail)` overload — that's the right design across every
+  custom exception in the four repos, not just one.
 
-**Stays open in BAF** (real remaining work):
-- `javac -Werror` flip (items 1–6 are clear, just hasn't been flipped)
-- `--release N` for main compile (still uses `<source>21</source>/<target>21>`)
-- ArchUnit `layeredArchitecture()` (not yet)
-- ArchUnit per-module banned-imports
-- SpotBugs `effort=Max`/`threshold=Low`
-- `@VisibleForTesting` audit + design-fit review (19 usages to walk)
-- Package hierarchy + naming reviews
-- BAF-specific GPU TODOs (3 large design docs in CLAUDE.md)
+  **What NOT to do — `UncheckedRuntimeException`-style wrapper for
+  catch-then-rethrow sites.** Recorded here so future maintainers do
+  not re-derive the trade-off. When fb-contrib's
+  `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` flags a
+  `catch (RuntimeException e) { cleanup(); throw e; }` site,
+  introducing a `class UncheckedRuntimeException extends RuntimeException`
+  (or any other "I caught a RuntimeException for cleanup" wrapper)
+  and rewriting the catch as `throw new UncheckedRuntimeException(e)`
+  looks like a clean typed-exception solution but is strictly worse
+  than the status quo for three reasons:
+    1. **Breaks caller recovery.** Callers that catch specific subtypes
+       (e.g. `NoMoreSecretsAvailableException`) see the wrapper
+       instead and have to unwrap to handle the real type.
+    2. **Adds stack-trace noise.** Every propagation through such a
+       site now has a "caused by:" frame for the wrapper.
+    3. **Violates SEI CERT ERR07-J** — the very rule the detector is
+       enforcing. ERR07-J exists so callers can recover from typed
+       exceptions; wrapping hides the type. The SpotBugs maintainers
+       articulate this directly in
+       [spotbugs/spotbugs#3918](https://github.com/spotbugs/spotbugs/issues/3918):
+       "rethrowing an exception that would have been thrown anyway"
+       is fine; constructing a new wrapping exception is not.
+  The detector itself is acknowledged as a false positive on the
+  catch-rethrow pattern upstream;
+  [PR #4087](https://github.com/spotbugs/spotbugs/pull/4087) is open
+  to fix it. The right interim answer is a narrow
+  `spotbugs-exclude.xml` `<Match>` with a lifecycle TODO to drop the
+  suppression after the SpotBugs upgrade. BAF commit `40d3f09`
+  applies this and is the reference implementation.
 
-**jllama column** — all seed claims correct. Refined null-safety from "no actionable" to "43 sites all verified legitimate". Module-level `@NullMarked` confirmed.
-
-**plugin column** — all seed claims correct. **NEW**: module-info DOES carry `@NullMarked` at module level — the CLAUDE.md bullet saying "intentionally NOT added" contradicts the actual file. Flag for correction.
-
-**sb column** — all seed claims correct. Zero `@Nullable` in production confirmed.
-
----
-
-## Genuinely-open items across all 4 repos (compact summary)
-
-### Universal (all 4 repos)
-- SpotBugs `effort=Max` + `threshold=Low` — one-off triage experiment
-- `@VisibleForTesting` audit + design-fit review
-- Package hierarchy review
-- Class / method naming review
-- Workspace-shared guidelines layer (canonical conventions in one place)
-- Standardised CLAUDE.md template
-
-### BAF-only
-- `javac -Werror` flip (next obvious move — blockers cleared)
-- `--release N` for main compile (not module-info only)
-- ArchUnit `layeredArchitecture()` + per-module banned-imports
-- CLAUDE.md staleness refresh (Persistence-backends TODO is partly done; per-repo strictness items are stale)
-- 3 large GPU design TODOs (Pre-compute HASHSET hash on GPU, Push TRUNCATED_LONG_64 into OpenCL, End-to-end GPU vision)
-
-### jllama-only
-- `setSkipDownload(boolean)` plumbing
-- `setSpecDraftBackendSampling(boolean)` plumbing (deferred — "add only on real user request")
-- ArchUnit `layeredArchitecture()` + per-module banned-imports
-
-### plugin-only
-- ArchUnit `layeredArchitecture()` + per-module banned-imports
-- Fix stale CLAUDE.md bullet about module-level `@NullMarked`
-
-### sb-only
-- (none beyond universal items)
-
----
-
-## BAF `@VisibleForTesting` site-by-site audit (19 sites, this session)
-
-Project's own stated rule (BAF CLAUDE.md): *"@VisibleForTesting should be the last resort, not the first."* Audit applies that rule per site.
-
-### REFACTOR-VIA-INJECTION — 7 sites (mutable static / executor injection)
-
-| File:Line | Entity | Current visibility | Why refactor |
-|---|---|---|---|
-| `Finder.java:43` | `static Duration AWAIT_DURATION_TERMINATE` | pkg-private static (**mutable!**) | FinderTest reassigns the static at runtime — test-order hazard. Inject via config. |
-| `ConsumerJava.java:47` | `static Duration AWAIT_DURATION_QUEUE_EMPTY` | pkg-private static (**mutable!**) | Same shared-mutable-static anti-pattern. |
-| `Finder.java:60` | `final ExecutorService producerExecutorService` | pkg-private | Test only calls `.isTerminated()`. Inject executor → field becomes `private`. |
-| `ConsumerJava.java:94` | `ScheduledExecutorService scheduledExecutorService` | pkg-private **non-final** | Test reads `.isShutdown()`. Inject; field becomes `private final`. |
-| `ConsumerJava.java:129` | `final ExecutorService consumeKeysExecutorService` | pkg-private | Same — inject. |
-| `ProducerOpenCL.java:25` | `final ThreadPoolExecutor resultReaderThreadPoolExecutor` | pkg-private | Same — inject. |
-| `ProducerOpenCL.java:28` | `@Nullable OpenCLContext openCLContext` | pkg-private (lifecycle handle) | Test only asserts init/close ran; expose `boolean isInitialized()` instead. |
-
-### REFACTOR-EXTRACT-HELPER — 2 sites (observable through narrower API)
-
-| File:Line | Entity | Current visibility | Why refactor |
-|---|---|---|---|
-| `ConsumerJava.java:126` | `final AtomicBoolean shouldRun` | pkg-private | Tests call `.get()`. Expose `boolean isRunning()` getter; keep field truly private. |
-| `BIP39KeyProducer.java:51` | `final AtomicInteger counter` | pkg-private | Test sets `counter.set(Integer.MAX_VALUE)` to force overflow. Replace with constructor parameter for starting value. |
-
-### MAKE-PRIVATE — 1 site (annotation is noise / dead)
-
-| File:Line | Entity | Current visibility | Why |
-|---|---|---|---|
-| ~~`cli/Main.java:39,47,55,61`~~ | ~~4× `FILE_EXTENSION_*` constants~~ | pkg-private | ✅ **RESOLVED** in `63ef722` + `c4eed5e` (this session). Owner correctly pointed out the constants ARE used by production — they drive the extension dispatch at `Main.main()`. Final state: extracted `Main.loadConfiguration(Path)` and added focused new test class `cli/MainConfigurationLoadingTest.java` (same package as `Main`) with 6 round-trip + syntax-probe tests that reference the constants symbolically via `Main.FILE_EXTENSION_JSON`/`_JS`/`_YAML`/`_YML`. `@VisibleForTesting` is now semantically honest — tests are in the same package and DO reach the package-private constants. |
-| `cli/Main.java:71` | `final CountDownLatch runLatch` | pkg-private | Test reads via `getRunLatch()`; the field never needs widening. Make field `private`. |
-
-### KEEP — 2 sites (genuinely justified)
-
-| File:Line | Entity | Current visibility | Why keep |
-|---|---|---|---|
-| `cli/Main.java:82` | `public CountDownLatch getRunLatch()` | **public** | Already public — annotation is pure documentation, fine. |
-| `ConsumerJava.java:481` | `int keysQueueSize()` | pkg-private method | Single-line getter — a legit observable property; could just be `public`. |
-
-### ANNOTATION-DROPPED — 3 sites (visibility was correct, annotation misapplied — resolved this session)
-
-| File:Line | Entity | Current visibility | Status |
-|---|---|---|---|
-| ~~`OpenClTask.java:287`~~ | `public SourceArgument getPrivateKeySourceArgument()` | **public** | ✅ **FIXED** in `05d9ddf` — annotation dropped, unused `VisibleForTesting` import removed, misleading "(visible for testing)" suffix removed from the Javadoc |
-| ~~`ProducerOpenCL.java:139`~~ | `void waitTillFreeThreadsInPool()` | pkg-private | ✅ **FIXED** in `05d9ddf` — real production helper, annotation was misapplied |
-| ~~`ProducerOpenCL.java:147`~~ | `int getFreeThreads()` | pkg-private | ✅ **FIXED** in `05d9ddf` — called from `waitTillFreeThreadsInPool()` in production |
-
-### Recommended cleanup order (cheapest → most invasive)
-
-1. ~~**Trivial (5 min)**: delete the 4 dead `FILE_EXTENSION_*` annotations~~ → **Resolved differently** in `63ef722` + `c4eed5e` (this session): extracted `Main.loadConfiguration(Path)`, then in follow-up created focused `cli/MainConfigurationLoadingTest.java` with 6 round-trip + syntax-probe tests that reference the constants symbolically (constants stay package-private and `@VisibleForTesting` is now semantically honest — same package as `Main`).
-2. **Small (15 min)**: ✅ Partially done in `05d9ddf` — dropped misapplied annotations on `OpenClTask.getPrivateKeySourceArgument` + `ProducerOpenCL.waitTillFreeThreadsInPool` + `ProducerOpenCL.getFreeThreads`. **Still open**: make `Main.runLatch` field `private` (keep public getter); consider widening `ConsumerJava.keysQueueSize` to `public` or dropping the annotation.
-3. **Medium (30–60 min)**: replace `ConsumerJava.shouldRun` and `BIP39KeyProducer.counter` direct-field exposure with `isRunning()` getter / constructor parameter respectively.
-4. **Bigger (1–2 h)**: inject the 5 executor services via constructor; fields become `private final`. Tests pass their own executors and assert on them.
-5. **Biggest (carries semantic risk)**: kill the two mutable static `AWAIT_DURATION_*` fields. Convert to constructor-injected configuration; this is the highest-value cleanup but touches the most call sites.
-
-### Net story (updated this session)
-
-Of the 19 sites: **2 groups resolved this session** — (1) 4 `FILE_EXTENSION_*` constants via the `loadConfiguration` extraction + `cli/MainConfigurationLoadingTest.java`; (2) 3 misapplied annotations dropped in `05d9ddf` (`OpenClTask.getPrivateKeySourceArgument`, `ProducerOpenCL.waitTillFreeThreadsInPool`, `ProducerOpenCL.getFreeThreads`). 10 genuine "widen access for tests" smells remain; 2 are still KEEP.
+### Affects BAF + jllama (multi-package repos)
+- **ArchUnit `layeredArchitecture().consideringAllDependencies()`** — both repos have leaf-package rules instead of the full form. BAF needs DTO/orchestration split (`Finder`, `Producer*`, `Consumer*`); jllama needs DTOs in a `value/` package. Both moves break public-API FQNs.
+- **ArchUnit per-module banned-imports** — not implemented in either.
+- **OPM scope-tightening — after package refactor.** fb-contrib
+  `OPM_OVERLY_PERMISSIVE_METHOD` is suppressed PROJECT-WIDE in both BAF
+  (`spotbugs-exclude.xml`) and jllama (`spotbugs-exclude.xml`) until the
+  package refactor above settles. Rationale: the current single-root
+  package groups production code so that every method called only by
+  same-package callers is flagged as "should be package-private" — true
+  today, false tomorrow once layers split, because cross-layer calls
+  will need `public`. Tightening every site now creates churn the
+  refactor will revert. **Re-enable this rule (delete the project-wide
+  `<Match>` from each repo's `spotbugs-exclude.xml`) the same week the
+  package layout stabilises.** At that point genuine "method exposed
+  beyond its actual call site" findings become stable, fixable signals.
+  Per-category breakdown at the moment of suppression (BAF, 33 sites):
+  Main CLI internal helpers (~8), test-only public surface (~5),
+  abstract-class constructors (~4), concrete-class constructors needing
+  per-class audit (~5), internal helpers (~9), one enum.valueOf false
+  positive. jllama: 25 sites of similar shape (not categorised in
+  detail; will re-categorise when the suppression is lifted).
 
 ---
 
-## Naming audit — per repo (this session)
+## Naming audit — totals (closed)
 
-Goal stated by owner: *"not perfect, but at least good enough and clear"* — flag names that are definitely wrong or misleading, not nits. CRITICAL = a reader could write a bug because of the name; MODERATE = confusing/typo; MINOR = worth flagging.
+The 21-item cross-repo naming audit completed this session. Distribution:
 
-### BAF — 6 findings (2 CRITICAL, 3 MODERATE, 1 MINOR)
+| Repo | CRITICAL | MODERATE | MINOR | Total | Status |
+|---|:--:|:--:|:--:|:--:|---|
+| BAF | 2 | 3 | 1 | 6 | ✅ 6/6 fixed |
+| sb | 0 | 4 | 3 | 7 | ✅ 7/7 fixed |
+| plugin | 0 | 4 | 3 | 7 | ✅ 7/7 fixed |
+| jllama | 0 | 1 | 0 | 1 | ✅ 1/1 fixed |
+| **All** | **2** | **12** | **7** | **21** | ✅ **complete** |
 
-| File:Line | Current | What it actually does | Suggested | Severity |
-|---|---|---|---|---|
-| ~~`Bech32Helper.java:134`~~ | ~~`getWitnessPrograms(Bech32Data)`~~ | Returns a **single** witness program (`byte[]`) — bitcoinj upstream uses singular `witnessProgram()` | `getWitnessProgram` | ✅ **FIXED** in `cc37a5d` (this session) |
-| ~~`CKeyProducerJavaIncremental.java`~~ (fields + getters) | ~~`startAddress`/`endAddress`/`getStartAddress`/`getEndAddress`~~ | Return **private-key** range bounds (`BigInteger`); javadoc itself said "private-key range". In Bitcoin "address" = derived public hash — opposite end of the pipeline | `startPrivateKey` / `endPrivateKey` / `getStartPrivateKey` / `getEndPrivateKey` | ✅ **FIXED** in `83ada00` (this session — 6 files: POJO, impl, 2 tests, README, example JSON; no back-compat shim per direction) |
-| `BitHelper.java:35` | `getKillBits(int bits)` | Returns low-bits bitmask `2^bits - 1` (e.g. `0xFF` for `bits=8`) — used to mask, not "kill" | `getLowBitMask` | MODERATE |
-| `LMDBPersistence.java:388` (+ `Persistence` interface) | `getAllAmountsFromAddresses(List<ByteBuffer>)` | Returns the **sum** of all amounts as a single `Coin` — plural name implies a collection | `sumAmountsForAddresses` | MODERATE |
-| `opencl/OpenCLBuilder.java:229` | `isOpenCLnativeLibraryLoadable` | Reads a `nativeLibraryLoaded` boolean; (1) mid-word lowercase `n` in `CLn` violates Java conventions, (2) verb is `-able` but value is post-fact `-ed` | `isOpenClNativeLibraryLoaded` | MODERATE |
-| `PrivateKeyValidator.java:89` | `returnValidPrivateKey(secret)` | Returns input if valid, else the replacement constant — **coerces/sanitises**, not just returns | `coerceToValidPrivateKey` / `sanitizePrivateKey` | MINOR |
-
-The two CRITICAL findings are the highest-value: `getStartAddress`/`getEndAddress` is a public JSON config field that actively misleads operators about what they're configuring (they think it's a Bitcoin address range; it's actually a private-key range).
-
-### streambuffer — 7 findings (4 MODERATE, 3 MINOR)
-
-| File:Line | Current | What it actually does | Suggested | Severity |
-|---|---|---|---|---|
-| ~~`StreamBuffer.java:368`~~ | ~~`correctOffsetAndLengthToRead(...)`~~ | Validates only — never mutates/corrects anything; throws or returns boolean | `validateOffsetAndLengthToRead` | ✅ **FIXED** in `cf2b5fd` (this session) |
-| ~~`StreamBuffer.java:389`~~ | ~~`correctOffsetAndLengthToWrite(...)`~~ | Same — validates, never corrects | `validateOffsetAndLengthToWrite` | ✅ **FIXED** in `cf2b5fd` (this session) |
-| ~~`StreamBuffer.java:589`~~ | ~~`isTrimShouldBeExecuted()`~~ | Grammatically broken — mixes `is` + `should be` | `shouldTrim` | ✅ **FIXED** in `cf2b5fd` (this session — also renames the linked `EXCEPTION_MESSAGE_*` constant) |
-| ~~`StreamBuffer.java:275` vs `:1064`~~ | ~~`getBufferElementCount()` vs `getBufferSize()`~~ | **Two public methods, identical implementation** (`buffer.size()` under `bufferLock`) — name drift | Delete `getBufferSize`; external callers migrate to `getBufferElementCount` | ✅ **FIXED** in `16f1df7` (this session) |
-| ~~`StreamBuffer.java:170` Javadoc~~ | ~~"Set a secure or **unsercure** write operation"~~ | Typo in Javadoc | "unsecure" | ✅ **FIXED** in `966595c` (this session) |
-| ~~`StreamBuffer.java:420`~~ | ~~`blockDataAvailable()`~~ | **Deeper bug uncovered during investigation**: Javadoc pointed to private `tryWaitForEnoughBytes` — external callers had no public alternative. Cleanup also promoted `tryWaitForEnoughBytes` → public `waitForAtLeast(long)` and added convenience `waitForAnyData()`. Internal `read()` site also adopts the convenience. | DELETED + replacement public API (`waitForAtLeast` + `waitForAnyData`) | ✅ **FIXED** in `16f1df7` (this session) |
-| ~~`StreamBuffer.java:932`~~ | ~~`noMoreMissingBytes(int)`~~ | Returns `missingBytes == 0` — predicate written in negative phrasing | `hasNoMissingBytes` (private rename, 3 sites) | ✅ **FIXED** in `16f1df7` (this session) |
-
-### plugin — 7 findings (4 MODERATE, 3 MINOR)
-
-| File:Line | Current | What it actually does | Suggested | Severity |
-|---|---|---|---|---|
-| `LlamaCppJniAiSummaryProvider.java:20` | `LlamaCppJniAiSummaryProvider` | Implements `AiGenerationProvider`; produces summary AND keywords AND body via `generate(...)` — the "Summary" predates the generalization | `LlamaCppJniAiGenerationProvider` (mirrors `MockAiGenerationProvider`) | MODERATE |
-| `AiGenerationResult.java:18` | `AiGenerationResult` | Carries **only** a `body` string; CLAUDE.md describes it as "summary + keywords + body" — either name overpromises or shape is stale | `AiBodyResult` (if shape correct), or restore the missing fields (if name correct) | MODERATE |
-| ~~`AiChecksumSupport.java:13`~~ | `AiChecksumSupport` | Computes CRC32 (always has — `git log -S MessageDigest` empty). Class Javadoc + `c` field doc in `AiMdHeader` are correct; only CLAUDE.md was stale | docs fixed; class name kept (CRC32 is the right choice for change-detection) | ✅ **FIXED** in `8930e4d` (this session — CLAUDE.md line 196 corrected) |
-| `AiMdHeaderSupport.java:11` | `AiMdHeaderSupport` | Two unrelated operations: `shouldWrite(...)` rewrite-decision + `buildChecksumLine(...)` parent-checksum formatter; not "header manipulation" | Split into `AiMdRewriteDecision` + `AiMdChildChecksumLineFormatter` | MODERATE |
-| ~~`AiResponseNormalizer.java:65`~~ (class + method) | ~~`AiResponseNormalizer.normalize(String)`~~ | Strips `<thinking>` blocks **and throws `IOException`** if budget exhausted inside one — a parser with typed failure, not a pure normalizer | class → `AiCompletionParser`, method → `parseCompletion` (escalated from MINOR after deeper review confirmed class-name drift too) | ✅ **FIXED** in `6567b9e` (this session — class + method + test class + 4 PIT/README ref locations) |
-| `AiSummaryResponse.java:11` | `AiSummaryResponse` | Carries `summary` + `keywords` only; not a provider wire response (providers return `String`) | `AiSummaryAndKeywords` / `AiHeaderFields` | MINOR |
-| `AiPromptSupport.java:11` | `AiPromptSupport` | Registry of prompt templates + `buildPrompt(...)` renderer — concretely a template registry | `AiPromptTemplateRegistry` (or `AiPromptRenderer`) | MINOR |
-
-Top-priority for action in plugin: (1) `LlamaCppJniAiSummaryProvider` rename — affects the public Mojo configuration surface (`summaryProvider` parameter); (2) `AiGenerationResult` shape-or-name reconciliation; (3) `AiChecksumSupport` / `c` field — fix the algorithm/docs mismatch (CRC32 vs SHA-256) since that's worse than the naming itself.
-
-### jllama — 1 finding (1 MODERATE)
-
-| File:Line | Current | What it actually does | Suggested | Severity |
-|---|---|---|---|---|
-| ~~`ModelParameters.java:1427`~~ | ~~`isDefault(String key)`~~ | Returns `true` only when the key is **absent** from the map — a key explicitly set to its default value still returns `false`. Name implies value comparison; implementation is presence check. | `isUnset` | ✅ **FIXED** in `ffbc06c` (this session — public API rename, no `@Deprecated` shim) |
-
-No class-drift, no typos, no plurality mismatches, no cryptic names. The 5 `handle*` methods on `LlamaModel` (`handleCompletions`, `handleInfill`, etc.) deliberately mirror upstream llama.cpp server endpoint names (`/handle_completions`) — intentional traceability, keep as-is.
-
-### Naming audit — totals across 4 repos
-
-| Repo | CRITICAL | MODERATE | MINOR | Total | Fixed this session |
-|---|:--:|:--:|:--:|:--:|:--:|
-| BAF | 2 | 3 | 1 | 6 | 2 (Bech32Helper plural→singular `cc37a5d`; CKeyProducerJavaIncremental startAddress/endAddress→startPrivateKey/endPrivateKey `83ada00`) |
-| sb | 0 | 4 | 3 | 7 | 7 (all closed: typo `966595c` + 3 method renames `cf2b5fd` + final 3 cleanups `16f1df7`) |
-| plugin | 0 | 4 | 3 | 7 | 2 (CRC32 docs `8930e4d` + AiResponseNormalizer→AiCompletionParser rename `6567b9e`) |
-| jllama | 0 | 1 | 0 | 1 | 1 (isDefault → isUnset `ffbc06c`) |
-| **All** | **2** | **12** | **7** | **21** | **12 fixed, 9 remain** (both CRITICAL done; sb fully cleared) |
-
-**Top 5 to fix first (CRITICAL + highest-impact MODERATE):**
-1. ✅ BAF `CKeyProducerJavaIncremental.startAddress/endAddress` → `startPrivateKey/endPrivateKey` — public JSON config field rename. **Fixed in `83ada00`.**
-2. ✅ BAF `Bech32Helper.getWitnessPrograms` — plural name returns a single value. **Fixed in `cc37a5d`.**
-3. ✅ plugin `AiChecksumSupport` — turned out to be **docs-only drift** (`CLAUDE.md` was wrong; implementation has always been correct CRC32). **Fixed in `8930e4d`.**
-4. plugin `AiGenerationResult` — name says "summary + keywords + body" but the class carries only `body`. Either restore the missing fields or rename to `AiBodyResult`. (**Still open**)
-5. plugin `LlamaCppJniAiSummaryProvider` → `LlamaCppJniAiGenerationProvider` — predates generalization to `AiGenerationProvider`; rename to mirror `MockAiGenerationProvider` sibling. (**Still open** — earlier table mistakenly conflated this with the `AiResponseNormalizer` rename in `6567b9e`; that commit was a *different* plugin rename and did NOT touch this class)
-
-**This session's additional renames (not in the top-5 list)**:
-- ✅ sb `validateOffsetAndLength*` + `shouldTrim` bundle (`cf2b5fd`) — 3 MODERATE
-- ✅ plugin `AiResponseNormalizer` → `AiCompletionParser` + `normalize` → `parseCompletion` (`6567b9e`) — escalated from MINOR after class-name-drift verification confirmed the broader rename
-- ✅ jllama `isDefault` → `isUnset` (`ffbc06c`) — MODERATE
-
-**Top-5 progress: 2 of 5 fixed (#2, #3). Open: 1 CRITICAL + 2 MODERATE.**
-
----
-
-## CLAUDE.md TODO list staleness — recommended actions
-
-| Repo | What is stale | Suggested fix |
-|---|---|---|
-| **BAF** | ✅ Fully refreshed in `05d9ddf` + `5b16c77` (this session) — Error Prone → ERROR, `-parameters`, Banned-API enforcement, ArchUnit public-fields-final all marked DONE; the Persistence-backends entry has been rewritten to reflect shipped state (HashSet + TRUNCATED_LONG_64 backends, BloomFilterAccelerator extraction, AddressLookupBackend config enum, chain contract — all DONE). Remaining open in the Persistence entry: 3 stale example JSON `loadToMemoryCacheOnInit` lines + JMH migration + open-hash backend + standalone Bloom backend. | — |
-| **plugin** | ✅ **FIXED** in `9be6f17` (this session) — the bullet now correctly says module-level `@NullMarked` IS set with `requires static org.jspecify;`. | — |
-| **jllama** | Nothing material out of date. | — |
-| **sb** | Nothing material out of date. | — |
+The two CRITICAL fixes were both in BAF: `CKeyProducerJavaIncremental.startAddress`/`endAddress` → `startPrivateKey`/`endPrivateKey` (public JSON config field, was actively misleading operators) and `Bech32Helper.getWitnessPrograms` (plural name returned a single value).
