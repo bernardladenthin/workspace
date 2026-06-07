@@ -28,7 +28,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | Tool versions | Identical across all 4: Checker 4.2.0, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.9.8.3, spotless 3.6.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.6, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.0, hamcrest 3.0, pitest-maven 1.25.3. **All on latest stable** (verified 2026-06-07 against Maven Central — see "Dependency / plugin freshness" below). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
-| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger` (27 classes, 163 mutations) · **plugin** explicit 19-class list (138 mutations) · **BAF** explicit 16-class list (63 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. |
+| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser` (28 classes, 168 mutations) · **plugin** explicit 21-class list (146 mutations) · **BAF** explicit 16-class list (63 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. |
 | Checker Framework as 2nd nullness pass | All 4 ✅ |
 | JPMS `module-info.java` present | All 4 ✅ |
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
@@ -39,7 +39,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 - Plugin's NullAway `ExcludedFieldAnnotations` extension — repo-correct (Mojo POJOs).
 - BAF's lack of module-level `@NullMarked` — documented intentional (per-package `@NullMarked` covers the same scope, avoids `requires JSpecify`).
 - sb keeps per-package `@NullMarked` — by design.
-- The PIT per-repo `targetClasses` scope differs (sb whole-package; the other three an explicit/glob list of classes verified at 100%) — intentional: each repo gates exactly the classes proven to reach 100% mutation parity, expanded incrementally. A handful of classes are *deliberately excluded* because they cannot reach 100% (equivalent or native-dependent mutants): plugin `support.AiPathSupport` (`getNameCount()` is always ≥1 → `>0` boundary is equivalent) and `provider.AiGenerationProviderFactory` (the `llamacpp-jni` branch loads a real GGUF model); jllama `json.RerankResponseParser` (non-array branch returns an already-empty list → EmptyObjectReturnVals is equivalent). (BAF `model.Hash160` *was* on this list — its `if(useFast)` selector mutant was equivalent because both hash paths return identical bytes — but it was refactored 2026-06-07 into two branch-free methods `hashFast`/`hashSlow` with `hash()` delegating to the fast one, removing the selector entirely; it now reaches 100% and is gated.)
+- The PIT per-repo `targetClasses` scope differs (sb whole-package; the other three an explicit/glob list of classes verified at 100%) — intentional: each repo gates exactly the classes proven to reach 100% mutation parity, expanded incrementally. **No classes remain permanently excluded** — the four that previously could not reach 100% were all fixed 2026-06-07 by small refactors / contract tests rather than left out: BAF `model.Hash160` (→ branch-free `hashFast`/`hashSlow`, `hash()` delegates), plugin `support.AiPathSupport` (→ `relative.startsWith("src")`, drops the always-true `getNameCount()>0` guard), plugin `provider.AiGenerationProviderFactory` (→ lazy model load in `LlamaCppJniAiGenerationProvider` so the `llamacpp-jni` branch is constructible native-free), and jllama `json.RerankResponseParser` (→ a test pinning the documented *mutable*-empty-list contract, which kills the immutable-`emptyList()` mutant). All four are now gated.
 
 ---
 
@@ -65,6 +65,7 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
   - jllama `c3a26b9` — InferenceParameters wither refactor `4f1fbd7` + `doNotUseGetters` sync `6ddd225` + remaining-findings sweep `14091bf` + gate-flip cleanup `c3a26b9`.
   - plugin `0bddf2a` — Lombok-USBR / HelpMojo auto-gen / Maven `@Parameter` SPP / identity-IMC / prompt-template FORMAT_STRING suppression chain + Lombok adoption, `Objects.requireNonNull` fail-fast, enriched WEM messages, presized HashMaps.
   - sb `4374dea` + `e7e254a` — all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions.
+  - **`spotbugs-exclude.xml` FQN repair after the layered-package restructure (2026-06-07)** — a latent gate-breaker: the restructure moved classes into sub-packages but the exclude files kept the flat pre-restructure `<Class name="…">` FQNs, so the `<Match>` suppressions silently stopped applying and `mvn verify` resurfaced documented-suppressed findings. Fixed in **BAF** (20 entries), **jllama** (11 entries + the `OSInfo` regex) and **plugin** (8 entries); each verified `spotbugs:check` BUILD SUCCESS. Same failure mode as the stale PIT `targetClasses` — a reminder to re-validate every FQN-bearing config (`spotbugs-exclude.xml`, PIT targets, ArchUnit) after any package move.
 
 **Logging / observability**
 
@@ -129,8 +130,8 @@ fails the build otherwise).
 | Repo | Classes gated | Mutations | What's gated |
 |---|:--:|:--:|---|
 | sb | whole package | — | entire `net.ladenthin.streambuffer` (pre-existing) |
-| jllama | 27 | 163 | `value.*` (16) + `exception.*` (2, 0 mutations) + `args.*` enums (10) + `json.TimingsLogger` |
-| plugin | 19 | 138 | config/document/prompt/provider/support value + support classes |
+| jllama | 28 | 168 | `value.*` (16) + `exception.*` (2, 0 mutations) + `args.*` enums (10) + `json.TimingsLogger` |
+| plugin | 21 | 146 | config/document/prompt/provider/support value + support classes |
 | BAF | 16 | 63 | `util.BitHelper` + model (incl. refactored `Hash160`) + 8 exception classes + `statistics.*` + `CKeyProducerJavaIncremental` |
 
 New tests added to reach 100% (no production code changed): jllama
