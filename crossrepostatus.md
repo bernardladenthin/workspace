@@ -104,9 +104,12 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 >
 > 1. **Workspace-meta TODOs** (cross-repo, in `CLAUDE.md` → "Open TODOs"): drift-detection
 >    hook, skill-discovery validation, maintenance cadence. ❌ open.
-> 2. **PIT mutation-coverage expansion** (cross-repo, optional/incremental) — see the
->    dedicated block below; the gate now covers a verified-100% subset in each repo and
->    grows as more classes reach parity.
+> 2. **PIT mutation-coverage expansion → 100% on ALL classes** (📌 all-time goal) — the gate
+>    now covers a verified-100% subset in each repo and grows toward whole-package coverage
+>    (the streambuffer model). See "Standing / all-time cross-repo goals" + the expansion
+>    block below.
+> 2b. **SonarQube local build check — per repo** (❌ open) — add an opt-in, locally-runnable
+>    Sonar analysis to all four repos (see "Standing / all-time cross-repo goals").
 > 3. **Per-repo feature/enhancement work** (NOT quality-gate) tracked in each repo's
 >    `TODO.md`: **BAF** — persistence backends (open-addressing hash table, standalone
 >    `BloomFilterPersistence`) + GPU acceleration (precompute HASHSET hash on GPU, push
@@ -143,6 +146,38 @@ plugin `Java8CompatibilityHelperTest`/`MockAiGenerationProviderTest`/`AiPromptSu
 producer/keyproducer integration tests, plus the larger orchestration classes (producer /
 consumer / engine / opencl). Equivalent/native-dependent classes are excluded by design (see
 "Deliberate non-parity").
+
+### Standing / all-time cross-repo goals
+
+**📌 All-time goal — drive every project to 100% PIT mutation coverage on ALL classes.**
+❌ open (never-finished quality ratchet). The end state is the **streambuffer model**:
+`<targetClasses>` covering the *whole* production package (not a curated subset) at
+`<mutationThreshold>100</mutationThreshold>`. Today only **sb** is whole-package; **jllama**,
+**plugin** and **BAF** gate a verified-100% subset that grows incrementally (see the
+expansion block above). Reaching the goal means, per repo: add tests for every remaining
+class until its mutants are killed, then widen `targetClasses` from the explicit list to the
+full package glob. The *only* permitted exclusions are genuinely unkillable mutants
+(equivalent or native/model-dependent — see "Deliberate non-parity"), and every exclusion
+must be listed with its rationale. Any newly added class must reach 100% before/at merge so
+the gap never regrows. Track per-repo progress in each repo's `TODO.md` "Mutation-testing
+threshold expansion" item.
+
+**❌ SonarQube local build check — per repo.** open. Add a locally-runnable SonarQube
+analysis to all four repos so contributors can scan before pushing, mirroring the existing
+local gates (spotless, spotbugs, pitest). Per-repo scope:
+- Add `org.sonarsource.scanner.maven:sonar-maven-plugin` (pinned version) under an **opt-in
+  `sonar` profile** in each `pom.xml` (kept off the default build — it needs a running
+  server), plus a documented recipe in the repo `CLAUDE.md` "Build Commands" section.
+- Ensure a **JaCoCo XML** report is produced so Sonar ingests line/branch coverage. BAF
+  already emits JaCoCo (`./mvnw test jacoco:report`); confirm/add the `jacoco-maven-plugin`
+  `report` (and `report-integration` where relevant) binding in jllama, plugin and sb.
+- Document the local run: start SonarQube (Docker `sonarqube:lts-community`), create a token,
+  then `mvn verify -Psonar sonar:sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.token=…`.
+- Leave Sonar **out of CI** for now (separate later step); this item is only the local,
+  opt-in developer check.
+- Lombok-using repos: the `@Generated`/`lombok.addLombokGeneratedAnnotation` skip is already
+  documented in [`policies/lombok-config.md`](policies/lombok-config.md) so Sonar ignores
+  synthetic getters/`equals`/`toString`.
 
 ### Dependency / plugin freshness (verified 2026-06-07)
 
