@@ -95,8 +95,16 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 |---|:--:|:--:|:--:|:--:|
 | ArchUnit full `layeredArchitecture()` | ✅ — flat root package split into 10 layered packages; strict `layeredArchitecture()` rule enforced (Entry→Orchestration→Pipeline→Capabilities→InputOutput→Foundation→Config→Constants) | ✅ — flat root package split into layered packages (value/callback/exception/parameters/loader/json/args); strict `layeredArchitecture()` rule enforced (Api→Loader→Marshalling→Foundation) | ✅ — flat package split into 7 layered packages (mojo/indexer/provider/document/prompt/config/support); strict `layeredArchitecture()` rule enforced (Mojo→Indexer→Provider→Format→Foundation) | ➖ single-package |
 | ArchUnit per-module banned-imports | ✅ — JOCL→opencl, ZeroMQ/WebSocket→keyproducer, LMDB→persistence+io | ✅ — Jackson banned from args/callback/exception/loader | ✅ — JNI→provider, Maven @Mojo/@Parameter→mojo, config+support Maven-free | ➖ single-package |
-| Package hierarchy review | ✅ — layered package split landed (see BAF `TODO.md` "Done") | ✅ — layered package split landed (see jllama `TODO.md` "Done") | ✅ — layered package split landed (see plugin `TODO.md` "Done") | ❌ |
-| Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | 🚧 BAF concrete entries: `AddressFormatNotAcceptedException` `(reason, detail)` overloads (`4677831`), new `InterruptedRuntimeException` per checklist (`bd71766`), and `UncheckedRuntimeException`-style wrapper rejected with rationale (`40d3f09`) — see "what NOT to do" below | ❌ | ❌ | ❌ |
+| Package hierarchy review | ✅ — layered package split landed (see BAF `TODO.md` "Done") | ✅ — layered package split landed (see jllama `TODO.md` "Done") | ✅ — layered package split landed (see plugin `TODO.md` "Done") | ➖ single-package |
+| Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | 🚧 BAF concrete entries: `AddressFormatNotAcceptedException` `(reason, detail)` overloads (`4677831`), new `InterruptedRuntimeException` per checklist (`bd71766`), and `UncheckedRuntimeException`-style wrapper rejected with rationale (`40d3f09`) — see "what NOT to do" below; remaining: align the other ~6 custom exceptions (`KeyProducerId*`, `PrivateKeyTooLargeException`, `NoMoreSecretsAvailableException`, `UnknownSecretFormatException`) to the checklist | ❌ — applies to `LlamaException` / `ModelUnavailableException` | ➖ no custom exceptions (uses Maven `Mojo*Exception`) | ➖ no custom exceptions (uses `IOException`) |
+
+> **What is actually still open (as of this refresh):** only the **typed-exception
+> unification audit** — finish BAF's remaining ~6 custom exceptions and apply the
+> checklist to jllama's two. The first three rows above (full `layeredArchitecture()`,
+> per-module banned-imports, package-hierarchy review) are **complete** across every
+> applicable repo and are retained here only as a paper trail. Workspace-meta TODOs
+> (drift-detection hook, skill-discovery validation, maintenance cadence) live in
+> `CLAUDE.md` → "Open TODOs".
 
 **Layered-rule sharpening (jdeps fact-based audit, done):** the compiled package
 graph of all three multi-package repos was audited with `jdeps` (bytecode, not
