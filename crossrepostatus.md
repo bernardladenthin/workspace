@@ -25,10 +25,10 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical: Checker 4.2.0, fb-contrib 7.7.4, spotless 3.6.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.4, surefire 3.5.6 |
+| Tool versions | Identical across all 4: Checker 4.2.0, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.9.8.3, spotless 3.6.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.6, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.0, hamcrest 3.0, pitest-maven 1.25.3. **All on latest stable** (verified 2026-06-07 against Maven Central — see "Dependency / plugin freshness" below). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
-| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired (sb whole-package; BAF/jllama/plugin narrowed to one class as documented staging) |
+| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser`+`json.ChatResponseParser`+`json.CompletionResponseParser` (30 classes, 207 mutations) · **plugin** explicit 21-class list (146 mutations) · **BAF** explicit 16-class list (63 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. |
 | Checker Framework as 2nd nullness pass | All 4 ✅ |
 | JPMS `module-info.java` present | All 4 ✅ |
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
@@ -39,7 +39,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 - Plugin's NullAway `ExcludedFieldAnnotations` extension — repo-correct (Mojo POJOs).
 - BAF's lack of module-level `@NullMarked` — documented intentional (per-package `@NullMarked` covers the same scope, avoids `requires JSpecify`).
 - sb keeps per-package `@NullMarked` — by design.
-- The PIT "narrow targetClasses" pattern in 3 of 4 repos — documented intentional staging.
+- The PIT per-repo `targetClasses` scope differs (sb whole-package; the other three an explicit/glob list of classes verified at 100%) — intentional: each repo gates exactly the classes proven to reach 100% mutation parity, expanded incrementally. **No classes remain permanently excluded** — the four that previously could not reach 100% were all fixed 2026-06-07 by small refactors / contract tests rather than left out: BAF `model.Hash160` (→ branch-free `hashFast`/`hashSlow`, `hash()` delegates), plugin `support.AiPathSupport` (→ `relative.startsWith("src")`, drops the always-true `getNameCount()>0` guard), plugin `provider.AiGenerationProviderFactory` (→ lazy model load in `LlamaCppJniAiGenerationProvider` so the `llamacpp-jni` branch is constructible native-free), and jllama `json.RerankResponseParser` (→ a test pinning the documented *mutable*-empty-list contract, which kills the immutable-`emptyList()` mutant). All four are now gated.
 
 ---
 
@@ -53,7 +53,7 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 - `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing`: BAF `2881c96` · jllama `3e2efbb` · plugin `f7cf748` · sb `7a4fbf0`.
 - `-parameters` javac arg: BAF `pom.xml:315` · jllama `4350cf2` · plugin `7ae3279` · sb `912f14b`.
 - `--release N` instead of `-source`/`-target`: BAF `c2470b7` + `1b67ad0` (`<release>21</release>`) · jllama `4350cf2` · plugin `7ae3279` · sb `912f14b`.
-- PIT mutation threshold enforced (100%): BAF `BitHelper` · jllama `Pair` (`62f8a00`) · plugin `AiCompletionParser` · sb whole package. (3-of-4 narrow `targetClasses` is documented intentional staging — see "Deliberate non-parity".)
+- PIT mutation threshold enforced (100%): BAF `BitHelper` · jllama `Pair` (`62f8a00`) · plugin `AiCompletionParser` · sb whole package. **Scope then expanded 2026-06-07** — see "PIT mutation-coverage expansion" under Open cross-repo items for the per-repo class counts and the new value/exception/args/support tests added to get there.
 - Checker Framework 2nd nullness pass: BAF ✅ · jllama `c63870b` · plugin ✅ · sb `5a9be1b`.
 - JPMS `module-info.java`: BAF `src/main/java9/` · jllama `0fd066a` / `9528e79` · plugin ✅ · sb ✅.
 - Banned-API enforcement (Enforcer + ArchUnit): BAF ✅ · jllama `8baae0c` / `329d764` / `e6069da` · plugin `d654442` / `fd8cf80` / `ad37355` · sb `c0148c8` / `eaf4337`.
@@ -65,6 +65,12 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
   - jllama `c3a26b9` — InferenceParameters wither refactor `4f1fbd7` + `doNotUseGetters` sync `6ddd225` + remaining-findings sweep `14091bf` + gate-flip cleanup `c3a26b9`.
   - plugin `0bddf2a` — Lombok-USBR / HelpMojo auto-gen / Maven `@Parameter` SPP / identity-IMC / prompt-template FORMAT_STRING suppression chain + Lombok adoption, `Objects.requireNonNull` fail-fast, enriched WEM messages, presized HashMaps.
   - sb `4374dea` + `e7e254a` — all findings fixed at source (added `toString()`, contextful exception messages), no project-wide suppressions.
+  - **`spotbugs-exclude.xml` FQN repair after the layered-package restructure (2026-06-07)** — a latent gate-breaker: the restructure moved classes into sub-packages but the exclude files kept the flat pre-restructure `<Class name="…">` FQNs, so the `<Match>` suppressions silently stopped applying and `mvn verify` resurfaced documented-suppressed findings. Fixed in **BAF** (20 entries), **jllama** (11 entries + the `OSInfo` regex) and **plugin** (8 entries); each verified `spotbugs:check` BUILD SUCCESS. Same failure mode as the stale PIT `targetClasses` — a reminder to re-validate every FQN-bearing config (`spotbugs-exclude.xml`, PIT targets, ArchUnit) after any package move.
+  - **More restructure-FQN fallout in jllama, surfaced only once each PR ran CI / the native lib actually loaded (2026-06-07)** — three further references still pointed at the pre-restructure flat package, each invisible to a plain local `mvn test` (model-gated native tests self-skip before the lib loads) and to the pure-Java unit tests:
+    1. `CMakeLists.txt` invoked `net.ladenthin.llama.OSInfo` for OS/arch detection, but the class moved to `…loader.OSInfo` → local `cmake -B build` could not resolve `OS_NAME`/`OS_ARCH` (CI hid it by passing `-DOS_NAME`/`-DOS_ARCH` explicitly). Fixed both `--os`/`--arch` invocations (jllama `78cfef1`).
+    2. `LlamaLoader.getNativeResourcePath()` derived the native-library classpath root from the loader's **own** package (now `…loader`), so it looked under `/net/ladenthin/llama/loader/<os>/<arch>/` while CMakeLists + the publish workflow emit to the fixed `/net/ladenthin/llama/<os>/<arch>/` → `UnsatisfiedLinkError: No native library found`, failing 21 native tests. Fixed by anchoring to a `NATIVE_RESOURCE_BASE` constant independent of the Java package (jllama `811d614`), + a `LlamaLoaderTest` regression pinning the exact path.
+    3. `jllama.cpp` `JNI_OnLoad` still `FindClass`-ed flat paths for `LlamaException` (→ `exception.`) and `LogLevel` (→ `value.`, incl. the four `GetStaticFieldID` `"L…;"` signatures) → once the lib loaded, `JNI_OnLoad` threw `NoClassDefFoundError`. Fixed the FQN strings (jllama `e26e1ea`).
+    Added a model-free `NativeLibraryLoadSmokeTest` (forces `LlamaModel.<clinit>` → `System.load` → `JNI_OnLoad`; self-skips when the lib isn't on the classpath) + a documented recipe in jllama `CLAUDE.md` so this whole class is catchable locally without HuggingFace models (jllama `ed5a82a`). **Generalised lesson:** after a package move, re-validate every FQN/path-bearing artifact, not just Java imports — `spotbugs-exclude.xml`, PIT `targetClasses`, ArchUnit, **CMake build scripts, runtime resource-path derivation, and JNI `FindClass`/signature strings**.
 
 **Logging / observability**
 
@@ -75,6 +81,7 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 - `@VisibleForTesting` audit: BAF ✅ (10 sites legitimate) · jllama ➖ · plugin ➖ · sb ➖.
 - Null-safety follow-up review: BAF ✅ (50 sites) · jllama ✅ (43 sites) · plugin ✅ (17 sites) · sb ✅ (zero `@Nullable` in production).
 - Class / method naming review (21-item cross-repo audit) — see closed totals at the bottom.
+- `Enum.ordinal()` de-dependence (Error Prone `EnumOrdinal`, 2026-06-07): replaced fragile ordinal-index assertions with declaration-order checks over `values()` (`assertArrayEquals` / Hamcrest `arrayContaining`). jllama `value.LogLevelTest` + `parameters.ModelParametersExtendedTest` (`d45e352`, the latter now asserts the `MiroStat.getArgValue()` contract instead of `ordinal()`); BAF `producer.ProducerStateTest` + `model.AddressTypeTest` (`a92d7a9`). AddressType's ordinal was investigated and confirmed **not** load-bearing — referenced by name only across `src/main` and the OpenCL `.cl`/`.h` kernels — so its explicit ordinal tests were dropped rather than suppressed (`cb6ab10`). plugin ➖ · sb ➖ (no ordinal-dependent tests).
 
 **Cross-repo refactors**
 
@@ -83,6 +90,7 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 - Versioned workspace guide chain (`guides/src/-8.md` + `-21.md`, `guides/test/-8.md` + `-21.md`): all 4 ✅.
 - Audit-driven SKILL.md rewrite: all 4 ✅.
 - Safe dependency / plugin bumps (latest round): BAF `59f7ff1` · jllama `0a97ae7` · plugin `93c7c84` · sb `3ccb426`.
+- GitHub Actions `codecov/codecov-action` v6→v7 (2026-06-07, Dependabot-proposed; applied on the shared branch so it rode each repo's open PR instead of a separate merge to `main`): BAF `5d8cace` · jllama `b4443b1` · plugin `e30735d` · sb `71671d0`. workspace ➖ (no workflow).
 - Per-repo `TODO.md` extraction (open work moved out of `CLAUDE.md`): all 4 ✅.
 - Lombok 1.18.46 `@ToString` / `@EqualsAndHashCode` adoption (clears IMC_NO_TOSTRING + IMC_NO_EQUALS at SpotBugs Max+Low): BAF ✅ (56 classes, 0 handwritten Object methods left) · jllama `9be73a3` (23 classes) · plugin `39e1a59` + `6955357` (6 records + 19 annotated) · sb ➖ (excluded by design).
 - Canonical `lombok.config` content incl. `doNotUseGetters = true` (see [`policies/lombok-config.md`](policies/lombok-config.md)): BAF `61e7996` · jllama `6ddd225` · plugin `3c61b88` · sb ➖.
@@ -93,10 +101,132 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 
 | TODO item | BAF | jllama | plugin | sb |
 |---|:--:|:--:|:--:|:--:|
-| ArchUnit full `layeredArchitecture()` | ❌ — needs DTO/orchestration split; touches public-API FQNs | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
-| ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
-| Package hierarchy review | ❌ | ❌ | ❌ | ❌ |
-| Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | 🚧 BAF concrete entries: `AddressFormatNotAcceptedException` `(reason, detail)` overloads (`4677831`), new `InterruptedRuntimeException` per checklist (`bd71766`), and `UncheckedRuntimeException`-style wrapper rejected with rationale (`40d3f09`) — see "what NOT to do" below | ❌ | ❌ | ❌ |
+| ArchUnit full `layeredArchitecture()` | ✅ — flat root package split into 10 layered packages; strict `layeredArchitecture()` rule enforced (Entry→Orchestration→Pipeline→Capabilities→InputOutput→Foundation→Config→Constants) | ✅ — flat root package split into layered packages (value/callback/exception/parameters/loader/json/args); strict `layeredArchitecture()` rule enforced (Api→Loader→Marshalling→Foundation) | ✅ — flat package split into 7 layered packages (mojo/indexer/provider/document/prompt/config/support); strict `layeredArchitecture()` rule enforced (Mojo→Indexer→Provider→Format→Foundation) | ➖ single-package |
+| ArchUnit per-module banned-imports | ✅ — JOCL→opencl, ZeroMQ/WebSocket→keyproducer, LMDB→persistence+io | ✅ — Jackson banned from args/callback/exception/loader | ✅ — JNI→provider, Maven @Mojo/@Parameter→mojo, config+support Maven-free | ➖ single-package |
+| Package hierarchy review | ✅ — layered package split landed (see BAF `TODO.md` "Done") | ✅ — layered package split landed (see jllama `TODO.md` "Done") | ✅ — layered package split landed (see plugin `TODO.md` "Done") | ➖ single-package |
+| Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | ✅ — all 8 exceptions aligned: `AddressFormatNotAccepted` (precedent) + `InterruptedRuntimeException`; keyed exceptions (`KeyProducerIdIsNotUnique`/`Unknown`, `UnknownSecretFormat`, `PrivateKeyTooLarge`) gained the `(key…, cause)` matrix overload + tests; `KeyProducerIdNull` kept no-arg fixed-condition (bare `(Throwable)` would break the checklist's own rule); `NoMoreSecretsAvailable` already compliant; identity equality everywhere | ✅ — `LlamaException` / `ModelUnavailableException` already shape-compliant; added the missing `ModelUnavailableExceptionTest` | ➖ no custom exceptions (uses Maven `Mojo*Exception`) | ➖ no custom exceptions (uses `IOException`) |
+
+> **What is actually still open (as of the 2026-06-07 refresh):** the table above is
+> **complete** across every applicable repo (kept as a paper trail). The genuinely
+> open work now is:
+>
+> 1. **Workspace-meta TODOs** (cross-repo, in `CLAUDE.md` → "Open TODOs"): drift-detection
+>    hook, skill-discovery validation, maintenance cadence. ❌ open.
+> 2. **PIT mutation-coverage expansion → 100% on ALL classes** (📌 all-time goal) — the gate
+>    now covers a verified-100% subset in each repo and grows toward whole-package coverage
+>    (the streambuffer model). See "Standing / all-time cross-repo goals" + the expansion
+>    block below.
+> 2b. **SonarQube local build check — per repo** (❌ open) — add an opt-in, locally-runnable
+>    Sonar analysis to all four repos (see "Standing / all-time cross-repo goals").
+> 3. **Per-repo feature/enhancement work** (NOT quality-gate) tracked in each repo's
+>    `TODO.md`: **BAF** — persistence backends (open-addressing hash table, standalone
+>    `BloomFilterPersistence`) + GPU acceleration (precompute HASHSET hash on GPU, push
+>    `TRUNCATED_LONG_64` check into OpenCL, grid-size sweep benchmark); **jllama** —
+>    Android AAR packaging, GraalVM Native Image eval, upstream feature toggles
+>    (`spec-draft-backend-sampling`, MTP — deferred by policy); **plugin / sb** — none
+>    beyond the cross-cutting reviews.
+> 4. **Never-ending follow-ups** (📌 review-as-you-add): null-safety precision review and
+>    the `@VisibleForTesting` / package / naming reviews in `policies/code-quality-todos.md`.
+
+### PIT mutation-coverage expansion (cross-repo, incremental)
+
+Status 2026-06-07 — gate raised from the original one-class staging to a verified-100%
+subset per repo. All numbers from real `pitest-maven 1.25.3` runs (the 100% threshold
+fails the build otherwise).
+
+| Repo | Classes gated | Mutations | What's gated |
+|---|:--:|:--:|---|
+| sb | whole package | — | entire `net.ladenthin.streambuffer` (pre-existing) |
+| jllama | 30 | 207 | `value.*` (16) + `exception.*` (2, 0 mutations) + `args.*` enums (10) + `json.TimingsLogger` + `json.RerankResponseParser` + `json.ChatResponseParser` + `json.CompletionResponseParser` |
+| plugin | 21 | 146 | config/document/prompt/provider/support value + support classes |
+| BAF | 16 | 63 | `util.BitHelper` + model (incl. refactored `Hash160`) + 8 exception classes + `statistics.*` + `CKeyProducerJavaIncremental` |
+
+New tests added to reach 100% (no production code changed): jllama
+`ChatChoiceTest`/`ToolCallTest`/`ToolDefinitionTest`/`ContinuationModeTest` + expanded
+`ChatMessageTest`/`ServerMetricsTest`/`ModelMetaTest`/`TokenLogprobTest`/`ChatResponseTest`/`CompletionResultTest`;
+jllama `json.ChatResponseParser`/`CompletionResponseParser` (the two near-100% parsers) reached
+100% on 2026-06-07 via expanded `ChatResponseParserTest`/`CompletionResponseParserTest` (typed
+`parseResponse`/`parseCompletionResult`/`parseLogprobs` paths incl. tool-calls and LogCaptor
+timing-line tests) **plus** behaviour-preserving single-mutable-list refactors of the private
+`parseChoices`/`parseToolCalls`/`parseLogprobs`/`parseLogprobEntry` helpers that removed the
+equivalent empty-branch (`emptyList()` vs `ArrayList`) and `size()>0`/`size()==0` mutants — same
+"refactor to kill the equivalent mutant" pattern as Hash160/AiPathSupport;
+plugin `Java8CompatibilityHelperTest`/`MockAiGenerationProviderTest`/`AiPromptSupportTest`/`AiPathSupportTest`/`AiChecksumSupportTest`/`AiMdChildEntryLineFormatterTest`/`AiPreparedPromptTest`/`AiGenerationConfigTest`/`AiModelDefinitionTest`
++ expanded `AiModelDefinitionSupportTest`/`AiMdHeaderSupportTest`; BAF needed no new tests
+(existing tests already gave 100%).
+
+**Still open (optional, each needs more involved fixtures):** plugin `document.AiMdDocumentCodec`
+/ `AiMdHeaderCodec` / `prompt.AiPromptPreparationSupport`; BAF config getters covered only by
+producer/keyproducer integration tests, plus the larger orchestration classes (producer /
+consumer / engine / opencl). Equivalent/native-dependent classes are excluded by design (see
+"Deliberate non-parity").
+
+### Standing / all-time cross-repo goals
+
+**📌 All-time goal — drive every project to 100% PIT mutation coverage on ALL classes.**
+❌ open (never-finished quality ratchet). The end state is the **streambuffer model**:
+`<targetClasses>` covering the *whole* production package (not a curated subset) at
+`<mutationThreshold>100</mutationThreshold>`. Today only **sb** is whole-package; **jllama**,
+**plugin** and **BAF** gate a verified-100% subset that grows incrementally (see the
+expansion block above). Reaching the goal means, per repo: add tests for every remaining
+class until its mutants are killed, then widen `targetClasses` from the explicit list to the
+full package glob. The *only* permitted exclusions are genuinely unkillable mutants
+(equivalent or native/model-dependent — see "Deliberate non-parity"), and every exclusion
+must be listed with its rationale. Any newly added class must reach 100% before/at merge so
+the gap never regrows. Track per-repo progress in each repo's `TODO.md` "Mutation-testing
+threshold expansion" item.
+
+**❌ SonarQube local build check — per repo.** open. Add a locally-runnable SonarQube
+analysis to all four repos so contributors can scan before pushing, mirroring the existing
+local gates (spotless, spotbugs, pitest). Per-repo scope:
+- Add `org.sonarsource.scanner.maven:sonar-maven-plugin` (pinned version) under an **opt-in
+  `sonar` profile** in each `pom.xml` (kept off the default build — it needs a running
+  server), plus a documented recipe in the repo `CLAUDE.md` "Build Commands" section.
+- Ensure a **JaCoCo XML** report is produced so Sonar ingests line/branch coverage. BAF
+  already emits JaCoCo (`./mvnw test jacoco:report`); confirm/add the `jacoco-maven-plugin`
+  `report` (and `report-integration` where relevant) binding in jllama, plugin and sb.
+- Document the local run: start SonarQube (Docker `sonarqube:lts-community`), create a token,
+  then `mvn verify -Psonar sonar:sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.token=…`.
+- Leave Sonar **out of CI** for now (separate later step); this item is only the local,
+  opt-in developer check.
+- Lombok-using repos: the `@Generated`/`lombok.addLombokGeneratedAnnotation` skip is already
+  documented in [`policies/lombok-config.md`](policies/lombok-config.md) so Sonar ignores
+  synthetic getters/`equals`/`toString`.
+
+### Dependency / plugin freshness (verified 2026-06-07)
+
+All four repos are on the **newest stable** versions of every dependency and build plugin
+(checked with `versions:display-dependency-updates` + `display-plugin-updates` against
+Maven Central, and direct `maven-metadata.xml` probes for the annotation-processor paths the
+versions plugin does not scan: Error Prone, NullAway, Checker). The only "updates" offered are
+**pre-releases** — Maven 4 plugin `4.0.0-beta-*` (compiler/jar/source/resources/plugin),
+`maven-surefire-plugin:3.6.0-M1`, `slf4j-api:2.1.0-alpha1`, Maven-core `4.0.0-rc-5` — which are
+deliberately **not** adopted, plus **jqwik 1.10.1** which is 📌 **banned** (see policy). No
+action needed.
+
+**Layered-rule sharpening (jdeps fact-based audit, done):** the compiled package
+graph of all three multi-package repos was audited with `jdeps` (bytecode, not
+imports — Javadoc `{@link}` imports do not count). Findings: **BAF** had one latent
+upward edge (`util.Bech32Helper` → `io.AddressTxtLine.BITCOIN_CASH_PREFIX`, hidden
+from ArchUnit by `static final String` inlining) — fixed by moving the constant to
+`constants.AddressConstants`, after which the `layeredArchitecture()` access lists
+were tightened to the exact per-layer accessor set. **jllama** and **plugin** were
+already exact (each layer's `mayOnlyBeAccessedByLayers` matched the real graph) — no
+slack and no hidden edges found.
+
+**One-package-per-layer strict layering (done):** BAF, jllama and plugin each replaced
+their coarse-tier `layeredArchitecture()` with a maximally-strict version where every
+package is its own layer and `mayOnlyBeAccessedByLayers` lists the exact accessor set
+(from the bytecode graph) — intra-tier edges are now governed too (e.g. `model→util` but
+not the reverse; `opencl`/`persistence` cannot reach each other).
+
+**CI code-style gate (done, all 4 repos):** root-caused a publish-snapshot failure —
+`spotless:check` is bound to `verify`, which only the publish `deploy` goal reaches, so
+unformatted code passed every earlier job and failed only at publish. Added a fast
+`code-style` job (`needs: startgate`) running `mvn spotless:check` early and made
+`publish-snapshot`/`publish-release` depend on it. The same job also prints the internal
+package graph via `jdeps` (informational, `continue-on-error`); the bytecode-level
+layering itself is already enforced by the ArchUnit rules in `mvn test`.
 
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
@@ -189,29 +319,33 @@ applies this and is the reference implementation.
 
 The full `layeredArchitecture()` rule and the per-module banned-imports
 rule (open rows above) both depend on splitting today's single-root
-package into layered packages — BAF needs a DTO/orchestration split
-(`Finder`, `Producer*`, `Consumer*`); jllama needs DTOs in a `value/`
-package. Both moves break public-API FQNs and are therefore staged
-behind the next major-version bump in each repo.
+package into layered packages. **BAF: DONE** — the flat root package
+(`Finder`, `Producer*`, `Consumer*`, and ~45 other classes) was split
+into 10 layered packages and the strict `layeredArchitecture()` rule is
+enforced (see BAF `TODO.md` "Done"). **jllama: DONE** — the flat root
+package was split into `value`/`callback`/`exception`/`parameters`/`loader`
+(+ existing `json`/`args`) and the strict `layeredArchitecture()` rule is
+enforced (see jllama `TODO.md` "Done"). Both moves break public-API FQNs
+and ship under a major-version bump.
 
 **OPM scope-tightening — after package refactor.** fb-contrib
 `OPM_OVERLY_PERMISSIVE_METHOD` is suppressed PROJECT-WIDE in both BAF
-(`spotbugs-exclude.xml`) and jllama (`spotbugs-exclude.xml`) until the
-package refactor above settles. Rationale: the current single-root
-package groups production code so that every method called only by
-same-package callers is flagged as "should be package-private" — true
-today, false tomorrow once layers split, because cross-layer calls
-will need `public`. Tightening every site now creates churn the
-refactor will revert. **Re-enable this rule (delete the project-wide
-`<Match>` from each repo's `spotbugs-exclude.xml`) the same week the
-package layout stabilises.** At that point genuine "method exposed
-beyond its actual call site" findings become stable, fixable signals.
-Per-category breakdown at the moment of suppression (BAF, 33 sites):
-Main CLI internal helpers (~8), test-only public surface (~5),
-abstract-class constructors (~4), concrete-class constructors needing
-per-class audit (~5), internal helpers (~9), one enum.valueOf false
-positive. jllama: 25 sites of similar shape (not categorised in
-detail; will re-categorise when the suppression is lifted).
+(`spotbugs-exclude.xml`) and jllama (`spotbugs-exclude.xml`). **BAF:
+unblocked but optional** — the package refactor it waited on has landed,
+so cross-layer call sites are now stable and OPM findings would be
+actionable. Re-enabling is optional, not mandated: visibility
+minimisation is NOT a project goal (the tightening pressure was
+fb-contrib noise, not an owner requirement). **jllama: also unblocked**
+— its package split has now landed too; re-enabling OPM is optional for
+the same reason. Rationale for the original suppression: a
+single-root package flags every method called only by same-package
+callers as "should be package-private" — true today, false once layers
+split because cross-layer calls need `public`. If BAF re-enables, delete
+its project-wide `<Match>` and triage (~33 sites: Main CLI internal
+helpers ~8, test-only public surface ~5, abstract-class constructors ~4,
+concrete-class constructors ~5, internal helpers ~9, one enum.valueOf
+false positive). jllama: 25 sites of similar shape, deferred until its
+split.
 
 ---
 
