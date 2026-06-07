@@ -108,6 +108,20 @@ were tightened to the exact per-layer accessor set. **jllama** and **plugin** we
 already exact (each layer's `mayOnlyBeAccessedByLayers` matched the real graph) — no
 slack and no hidden edges found.
 
+**One-package-per-layer strict layering (done):** BAF, jllama and plugin each replaced
+their coarse-tier `layeredArchitecture()` with a maximally-strict version where every
+package is its own layer and `mayOnlyBeAccessedByLayers` lists the exact accessor set
+(from the bytecode graph) — intra-tier edges are now governed too (e.g. `model→util` but
+not the reverse; `opencl`/`persistence` cannot reach each other).
+
+**CI code-style gate (done, all 4 repos):** root-caused a publish-snapshot failure —
+`spotless:check` is bound to `verify`, which only the publish `deploy` goal reaches, so
+unformatted code passed every earlier job and failed only at publish. Added a fast
+`code-style` job (`needs: startgate`) running `mvn spotless:check` early and made
+`publish-snapshot`/`publish-release` depend on it. The same job also prints the internal
+package graph via `jdeps` (informational, `continue-on-error`); the bytecode-level
+layering itself is already enforced by the ArchUnit rules in `mvn test`.
+
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 ---
