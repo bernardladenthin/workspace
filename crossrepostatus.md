@@ -25,10 +25,10 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical: Checker 4.2.0, fb-contrib 7.7.4, spotless 3.6.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.4, surefire 3.5.6 |
+| Tool versions | Identical across all 4: Checker 4.2.0, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.9.8.3, spotless 3.6.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.6, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.0, hamcrest 3.0, pitest-maven 1.25.3. **All on latest stable** (verified 2026-06-07 against Maven Central — see "Dependency / plugin freshness" below). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
-| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired (sb whole-package; BAF/jllama/plugin narrowed to one class as documented staging) |
+| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger` (27 classes, 163 mutations) · **plugin** explicit 19-class list (138 mutations) · **BAF** explicit 15-class list (59 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. |
 | Checker Framework as 2nd nullness pass | All 4 ✅ |
 | JPMS `module-info.java` present | All 4 ✅ |
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
@@ -39,7 +39,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 - Plugin's NullAway `ExcludedFieldAnnotations` extension — repo-correct (Mojo POJOs).
 - BAF's lack of module-level `@NullMarked` — documented intentional (per-package `@NullMarked` covers the same scope, avoids `requires JSpecify`).
 - sb keeps per-package `@NullMarked` — by design.
-- The PIT "narrow targetClasses" pattern in 3 of 4 repos — documented intentional staging.
+- The PIT per-repo `targetClasses` scope differs (sb whole-package; the other three an explicit/glob list of classes verified at 100%) — intentional: each repo gates exactly the classes proven to reach 100% mutation parity, expanded incrementally. A handful of classes are *deliberately excluded* because they cannot reach 100% (equivalent or native-dependent mutants): BAF `model.Hash160` (fast/slow hash paths are behaviourally identical → `if(useFast)` negate is equivalent); plugin `support.AiPathSupport` (`getNameCount()` is always ≥1 → `>0` boundary is equivalent) and `provider.AiGenerationProviderFactory` (the `llamacpp-jni` branch loads a real GGUF model); jllama `json.RerankResponseParser` (non-array branch returns an already-empty list → EmptyObjectReturnVals is equivalent).
 
 ---
 
@@ -53,7 +53,7 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 - `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing`: BAF `2881c96` · jllama `3e2efbb` · plugin `f7cf748` · sb `7a4fbf0`.
 - `-parameters` javac arg: BAF `pom.xml:315` · jllama `4350cf2` · plugin `7ae3279` · sb `912f14b`.
 - `--release N` instead of `-source`/`-target`: BAF `c2470b7` + `1b67ad0` (`<release>21</release>`) · jllama `4350cf2` · plugin `7ae3279` · sb `912f14b`.
-- PIT mutation threshold enforced (100%): BAF `BitHelper` · jllama `Pair` (`62f8a00`) · plugin `AiCompletionParser` · sb whole package. (3-of-4 narrow `targetClasses` is documented intentional staging — see "Deliberate non-parity".)
+- PIT mutation threshold enforced (100%): BAF `BitHelper` · jllama `Pair` (`62f8a00`) · plugin `AiCompletionParser` · sb whole package. **Scope then expanded 2026-06-07** — see "PIT mutation-coverage expansion" under Open cross-repo items for the per-repo class counts and the new value/exception/args/support tests added to get there.
 - Checker Framework 2nd nullness pass: BAF ✅ · jllama `c63870b` · plugin ✅ · sb `5a9be1b`.
 - JPMS `module-info.java`: BAF `src/main/java9/` · jllama `0fd066a` / `9528e79` · plugin ✅ · sb ✅.
 - Banned-API enforcement (Enforcer + ArchUnit): BAF ✅ · jllama `8baae0c` / `329d764` / `e6069da` · plugin `d654442` / `fd8cf80` / `ad37355` · sb `c0148c8` / `eaf4337`.
@@ -98,11 +98,62 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 | Package hierarchy review | ✅ — layered package split landed (see BAF `TODO.md` "Done") | ✅ — layered package split landed (see jllama `TODO.md` "Done") | ✅ — layered package split landed (see plugin `TODO.md` "Done") | ➖ single-package |
 | Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | ✅ — all 8 exceptions aligned: `AddressFormatNotAccepted` (precedent) + `InterruptedRuntimeException`; keyed exceptions (`KeyProducerIdIsNotUnique`/`Unknown`, `UnknownSecretFormat`, `PrivateKeyTooLarge`) gained the `(key…, cause)` matrix overload + tests; `KeyProducerIdNull` kept no-arg fixed-condition (bare `(Throwable)` would break the checklist's own rule); `NoMoreSecretsAvailable` already compliant; identity equality everywhere | ✅ — `LlamaException` / `ModelUnavailableException` already shape-compliant; added the missing `ModelUnavailableExceptionTest` | ➖ no custom exceptions (uses Maven `Mojo*Exception`) | ➖ no custom exceptions (uses `IOException`) |
 
-> **What is actually still open (as of this refresh):** nothing in the table below — all
-> four rows are now **complete** across every applicable repo (kept here as a paper
-> trail). The only remaining cross-repo items are the workspace-meta TODOs
-> (drift-detection hook, skill-discovery validation, maintenance cadence) in
-> `CLAUDE.md` → "Open TODOs".
+> **What is actually still open (as of the 2026-06-07 refresh):** the table above is
+> **complete** across every applicable repo (kept as a paper trail). The genuinely
+> open work now is:
+>
+> 1. **Workspace-meta TODOs** (cross-repo, in `CLAUDE.md` → "Open TODOs"): drift-detection
+>    hook, skill-discovery validation, maintenance cadence. ❌ open.
+> 2. **PIT mutation-coverage expansion** (cross-repo, optional/incremental) — see the
+>    dedicated block below; the gate now covers a verified-100% subset in each repo and
+>    grows as more classes reach parity.
+> 3. **Per-repo feature/enhancement work** (NOT quality-gate) tracked in each repo's
+>    `TODO.md`: **BAF** — persistence backends (open-addressing hash table, standalone
+>    `BloomFilterPersistence`) + GPU acceleration (precompute HASHSET hash on GPU, push
+>    `TRUNCATED_LONG_64` check into OpenCL, grid-size sweep benchmark); **jllama** —
+>    Android AAR packaging, GraalVM Native Image eval, upstream feature toggles
+>    (`spec-draft-backend-sampling`, MTP — deferred by policy); **plugin / sb** — none
+>    beyond the cross-cutting reviews.
+> 4. **Never-ending follow-ups** (📌 review-as-you-add): null-safety precision review and
+>    the `@VisibleForTesting` / package / naming reviews in `policies/code-quality-todos.md`.
+
+### PIT mutation-coverage expansion (cross-repo, incremental)
+
+Status 2026-06-07 — gate raised from the original one-class staging to a verified-100%
+subset per repo. All numbers from real `pitest-maven 1.25.3` runs (the 100% threshold
+fails the build otherwise).
+
+| Repo | Classes gated | Mutations | What's gated |
+|---|:--:|:--:|---|
+| sb | whole package | — | entire `net.ladenthin.streambuffer` (pre-existing) |
+| jllama | 27 | 163 | `value.*` (16) + `exception.*` (2, 0 mutations) + `args.*` enums (10) + `json.TimingsLogger` |
+| plugin | 19 | 138 | config/document/prompt/provider/support value + support classes |
+| BAF | 15 | 59 | `util.BitHelper` + model + 8 exception classes + `statistics.*` + `CKeyProducerJavaIncremental` |
+
+New tests added to reach 100% (no production code changed): jllama
+`ChatChoiceTest`/`ToolCallTest`/`ToolDefinitionTest`/`ContinuationModeTest` + expanded
+`ChatMessageTest`/`ServerMetricsTest`/`ModelMetaTest`/`TokenLogprobTest`/`ChatResponseTest`/`CompletionResultTest`;
+plugin `Java8CompatibilityHelperTest`/`MockAiGenerationProviderTest`/`AiPromptSupportTest`/`AiPathSupportTest`/`AiChecksumSupportTest`/`AiMdChildEntryLineFormatterTest`/`AiPreparedPromptTest`/`AiGenerationConfigTest`/`AiModelDefinitionTest`
++ expanded `AiModelDefinitionSupportTest`/`AiMdHeaderSupportTest`; BAF needed no new tests
+(existing tests already gave 100%).
+
+**Still open (optional, each needs more involved fixtures):** jllama `json.ChatResponseParser`
+/ `CompletionResponseParser` (a few private-helper survivors); plugin `document.AiMdDocumentCodec`
+/ `AiMdHeaderCodec` / `prompt.AiPromptPreparationSupport`; BAF config getters covered only by
+producer/keyproducer integration tests, plus the larger orchestration classes (producer /
+consumer / engine / opencl). Equivalent/native-dependent classes are excluded by design (see
+"Deliberate non-parity").
+
+### Dependency / plugin freshness (verified 2026-06-07)
+
+All four repos are on the **newest stable** versions of every dependency and build plugin
+(checked with `versions:display-dependency-updates` + `display-plugin-updates` against
+Maven Central, and direct `maven-metadata.xml` probes for the annotation-processor paths the
+versions plugin does not scan: Error Prone, NullAway, Checker). The only "updates" offered are
+**pre-releases** — Maven 4 plugin `4.0.0-beta-*` (compiler/jar/source/resources/plugin),
+`maven-surefire-plugin:3.6.0-M1`, `slf4j-api:2.1.0-alpha1`, Maven-core `4.0.0-rc-5` — which are
+deliberately **not** adopted, plus **jqwik 1.10.1** which is 📌 **banned** (see policy). No
+action needed.
 
 **Layered-rule sharpening (jdeps fact-based audit, done):** the compiled package
 graph of all three multi-package repos was audited with `jdeps` (bytecode, not
