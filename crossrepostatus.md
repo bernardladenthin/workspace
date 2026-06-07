@@ -98,6 +98,16 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 | Package hierarchy review | ✅ — layered package split landed (see BAF `TODO.md` "Done") | ✅ — layered package split landed (see jllama `TODO.md` "Done") | ✅ — layered package split landed (see plugin `TODO.md` "Done") | ❌ |
 | Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | 🚧 BAF concrete entries: `AddressFormatNotAcceptedException` `(reason, detail)` overloads (`4677831`), new `InterruptedRuntimeException` per checklist (`bd71766`), and `UncheckedRuntimeException`-style wrapper rejected with rationale (`40d3f09`) — see "what NOT to do" below | ❌ | ❌ | ❌ |
 
+**Layered-rule sharpening (jdeps fact-based audit, done):** the compiled package
+graph of all three multi-package repos was audited with `jdeps` (bytecode, not
+imports — Javadoc `{@link}` imports do not count). Findings: **BAF** had one latent
+upward edge (`util.Bech32Helper` → `io.AddressTxtLine.BITCOIN_CASH_PREFIX`, hidden
+from ArchUnit by `static final String` inlining) — fixed by moving the constant to
+`constants.AddressConstants`, after which the `layeredArchitecture()` access lists
+were tightened to the exact per-layer accessor set. **jllama** and **plugin** were
+already exact (each layer's `mayOnlyBeAccessedByLayers` matched the real graph) — no
+slack and no hidden edges found.
+
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 ---
