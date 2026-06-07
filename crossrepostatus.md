@@ -93,9 +93,9 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 
 | TODO item | BAF | jllama | plugin | sb |
 |---|:--:|:--:|:--:|:--:|
-| ArchUnit full `layeredArchitecture()` | ✅ — flat root package split into 10 layered packages; strict `layeredArchitecture()` rule enforced (Entry→Orchestration→Pipeline→Capabilities→InputOutput→Foundation→Config→Constants) | ❌ — needs DTO split into `value/` package; breaks public-API FQNs | ➖ single-package | ➖ single-package |
+| ArchUnit full `layeredArchitecture()` | ✅ — flat root package split into 10 layered packages; strict `layeredArchitecture()` rule enforced (Entry→Orchestration→Pipeline→Capabilities→InputOutput→Foundation→Config→Constants) | ✅ — flat root package split into layered packages (value/callback/exception/parameters/loader/json/args); strict `layeredArchitecture()` rule enforced (Api→Loader→Marshalling→Foundation) | ➖ single-package | ➖ single-package |
 | ArchUnit per-module banned-imports | ❌ | ❌ | ➖ single-package | ➖ single-package |
-| Package hierarchy review | ✅ — layered package split landed (see BAF `TODO.md` "Done") | ❌ | ❌ | ❌ |
+| Package hierarchy review | ✅ — layered package split landed (see BAF `TODO.md` "Done") | ✅ — layered package split landed (see jllama `TODO.md` "Done") | ❌ | ❌ |
 | Typed-exception unification audit (constructor signatures + Javadoc shape consistent across every custom exception class) | 🚧 BAF concrete entries: `AddressFormatNotAcceptedException` `(reason, detail)` overloads (`4677831`), new `InterruptedRuntimeException` per checklist (`bd71766`), and `UncheckedRuntimeException`-style wrapper rejected with rationale (`40d3f09`) — see "what NOT to do" below | ❌ | ❌ | ❌ |
 
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
@@ -192,9 +192,11 @@ rule (open rows above) both depend on splitting today's single-root
 package into layered packages. **BAF: DONE** — the flat root package
 (`Finder`, `Producer*`, `Consumer*`, and ~45 other classes) was split
 into 10 layered packages and the strict `layeredArchitecture()` rule is
-enforced (see BAF `TODO.md` "Done"). **jllama: still open** — needs DTOs
-in a `value/` package; that move breaks public-API FQNs and is staged
-behind the next major-version bump.
+enforced (see BAF `TODO.md` "Done"). **jllama: DONE** — the flat root
+package was split into `value`/`callback`/`exception`/`parameters`/`loader`
+(+ existing `json`/`args`) and the strict `layeredArchitecture()` rule is
+enforced (see jllama `TODO.md` "Done"). Both moves break public-API FQNs
+and ship under a major-version bump.
 
 **OPM scope-tightening — after package refactor.** fb-contrib
 `OPM_OVERLY_PERMISSIVE_METHOD` is suppressed PROJECT-WIDE in both BAF
@@ -203,8 +205,9 @@ unblocked but optional** — the package refactor it waited on has landed,
 so cross-layer call sites are now stable and OPM findings would be
 actionable. Re-enabling is optional, not mandated: visibility
 minimisation is NOT a project goal (the tightening pressure was
-fb-contrib noise, not an owner requirement). **jllama: still blocked**
-on its own package split. Rationale for the original suppression: a
+fb-contrib noise, not an owner requirement). **jllama: also unblocked**
+— its package split has now landed too; re-enabling OPM is optional for
+the same reason. Rationale for the original suppression: a
 single-root package flags every method called only by same-package
 callers as "should be package-private" — true today, false once layers
 split because cross-layer calls need `public`. If BAF re-enables, delete
