@@ -228,6 +228,55 @@ unformatted code passed every earlier job and failed only at publish. Added a fa
 package graph via `jdeps` (informational, `continue-on-error`); the bytecode-level
 layering itself is already enforced by the ArchUnit rules in `mvn test`.
 
+**Javadoc JPMS module-mode failure on BAF publish-snapshot (root-caused + fixed, 2026-06-07).**
+Same *family* as the code-style gate above — a failure that **only the publish/deploy job
+runs** (every other job passes `-Dmaven.javadoc.skip=true`; the deploy job runs `-P release
+deploy`), so it slipped through PR CI and failed only after merge to `main`. Symptom:
+`maven-javadoc-plugin:3.12.0:jar (attach-javadocs)` → `error: No source files for package
+net.ladenthin.bitcoinaddressfinder.<X>` (exit 2), the package name **non-deterministic**
+(`constants` on CI, `model`/others locally).
+
+Root cause: BAF's javadoc switches into **JPMS module mode** because (a) javadoc is configured
+`<source>21</source>` (module-aware) and (b) `target/classes/module-info.class` is present when
+javadoc runs (the `module-info-compile` execution is bound to `prepare-package`, the
+`attach-javadocs` execution defaulted to `package`, so the descriptor existed first). In module
+mode the plugin stages a `--module-source-path`, but BAF's `module-info.java` lives in
+`src/main/java9` (off javadoc's source path) and the module declares **no `requires`** — so
+module-mode javadoc both mis-stages the package tree ("No source files…") *and*, if you naively
+co-locate `module-info.java` to fix the staging, then can't see classpath deps (bitcoinj,
+jspecify, slf4j → "package does not exist"). Module mode is therefore fundamentally unusable
+here; **classpath mode is the only viable mode.** The layered-package refactor (19 packages /
+14 `package-info.java`) is what made the latent bug bite — pre-refactor (one package) module-mode
+javadoc had nothing to trip over.
+
+**Cross-repo relevance — structural trap shared by all 4, only BAF trips it.** All four repos
+are JPMS modules that compile `module-info.class` into `target/classes` via a dedicated
+release-9 execution. The *only* reason the other three are immune is their javadoc `<source>`
+is **8** (`jllama` `1.8`, `sb`/`plugin` resolve to `8`) → javadoc stays in **classpath mode**
+regardless of the descriptor (proven: jllama builds javadoc green with `module-info.class`
+present and >1 `package-info.java`). Two further BAF-only aggravators: javadoc must be `source
+21` (to parse records/sealed/text-blocks — can't drop to 8), and BAF hides `module-info.java`
+in `src/main/java9` (the other three keep it in `src/main/java`, co-located with the sources —
+not a Java-8 leftover but a deliberate isolation so BAF's main compile stays in unnamed-module
+mode for Error Prone/NullAway/Checker + the `--add-exports`/`--add-opens` internal-JDK test
+access). **Latent risk:** the moment any Java-8 repo bumps its target to ≥9 and raises javadoc
+`<source>` accordingly, it can hit the same class of failure — most likely `jllama`/`plugin`
+(8 `package-info.java` each). If/when that happens, force classpath mode the same way.
+
+**Fix (BAF, branch `claude/amazing-noether-p7THl`):** keep the descriptor out of
+`target/classes` while javadoc runs, by binding `attach-javadocs` to **`prepare-package`** (after
+`test`, before the descriptor is compiled) and ordering it **before** `module-info-compile` —
+which is achieved by declaring the `maven-javadoc-plugin` block **before** the
+`maven-compiler-plugin` block (Maven runs same-phase executions in plugin-declaration order).
+`module-info-compile` stays at `prepare-package` so the jar still gets `module-info.class`
+(binding it to `package` is unreliable — the lifecycle's `default-jar` runs before an explicit
+`package` execution, dropping the descriptor from the jar). Verified: `-P release clean package`
+→ BUILD SUCCESS, javadoc in classpath mode, `module-info.class` present at the jar root, and
+`mvn test` still never triggers javadoc (both executions are after `test`). **Detection-gap
+lesson (recurring):** publish-only steps (javadoc here, `spotless:check` previously) escape PR
+CI — a future hardening is to run `mvn -P release ... package` (or at least the javadoc jar) in
+a fast PR-CI job so this whole family fails *before* merge, not on the snapshot publish.
+
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 ---
