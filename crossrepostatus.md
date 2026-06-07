@@ -28,7 +28,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | Tool versions | Identical across all 4: Checker 4.2.0, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.9.8.3, spotless 3.6.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.6, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.0, hamcrest 3.0, pitest-maven 1.25.3. **All on latest stable** (verified 2026-06-07 against Maven Central — see "Dependency / plugin freshness" below). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
-| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser` (28 classes, 168 mutations) · **plugin** explicit 21-class list (146 mutations) · **BAF** explicit 16-class list (63 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. |
+| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser`+`json.ChatResponseParser`+`json.CompletionResponseParser` (30 classes, 207 mutations) · **plugin** explicit 21-class list (146 mutations) · **BAF** explicit 16-class list (63 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. |
 | Checker Framework as 2nd nullness pass | All 4 ✅ |
 | JPMS `module-info.java` present | All 4 ✅ |
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
@@ -130,19 +130,25 @@ fails the build otherwise).
 | Repo | Classes gated | Mutations | What's gated |
 |---|:--:|:--:|---|
 | sb | whole package | — | entire `net.ladenthin.streambuffer` (pre-existing) |
-| jllama | 28 | 168 | `value.*` (16) + `exception.*` (2, 0 mutations) + `args.*` enums (10) + `json.TimingsLogger` |
+| jllama | 30 | 207 | `value.*` (16) + `exception.*` (2, 0 mutations) + `args.*` enums (10) + `json.TimingsLogger` + `json.RerankResponseParser` + `json.ChatResponseParser` + `json.CompletionResponseParser` |
 | plugin | 21 | 146 | config/document/prompt/provider/support value + support classes |
 | BAF | 16 | 63 | `util.BitHelper` + model (incl. refactored `Hash160`) + 8 exception classes + `statistics.*` + `CKeyProducerJavaIncremental` |
 
 New tests added to reach 100% (no production code changed): jllama
 `ChatChoiceTest`/`ToolCallTest`/`ToolDefinitionTest`/`ContinuationModeTest` + expanded
 `ChatMessageTest`/`ServerMetricsTest`/`ModelMetaTest`/`TokenLogprobTest`/`ChatResponseTest`/`CompletionResultTest`;
+jllama `json.ChatResponseParser`/`CompletionResponseParser` (the two near-100% parsers) reached
+100% on 2026-06-07 via expanded `ChatResponseParserTest`/`CompletionResponseParserTest` (typed
+`parseResponse`/`parseCompletionResult`/`parseLogprobs` paths incl. tool-calls and LogCaptor
+timing-line tests) **plus** behaviour-preserving single-mutable-list refactors of the private
+`parseChoices`/`parseToolCalls`/`parseLogprobs`/`parseLogprobEntry` helpers that removed the
+equivalent empty-branch (`emptyList()` vs `ArrayList`) and `size()>0`/`size()==0` mutants — same
+"refactor to kill the equivalent mutant" pattern as Hash160/AiPathSupport;
 plugin `Java8CompatibilityHelperTest`/`MockAiGenerationProviderTest`/`AiPromptSupportTest`/`AiPathSupportTest`/`AiChecksumSupportTest`/`AiMdChildEntryLineFormatterTest`/`AiPreparedPromptTest`/`AiGenerationConfigTest`/`AiModelDefinitionTest`
 + expanded `AiModelDefinitionSupportTest`/`AiMdHeaderSupportTest`; BAF needed no new tests
 (existing tests already gave 100%).
 
-**Still open (optional, each needs more involved fixtures):** jllama `json.ChatResponseParser`
-/ `CompletionResponseParser` (a few private-helper survivors); plugin `document.AiMdDocumentCodec`
+**Still open (optional, each needs more involved fixtures):** plugin `document.AiMdDocumentCodec`
 / `AiMdHeaderCodec` / `prompt.AiPromptPreparationSupport`; BAF config getters covered only by
 producer/keyproducer integration tests, plus the larger orchestration classes (producer /
 consumer / engine / opencl). Equivalent/native-dependent classes are excluded by design (see
