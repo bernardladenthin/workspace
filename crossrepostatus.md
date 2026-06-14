@@ -278,6 +278,24 @@ lesson (recurring):** publish-only steps (javadoc here, `spotless:check` previou
 CI — a future hardening is to run `mvn -P release ... package` (or at least the javadoc jar) in
 a fast PR-CI job so this whole family fails *before* merge, not on the snapshot publish.
 
+**CI `-Dmaven.javadoc.skip=true` cleanup (all 4 repos, 2026-06-14).** The four `publish.yml`
+pipelines had accumulated **9** scattered `-Dmaven.javadoc.skip=true` flags. Audit found most
+were either **dead no-ops** (on `test-compile` / `test` / `exec:java` commands that never reach
+the `package` phase that `javadoc:jar` binds to) or **cargo-culted** copies of the genuine BAF
+fix into repos that don't need it. Root cause of the idiom: `attach-javadocs` lives in the
+**main `<build>`** of every pom (not the release profile), so any `mvn package`/`verify` builds
+javadoc — and BAF's module-aware javadoc (`<source>21</source>` + `module-info.java` in
+`src/main/java9`) can trip JPMS module mode there. The three Java-8 siblings are immune
+(`<source>8>` → classpath mode regardless); their javadoc was verified to build clean.
+Resolution: deleted **8** of the 9 flags. **Exactly one survives — BAF `publish.yml` `build`
+job** — because that job runs plain `mvn package` and would trip the module trap; it is now
+annotated inline and in BAF's CLAUDE.md as the single intentional "skip for a reason," to be
+removed only after a full `mvn package` proves BAF's javadoc clean (a standalone `mvn
+javadoc:jar` cannot — always classpath mode, hides the trap). streambuffer and llamacpp-ai-index
+now let javadoc build during their `verify` test job, so javadoc is gated in **PR CI** there
+(the "future hardening" above); BAF and java-llama.cpp still validate javadoc only at publish.
+Worked out on branch `claude/sweet-lamport-ugvqea`.
+
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 ---
