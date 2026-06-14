@@ -96,6 +96,34 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 - Lombok 1.18.46 `@ToString` / `@EqualsAndHashCode` adoption (clears IMC_NO_TOSTRING + IMC_NO_EQUALS at SpotBugs Max+Low): BAF ✅ (56 classes, 0 handwritten Object methods left) · jllama `9be73a3` (23 classes) · plugin `39e1a59` + `6955357` (6 records + 19 annotated) · sb ➖ (excluded by design).
 - Canonical `lombok.config` content incl. `doNotUseGetters = true` (see [`policies/lombok-config.md`](policies/lombok-config.md)): BAF `61e7996` · jllama `6ddd225` · plugin `3c61b88` · sb ➖.
 
+**Concurrency / interleaving analysis**
+
+- **vmlens interleaving CI step parity (2026-06-14, branch `claude/focused-cray-mgzh1e`).**
+  Previously only **sb** ran a dedicated `Test (vmlens interleavings)` job in `publish.yml`
+  (`mvn -Pvmlens test` over the whole suite). The other three repos already carried the
+  *plumbing* — `vmlens.version` (1.2.28), the managed `vmlens-maven-plugin`, a `vmlens`
+  profile, and `com.vmlens:api` — but **never invoked it from CI** (they only ran
+  `-P jcstress`), so vmlens interleaving analysis ran nowhere for BAF/jllama/plugin. Added
+  the missing CI job to all three plus a minimal one-class example so the step actually runs
+  green:
+  - **New test** `…​.vmlens.VmlensInterleavingSmokeTest` (one per repo): two threads increment
+    a shared `AtomicLong` inside an `AllInterleavings` loop, asserting the sum is always 2.
+    Deterministic, agent-driven; the canonical vmlens "first test" shape.
+  - **pom**: moved `com.vmlens:api` from the profile into the main `<dependencies>` (test
+    scope; transitive-dep-free so `dependencyConvergence`-safe) so the smoke test compiles in
+    every build; added a managed `maven-surefire-plugin` `<exclude>` for it (without the agent
+    `AllInterleavings.hasNext()` is a vacuous pass that prints an "agent not configured"
+    warning, so it stays out of the ordinary suite); narrowed the `vmlens` profile from a
+    whole-suite `<excludes>` run to an `<includes>` of just the smoke test.
+  - **CI**: a lightweight `vmlens` job (`needs: build`/`startgate`, ubuntu, no native
+    lib/model/LMDB/OpenCL) runs `mvn -Pvmlens test -Dtest=VmlensInterleavingSmokeTest
+    -DfailIfNoTests=false` and uploads `target/vmlens-report/`.
+  - **Status**: BAF ✅ · jllama ✅ · plugin ✅ · sb ✅ (pre-existing, whole-suite). All four
+    verified locally (`BUILD SUCCESS`, agent started, report written).
+  - **Staged scope (📌 ongoing, mirrors the PIT staging model):** the three new jobs gate a
+    single class for now; widen each `vmlens` profile's `<includes>` as real concurrency tests
+    are added, the end state being sb's whole-suite run.
+
 ---
 
 ## Open cross-repo items
