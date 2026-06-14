@@ -124,6 +124,54 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
     single class for now; widen each `vmlens` profile's `<includes>` as real concurrency tests
     are added, the end state being sb's whole-suite run.
 
+- **Smoke-test parity across all 4 repos (2026-06-14).** Added the same
+  `…​.vmlens.VmlensInterleavingSmokeTest` to **sb** too (it previously had the whole-suite
+  vmlens run but no dedicated smoke test), so the identical deterministic baseline now exists
+  in BAF · jllama · plugin · sb. In sb it lives on the main test classpath (`com.vmlens:api`
+  promoted out of the profile) and is surefire-excluded from the ordinary run like the others;
+  sb's `vmlens` profile still runs the whole suite, so the smoke test is picked up there.
+  Verified green under the agent. Rationale: a known-good, cross-repo-identical first test is a
+  useful "is vmlens wired up?" canary independent of each repo's real concurrency surface.
+
+- **vmlens expansion candidates — real targets per repo (2026-06-14 investigation, ❌ not yet
+  implemented).** Deep per-repo audit of the actual concurrency surface to find what is worth
+  graduating the `<includes>` to beyond the smoke test. One strong candidate each for three
+  repos; the plugin honestly has none.
+  - **sb — `StreamBuffer` reader-vs-writer accounting.** Exercise `SBInputStream.read(byte[],
+    int,int)` (the blocking path through `waitForAtLeast`, which reads `availableBytes`/
+    `streamClosed` *outside* `bufferLock`) concurrently with `SBOutputStream.write(...)`;
+    assert the invariant `totalBytesWritten == totalBytesRead + availableBytes`. This
+    interleaving class is **untested** today: Lincheck deliberately excludes `read` (can't
+    progress past a parked reader) and the jcstress close/unblock races assert only
+    *termination*, not the accounting/value. Test the class directly (no helper).
+  - **BAF — `keyproducer/AbstractKeyProducerQueueBuffered`.** The only hand-rolled coordination
+    in the repo: `createSecrets` (consumer parked on `secretQueue.take()`) vs `addSecret`
+    (transport-reader thread) vs `signalShutdown` (sets `volatile shouldStop`, then offers a
+    reference-identity `SHUTDOWN_SENTINEL`). Two interleaving-sensitive invariants worth vmlens:
+    lost-wakeup/liveness (a parked consumer is **always** released by `signalShutdown` →
+    `NoMoreSecretsAvailableException`) and drop-after-stop (a real key enqueued after the
+    sentinel is never decoded as a key). Constructor already accepts an injected
+    `BlockingQueue` for tests; no helper extraction needed. (Backups: `ConsumerJava` bounded-
+    queue path; `AbstractProducer` `state`/`shouldRun`/`notRunningLatch` lifecycle.)
+  - **jllama — `Session` stream-guard + transcript state machine** (`streamingActive` boolean +
+    `ChatTranscript` two-phase commit under `Session.lock`). This is a *compound-atomicity*
+    target (flag + list must move together; check-then-act), a different and untested class vs
+    the existing single-`volatile`-boolean `CancellationToken` Lincheck/jcstress coverage.
+    Because `Session.send/stream` call the native model (can't run in the model-free vmlens
+    job), this is the **"refactor a method into a short helper"** case: extract a model-free
+    `SessionState`/`StreamGuard` owning `streamingActive` + the transcript transitions
+    (`commitRound`/`beginStream`/`commitStreamedReply`/`snapshot`) — a genuine
+    separation-of-concerns win, then drive *that* under `AllInterleavings`. (Backup:
+    `loader.LlamaLoader.initialize()` one-time lazy native-lib load.) Treat `CancellationToken`
+    as **done** (already double-covered).
+  - **plugin — none (by design).** Repo-wide search found **zero** `synchronized`/`volatile`/
+    `Atomic*`/`Concurrent*`/`parallel()`/`ExecutorService`/`Thread` in `src/main/java`; the
+    mojo + indexers are strictly sequential (`Files.walk`/`Files.list`, no `.parallel()`). The
+    one lazy field (`LlamaCppJniAiGenerationProvider.model()`, an unsynchronized check-then-act)
+    is never reached concurrently, and a faithful test would load a ~90 MB GGUF per
+    interleaving — contrived. The smoke test is the right level; revisit only if indexing is
+    ever parallelized.
+
 ---
 
 ## Open cross-repo items
