@@ -127,6 +127,13 @@ See [workspace/policies/spotbugs-suppressions.md](../workspace/policies/spotbugs
 
 ---
 
+## Spotless Formatting **(workspace)**
+
+See [workspace/policies/spotless-formatting.md](../workspace/policies/spotless-formatting.md).
+Run `mvn spotless:apply` before every commit that touches `.java` files.
+
+---
+
 ## jqwik Policy **(workspace)**
 
 See [workspace/policies/jqwik-prompt-injection.md](../workspace/policies/jqwik-prompt-injection.md).
