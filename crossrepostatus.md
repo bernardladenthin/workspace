@@ -384,6 +384,8 @@ Worked out on branch `claude/sweet-lamport-ugvqea`.
 
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
+**Standing policy:** run `mvn spotless:apply` before every commit that touches `.java` — 📌 active in all 4 repos (Spotless 3.6.0 + Palantir Java Format 2.92.0; `spotless:check` is bound to `verify` and the early `code-style` CI job. See [`policies/spotless-formatting.md`](policies/spotless-formatting.md)).
+
 ---
 
 ## Long-form references for open items

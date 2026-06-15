@@ -27,6 +27,7 @@ guides/test/TEST_WRITING_GUIDE-8.md      Canonical test conventions (JUnit Jupit
 guides/test/TEST_WRITING_GUIDE-21.md     Java 21 test supplement (extends -8.md) — BAF-only today
 policies/javadoc-conventions.md          HTML-entity rules for Javadoc
 policies/spotbugs-suppressions.md        spotbugs-exclude.xml maintenance
+policies/spotless-formatting.md          Spotless/Palantir formatting; run spotless:apply before each commit
 policies/jqwik-prompt-injection.md       jqwik pin + incident note
 policies/lombok-config.md                Canonical lombok.config content for Lombok-using repos
 policies/jpms-module-descriptor.md       module-info compile/javadoc/test interactions + the Java-bump javadoc trap
