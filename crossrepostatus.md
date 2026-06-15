@@ -152,9 +152,10 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
     lost-wakeup/liveness (a parked consumer is **always** released by `signalShutdown` →
     `NoMoreSecretsAvailableException`) and drop-after-stop (a real key enqueued after the
     sentinel is never decoded as a key). Constructor already accepts an injected
-    `BlockingQueue` for tests; no helper extraction needed. ✅ Implemented: the
-    lost-wakeup/liveness invariant as `vmlens.KeyProducerQueueBufferedInterleavingTest`
-    (BAF `556c4ae`); the drop-after-stop invariant remains a cheap follow-up. (Backups:
+    `BlockingQueue` for tests; no helper extraction needed. ✅ Implemented:
+    `vmlens.KeyProducerQueueBufferedInterleavingTest` with both invariants — lost-wakeup/
+    liveness (BAF `556c4ae`) and drop-after-stop (the sentinel is never decoded as a key;
+    BAF `1b7e572`, a regression guard — the protocol is correct by construction). (Backups:
     `ConsumerJava` bounded-queue path; `AbstractProducer` `state`/`shouldRun`/`notRunningLatch`
     lifecycle.)
   - **jllama — `Session` stream-guard + transcript state machine** (`streamingActive` boolean +
