@@ -133,17 +133,18 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
   Verified green under the agent. Rationale: a known-good, cross-repo-identical first test is a
   useful "is vmlens wired up?" canary independent of each repo's real concurrency surface.
 
-- **vmlens expansion candidates — real targets per repo (2026-06-14 investigation, ❌ not yet
-  implemented).** Deep per-repo audit of the actual concurrency surface to find what is worth
-  graduating the `<includes>` to beyond the smoke test. One strong candidate each for three
-  repos; the plugin honestly has none.
+- **vmlens expansion candidates — real targets per repo (investigated 2026-06-14, ✅ implemented
+  2026-06-15 for sb/BAF/jllama).** Deep per-repo audit of the actual concurrency surface; one
+  strong candidate each for three repos was graduated past the smoke test (each repo's `vmlens`
+  profile/job now runs an `**/vmlens/*.java` package glob). The plugin honestly has none.
   - **sb — `StreamBuffer` reader-vs-writer accounting.** Exercise `SBInputStream.read(byte[],
     int,int)` (the blocking path through `waitForAtLeast`, which reads `availableBytes`/
     `streamClosed` *outside* `bufferLock`) concurrently with `SBOutputStream.write(...)`;
     assert the invariant `totalBytesWritten == totalBytesRead + availableBytes`. This
     interleaving class is **untested** today: Lincheck deliberately excludes `read` (can't
     progress past a parked reader) and the jcstress close/unblock races assert only
-    *termination*, not the accounting/value. Test the class directly (no helper).
+    *termination*, not the accounting/value. Tests the class directly (no helper).
+    ✅ Implemented: `vmlens.StreamBufferReaderWriterInterleavingTest` (sb `abff69e`).
   - **BAF — `keyproducer/AbstractKeyProducerQueueBuffered`.** The only hand-rolled coordination
     in the repo: `createSecrets` (consumer parked on `secretQueue.take()`) vs `addSecret`
     (transport-reader thread) vs `signalShutdown` (sets `volatile shouldStop`, then offers a
@@ -151,17 +152,25 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
     lost-wakeup/liveness (a parked consumer is **always** released by `signalShutdown` →
     `NoMoreSecretsAvailableException`) and drop-after-stop (a real key enqueued after the
     sentinel is never decoded as a key). Constructor already accepts an injected
-    `BlockingQueue` for tests; no helper extraction needed. (Backups: `ConsumerJava` bounded-
-    queue path; `AbstractProducer` `state`/`shouldRun`/`notRunningLatch` lifecycle.)
+    `BlockingQueue` for tests; no helper extraction needed. ✅ Implemented: the
+    lost-wakeup/liveness invariant as `vmlens.KeyProducerQueueBufferedInterleavingTest`
+    (BAF `556c4ae`); the drop-after-stop invariant remains a cheap follow-up. (Backups:
+    `ConsumerJava` bounded-queue path; `AbstractProducer` `state`/`shouldRun`/`notRunningLatch`
+    lifecycle.)
   - **jllama — `Session` stream-guard + transcript state machine** (`streamingActive` boolean +
-    `ChatTranscript` two-phase commit under `Session.lock`). This is a *compound-atomicity*
-    target (flag + list must move together; check-then-act), a different and untested class vs
-    the existing single-`volatile`-boolean `CancellationToken` Lincheck/jcstress coverage.
-    Because `Session.send/stream` call the native model (can't run in the model-free vmlens
-    job), this is the **"refactor a method into a short helper"** case: extract a model-free
-    `SessionState`/`StreamGuard` owning `streamingActive` + the transcript transitions
-    (`commitRound`/`beginStream`/`commitStreamedReply`/`snapshot`) — a genuine
-    separation-of-concerns win, then drive *that* under `AllInterleavings`. (Backup:
+    `ChatTranscript` two-phase commit). A *compound-atomicity* target (flag + list must move
+    together; check-then-act), a different and untested class vs the single-`volatile`-boolean
+    `CancellationToken` Lincheck/jcstress coverage. Because `Session.send/stream` call the native
+    model (can't run model-free), this was the **"refactor a method into a short helper"** case.
+    ✅ Implemented (jllama `5273f7e`): extracted a model-free public `SessionState` (root package,
+    mirroring the testability extraction of `ChatTranscript`) owning `streamingActive` + the
+    transcript transitions (`send`/`beginStream`/`commitStreamedReply`/`runWhenNotStreaming`/
+    `runUnderLock`/`snapshot`); the native call is injected as a callback run under the lock, so
+    `Session` keeps identical serialization/exception semantics (behaviour-preserving). Added
+    `vmlens.SessionStateInterleavingTest` (send vs stream+commit → strict alternation, non-stuck
+    guard) plus a model-free `SessionStateTest` (7 tests) pinning the contract in the ordinary
+    suite (the model-gated `SessionConcurrencyTest` can't run without a GGUF). Verified compile
+    (Error Prone/NullAway/Checker), javadoc, `spotbugs:check` 0 bugs. (Backup:
     `loader.LlamaLoader.initialize()` one-time lazy native-lib load.) Treat `CancellationToken`
     as **done** (already double-covered).
   - **plugin — none (by design).** Repo-wide search found **zero** `synchronized`/`volatile`/
