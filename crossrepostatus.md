@@ -96,6 +96,92 @@ Rows that landed across every applicable repo. Kept here as a paper trail; not a
 - Lombok 1.18.46 `@ToString` / `@EqualsAndHashCode` adoption (clears IMC_NO_TOSTRING + IMC_NO_EQUALS at SpotBugs Max+Low): BAF ✅ (56 classes, 0 handwritten Object methods left) · jllama `9be73a3` (23 classes) · plugin `39e1a59` + `6955357` (6 records + 19 annotated) · sb ➖ (excluded by design).
 - Canonical `lombok.config` content incl. `doNotUseGetters = true` (see [`policies/lombok-config.md`](policies/lombok-config.md)): BAF `61e7996` · jllama `6ddd225` · plugin `3c61b88` · sb ➖.
 
+**Concurrency / interleaving analysis**
+
+- **vmlens interleaving CI step parity (2026-06-14, branch `claude/focused-cray-mgzh1e`).**
+  Previously only **sb** ran a dedicated `Test (vmlens interleavings)` job in `publish.yml`
+  (`mvn -Pvmlens test` over the whole suite). The other three repos already carried the
+  *plumbing* — `vmlens.version` (1.2.28), the managed `vmlens-maven-plugin`, a `vmlens`
+  profile, and `com.vmlens:api` — but **never invoked it from CI** (they only ran
+  `-P jcstress`), so vmlens interleaving analysis ran nowhere for BAF/jllama/plugin. Added
+  the missing CI job to all three plus a minimal one-class example so the step actually runs
+  green:
+  - **New test** `…​.vmlens.VmlensInterleavingSmokeTest` (one per repo): two threads increment
+    a shared `AtomicLong` inside an `AllInterleavings` loop, asserting the sum is always 2.
+    Deterministic, agent-driven; the canonical vmlens "first test" shape.
+  - **pom**: moved `com.vmlens:api` from the profile into the main `<dependencies>` (test
+    scope; transitive-dep-free so `dependencyConvergence`-safe) so the smoke test compiles in
+    every build; added a managed `maven-surefire-plugin` `<exclude>` for it (without the agent
+    `AllInterleavings.hasNext()` is a vacuous pass that prints an "agent not configured"
+    warning, so it stays out of the ordinary suite); narrowed the `vmlens` profile from a
+    whole-suite `<excludes>` run to an `<includes>` of just the smoke test.
+  - **CI**: a lightweight `vmlens` job (`needs: build`/`startgate`, ubuntu, no native
+    lib/model/LMDB/OpenCL) runs `mvn -Pvmlens test -Dtest=VmlensInterleavingSmokeTest
+    -DfailIfNoTests=false` and uploads `target/vmlens-report/`.
+  - **Status**: BAF ✅ · jllama ✅ · plugin ✅ · sb ✅ (pre-existing, whole-suite). All four
+    verified locally (`BUILD SUCCESS`, agent started, report written).
+  - **Staged scope (📌 ongoing, mirrors the PIT staging model):** the three new jobs gate a
+    single class for now; widen each `vmlens` profile's `<includes>` as real concurrency tests
+    are added, the end state being sb's whole-suite run.
+
+- **Smoke-test parity across all 4 repos (2026-06-14).** Added the same
+  `…​.vmlens.VmlensInterleavingSmokeTest` to **sb** too (it previously had the whole-suite
+  vmlens run but no dedicated smoke test), so the identical deterministic baseline now exists
+  in BAF · jllama · plugin · sb. In sb it lives on the main test classpath (`com.vmlens:api`
+  promoted out of the profile) and is surefire-excluded from the ordinary run like the others;
+  sb's `vmlens` profile still runs the whole suite, so the smoke test is picked up there.
+  Verified green under the agent. Rationale: a known-good, cross-repo-identical first test is a
+  useful "is vmlens wired up?" canary independent of each repo's real concurrency surface.
+
+- **vmlens expansion candidates — real targets per repo (investigated 2026-06-14, ✅ implemented
+  2026-06-15 for sb/BAF/jllama).** Deep per-repo audit of the actual concurrency surface; one
+  strong candidate each for three repos was graduated past the smoke test (each repo's `vmlens`
+  profile/job now runs an `**/vmlens/*.java` package glob). The plugin honestly has none.
+  - **sb — `StreamBuffer` reader-vs-writer accounting.** Exercise `SBInputStream.read(byte[],
+    int,int)` (the blocking path through `waitForAtLeast`, which reads `availableBytes`/
+    `streamClosed` *outside* `bufferLock`) concurrently with `SBOutputStream.write(...)`;
+    assert the invariant `totalBytesWritten == totalBytesRead + availableBytes`. This
+    interleaving class is **untested** today: Lincheck deliberately excludes `read` (can't
+    progress past a parked reader) and the jcstress close/unblock races assert only
+    *termination*, not the accounting/value. Tests the class directly (no helper).
+    ✅ Implemented: `vmlens.StreamBufferReaderWriterInterleavingTest` (sb `abff69e`).
+  - **BAF — `keyproducer/AbstractKeyProducerQueueBuffered`.** The only hand-rolled coordination
+    in the repo: `createSecrets` (consumer parked on `secretQueue.take()`) vs `addSecret`
+    (transport-reader thread) vs `signalShutdown` (sets `volatile shouldStop`, then offers a
+    reference-identity `SHUTDOWN_SENTINEL`). Two interleaving-sensitive invariants worth vmlens:
+    lost-wakeup/liveness (a parked consumer is **always** released by `signalShutdown` →
+    `NoMoreSecretsAvailableException`) and drop-after-stop (a real key enqueued after the
+    sentinel is never decoded as a key). Constructor already accepts an injected
+    `BlockingQueue` for tests; no helper extraction needed. ✅ Implemented:
+    `vmlens.KeyProducerQueueBufferedInterleavingTest` with both invariants — lost-wakeup/
+    liveness (BAF `556c4ae`) and drop-after-stop (the sentinel is never decoded as a key;
+    BAF `1b7e572`, a regression guard — the protocol is correct by construction). (Backups:
+    `ConsumerJava` bounded-queue path; `AbstractProducer` `state`/`shouldRun`/`notRunningLatch`
+    lifecycle.)
+  - **jllama — `Session` stream-guard + transcript state machine** (`streamingActive` boolean +
+    `ChatTranscript` two-phase commit). A *compound-atomicity* target (flag + list must move
+    together; check-then-act), a different and untested class vs the single-`volatile`-boolean
+    `CancellationToken` Lincheck/jcstress coverage. Because `Session.send/stream` call the native
+    model (can't run model-free), this was the **"refactor a method into a short helper"** case.
+    ✅ Implemented (jllama `5273f7e`): extracted a model-free public `SessionState` (root package,
+    mirroring the testability extraction of `ChatTranscript`) owning `streamingActive` + the
+    transcript transitions (`send`/`beginStream`/`commitStreamedReply`/`runWhenNotStreaming`/
+    `runUnderLock`/`snapshot`); the native call is injected as a callback run under the lock, so
+    `Session` keeps identical serialization/exception semantics (behaviour-preserving). Added
+    `vmlens.SessionStateInterleavingTest` (send vs stream+commit → strict alternation, non-stuck
+    guard) plus a model-free `SessionStateTest` (7 tests) pinning the contract in the ordinary
+    suite (the model-gated `SessionConcurrencyTest` can't run without a GGUF). Verified compile
+    (Error Prone/NullAway/Checker), javadoc, `spotbugs:check` 0 bugs. (Backup:
+    `loader.LlamaLoader.initialize()` one-time lazy native-lib load.) Treat `CancellationToken`
+    as **done** (already double-covered).
+  - **plugin — none (by design).** Repo-wide search found **zero** `synchronized`/`volatile`/
+    `Atomic*`/`Concurrent*`/`parallel()`/`ExecutorService`/`Thread` in `src/main/java`; the
+    mojo + indexers are strictly sequential (`Files.walk`/`Files.list`, no `.parallel()`). The
+    one lazy field (`LlamaCppJniAiGenerationProvider.model()`, an unsynchronized check-then-act)
+    is never reached concurrently, and a faithful test would load a ~90 MB GGUF per
+    interleaving — contrived. The smoke test is the right level; revisit only if indexing is
+    ever parallelized.
+
 ---
 
 ## Open cross-repo items
