@@ -7,7 +7,7 @@ All four sibling repos enforce Java code formatting with the Spotless Maven
 plugin (`com.diffplug.spotless:spotless-maven-plugin`) configured for
 **Palantir Java Format** (plus `removeUnusedImports`, `trimTrailingWhitespace`,
 `endWithNewline`). The versions are identical everywhere and managed in each
-`pom.xml`: Spotless **3.6.0** + Palantir Java Format **2.92.0**.
+`pom.xml`: Spotless **3.7.0** + Palantir Java Format **2.92.0**.
 
 `spotless:check` is bound to the `verify` phase, so a formatting violation
 fails any `mvn verify` / `mvn package` and the CI `code-style` job (which runs
