@@ -383,6 +383,38 @@ now let javadoc build during their `verify` test job, so javadoc is gated in **P
 (the "future hardening" above); BAF and java-llama.cpp still validate javadoc only at publish.
 Worked out on branch `claude/sweet-lamport-ugvqea`.
 
+**Maven Central publish gating — `publish_to_central` manual flag + `-SNAPSHOT` guard (all 4
+repos, 2026-06-18, branch `claude/stoic-franklin-67klln`).** Same *publish-only-step-escapes-
+PR-CI* family as the code-style gate and the javadoc trap above — surfaced when a release merge
+to `main` kicked the "Publish Snapshot to Central" job and it started deploying a **release** to
+Maven Central. Root cause: the `release` profile's `central-publishing-maven-plugin`
+(`<extensions>true</extensions>` + `<autoPublish>true</autoPublish>` + `<waitUntil>published`
+`</waitUntil>`) routes **purely by the POM `<version>`**, never by job name — and `publish-snapshot`
+and `publish-release` run the *identical* `mvn -P release deploy`. So with `main` carrying a
+release version (the `-SNAPSHOT` stripped at release time, e.g. BAF `1.6.0`/`1.6.1`), the
+"snapshot" job staged + uploaded a **release** bundle and auto-published it; when the matching
+`v*` tag fired `publish-release` concurrently, both deployments collided on the same coordinate
+and **both runs failed** (BAF run `27765693018` publish-snapshot log: `Uploaded bundle …
+deploymentId 8f9f27ba … Deployment will publish automatically` → `Component with coordinate
+'net.ladenthin:bitcoinaddressfinder:1.6.0' is currently being published in another deployment`).
+Two-layer fix applied identically to all four `publish.yml`:
+- **Manual gate.** Generalised the release-only `publish_release` `workflow_dispatch` input into a
+  single `publish_to_central` boolean and required it on **both** `publish-snapshot` and
+  `publish-release` (`&& inputs.publish_to_central`, only truthy on `workflow_dispatch`). Nothing
+  publishes to Central from any automatic `push`/tag anymore — only a deliberate "Run workflow"
+  with the flag ticked. Snapshot = dispatch on `main` (a `-SNAPSHOT` version); release = dispatch
+  on a `vX.Y.Z` tag.
+- **Version guard.** A step before the snapshot deploy resolves `project.version` via
+  `mvn help:evaluate` and **aborts unless it ends in `-SNAPSHOT`**, so a release-versioned `main`
+  can never misroute through the snapshot path even when dispatched.
+
+Behavioural change (now uniform): the three library repos previously auto-published a snapshot on
+every push to `main`; publishing is now manual-only in all four. Commits — **BAF** flag `501a245`
++ guard `e6a57ba`; **sb** guard `12cb25b` + flag `a44fe1f`; **plugin** guard `bf57e4c` + flag
+`a729f54`; **jllama** guard `53204f2` + flag `02c02d0`. Detection-gap lesson (recurring): the
+misroute was invisible to PR CI because publish jobs run only on `main`/tag/dispatch — same
+hardening direction as the javadoc/code-style traps (exercise the publish path earlier).
+
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 **Standing policy:** run `mvn spotless:apply` before every commit that touches `.java` — 📌 active in all 4 repos (Spotless 3.7.0 + Palantir Java Format 2.92.0; `spotless:check` is bound to `verify` and the early `code-style` CI job. See [`policies/spotless-formatting.md`](policies/spotless-formatting.md)).
