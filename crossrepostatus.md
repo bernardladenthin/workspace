@@ -17,6 +17,8 @@ Repos:
 
 Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing policy
 
+**Badge resources:** [inttter/md-badges](https://github.com/inttter/md-badges?tab=readme-ov-file) — searchable index of badge syntax for shields.io, Simple Icons, and more (used across all four repo READMEs).
+
 ---
 
 ## In parity across all 4 repos (no action needed)
