@@ -329,6 +329,27 @@ unformatted code passed every earlier job and failed only at publish. Added a fa
 package graph via `jdeps` (informational, `continue-on-error`); the bytecode-level
 layering itself is already enforced by the ArchUnit rules in `mvn test`.
 
+**CI SpotBugs early gate (done, all 4 repos, 2026-06-26):** same root cause as the code-style
+gate above — `spotbugs:check` is bound to `verify`, which only the publish `deploy` goal reaches,
+so in **jllama** and **BAF** SpotBugs ran **only at publish** (a `PATH_TRAVERSAL_IN` finding red a
+jllama release *after* it had already built every jar — sources/javadoc/cuda/opencl/ninja). Fix:
+extended the existing fast `code-style` job in all 4 repos to also run
+`mvn -DskipTests -Denforcer.skip=true compile spotbugs:check` (after Spotless, before the
+informational jdeps step). `publish-snapshot`/`publish-release` already `needs: code-style`, so
+SpotBugs now gates publish **and** every PR/push with no `needs:` change. **sb** and **plugin**
+already ran SpotBugs early via their `test` job's `mvn verify` (kept — it also gates javadoc in PR
+CI); for them the new step is faster feedback + parity. jllama additionally got a **provisional**
+`PATH_TRAVERSAL_IN` suppression for `OfflineModelGuard`/`ModelParameters` (mirrors the existing
+`LlamaLoader` suppression — operator-supplied `--model` path); whether that *and* the `LlamaLoader`
+suppression can be genuinely resolved instead of suppressed is an open deep-check tracked in jllama
+`TODO.md`. The early gate **also surfaced a pre-existing, already-merged** `CE_CLASS_ENVY` in
+**plugin** (`PackageIndexer.appendPackageHeaderLines`, which hand-renders a `.ai.md` header that
+`AiMdHeaderCodec.write()` already produces byte-for-byte) — provisionally suppressed, with the
+delegate-to-codec fix tracked in plugin `TODO.md`. (That finding had slipped through the plugin's
+own `verify`-bound gate — exactly the late-failure class this early gate is meant to catch.)
+Where/when SpotBugs runs is now noted in
+[`policies/spotbugs-suppressions.md`](policies/spotbugs-suppressions.md).
+
 **Javadoc JPMS module-mode failure on BAF publish-snapshot (root-caused + fixed, 2026-06-07).**
 Same *family* as the code-style gate above — a failure that **only the publish/deploy job
 runs** (every other job passes `-Dmaven.javadoc.skip=true`; the deploy job runs `-P release
