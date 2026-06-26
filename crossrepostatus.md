@@ -346,9 +346,10 @@ from the operator's own process configuration (the `--model` path, the `lib.path
 to validate against (pointing at an arbitrary GGUF/lib dir is the whole point) — a settled false
 positive for a JNI library, with no appropriate code fix. The jllama deep-check is therefore
 **closed**; the consolidated block carries the full rationale. The early gate **also surfaced a pre-existing, already-merged** `CE_CLASS_ENVY` in
-**plugin** (`PackageIndexer.appendPackageHeaderLines`, which hand-renders a `.ai.md` header that
-`AiMdHeaderCodec.write()` already produces byte-for-byte) — provisionally suppressed, with the
-delegate-to-codec fix tracked in plugin `TODO.md`. (That finding had slipped through the plugin's
+**plugin**: `PackageIndexer.appendPackageHeaderLines` hand-rendered a `.ai.md` header that
+`AiMdHeaderCodec.write()` already produces byte-for-byte. **Resolved** by delegating to the codec
+(no suppression — output byte-identical, `PackageIndexerTest` green), removing the duplicated
+eight-field block. (That finding had slipped through the plugin's
 own `verify`-bound gate — exactly the late-failure class this early gate is meant to catch.)
 Where/when SpotBugs runs is now noted in
 [`policies/spotbugs-suppressions.md`](policies/spotbugs-suppressions.md).
