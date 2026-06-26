@@ -338,11 +338,14 @@ extended the existing fast `code-style` job in all 4 repos to also run
 informational jdeps step). `publish-snapshot`/`publish-release` already `needs: code-style`, so
 SpotBugs now gates publish **and** every PR/push with no `needs:` change. **sb** and **plugin**
 already ran SpotBugs early via their `test` job's `mvn verify` (kept — it also gates javadoc in PR
-CI); for them the new step is faster feedback + parity. jllama additionally got a **provisional**
-`PATH_TRAVERSAL_IN` suppression for `OfflineModelGuard`/`ModelParameters` (mirrors the existing
-`LlamaLoader` suppression — operator-supplied `--model` path); whether that *and* the `LlamaLoader`
-suppression can be genuinely resolved instead of suppressed is an open deep-check tracked in jllama
-`TODO.md`. The early gate **also surfaced a pre-existing, already-merged** `CE_CLASS_ENVY` in
+CI); for them the new step is faster feedback + parity. jllama's `PATH_TRAVERSAL_IN` suppression was extended to
+`OfflineModelGuard`/`ModelParameters` and then **reviewed (2026-06-26) and consolidated** with the
+existing `LlamaLoader` block into one finalized `<Match>`: every flagged site reaches `Paths.get`
+from the operator's own process configuration (the `--model` path, the `lib.path` property,
+`java.library.path`), not untrusted input crossing a privilege boundary, and there is no allowed-root
+to validate against (pointing at an arbitrary GGUF/lib dir is the whole point) — a settled false
+positive for a JNI library, with no appropriate code fix. The jllama deep-check is therefore
+**closed**; the consolidated block carries the full rationale. The early gate **also surfaced a pre-existing, already-merged** `CE_CLASS_ENVY` in
 **plugin** (`PackageIndexer.appendPackageHeaderLines`, which hand-renders a `.ai.md` header that
 `AiMdHeaderCodec.write()` already produces byte-for-byte) — provisionally suppressed, with the
 delegate-to-codec fix tracked in plugin `TODO.md`. (That finding had slipped through the plugin's
