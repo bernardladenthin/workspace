@@ -329,6 +329,31 @@ unformatted code passed every earlier job and failed only at publish. Added a fa
 package graph via `jdeps` (informational, `continue-on-error`); the bytecode-level
 layering itself is already enforced by the ArchUnit rules in `mvn test`.
 
+**CI SpotBugs early gate (done, all 4 repos, 2026-06-26):** same root cause as the code-style
+gate above — `spotbugs:check` is bound to `verify`, which only the publish `deploy` goal reaches,
+so in **jllama** and **BAF** SpotBugs ran **only at publish** (a `PATH_TRAVERSAL_IN` finding red a
+jllama release *after* it had already built every jar — sources/javadoc/cuda/opencl/ninja). Fix:
+extended the existing fast `code-style` job in all 4 repos to also run
+`mvn -DskipTests -Denforcer.skip=true compile spotbugs:check` (after Spotless, before the
+informational jdeps step). `publish-snapshot`/`publish-release` already `needs: code-style`, so
+SpotBugs now gates publish **and** every PR/push with no `needs:` change. **sb** and **plugin**
+already ran SpotBugs early via their `test` job's `mvn verify` (kept — it also gates javadoc in PR
+CI); for them the new step is faster feedback + parity. jllama's `PATH_TRAVERSAL_IN` suppression was extended to
+`OfflineModelGuard`/`ModelParameters` and then **reviewed (2026-06-26) and consolidated** with the
+existing `LlamaLoader` block into one finalized `<Match>`: every flagged site reaches `Paths.get`
+from the operator's own process configuration (the `--model` path, the `lib.path` property,
+`java.library.path`), not untrusted input crossing a privilege boundary, and there is no allowed-root
+to validate against (pointing at an arbitrary GGUF/lib dir is the whole point) — a settled false
+positive for a JNI library, with no appropriate code fix. The jllama deep-check is therefore
+**closed**; the consolidated block carries the full rationale. The early gate **also surfaced a pre-existing, already-merged** `CE_CLASS_ENVY` in
+**plugin**: `PackageIndexer.appendPackageHeaderLines` hand-rendered a `.ai.md` header that
+`AiMdHeaderCodec.write()` already produces byte-for-byte. **Resolved** by delegating to the codec
+(no suppression — output byte-identical, `PackageIndexerTest` green), removing the duplicated
+eight-field block. (That finding had slipped through the plugin's
+own `verify`-bound gate — exactly the late-failure class this early gate is meant to catch.)
+Where/when SpotBugs runs is now noted in
+[`policies/spotbugs-suppressions.md`](policies/spotbugs-suppressions.md).
+
 **Javadoc JPMS module-mode failure on BAF publish-snapshot (root-caused + fixed, 2026-06-07).**
 Same *family* as the code-style gate above — a failure that **only the publish/deploy job
 runs** (every other job passes `-Dmaven.javadoc.skip=true`; the deploy job runs `-P release
