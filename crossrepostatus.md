@@ -53,6 +53,17 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 
 Rows that landed across every applicable repo. Kept here as a paper trail; not action items.
 
+**Release process (centralized 2026-07-02)**
+
+- The maintainer-facing Maven Central release procedure now lives once in
+  [`workflows/release-process.md`](workflows/release-process.md); each sibling's `docs/RELEASE.md` is
+  a thin pointer + a repo-specific supplement. This de-staled the previously-duplicated per-repo copies,
+  which still said "commit directly to `main` (no PR)", omitted the `CHANGELOG.md` finalization step,
+  and never mentioned the `publish_to_central=true` deploy gate (all four repos carry it — see the
+  "Maven Central publish gating" note under Open cross-repo items). Repo supplements: **jllama** —
+  reactor all-three-poms bump via `mvn versions:set` + the extra `llama-langchain4j/README.md` snippet;
+  **BAF** — the legacy tag-prefix policy; **sb**/**plugin** — pointer only (pure single-module baseline).
+
 **Strictness ladder**
 
 - Error Prone bug patterns → ERROR (12+ patterns): BAF ✅ · jllama `855f447` · plugin `034b553` · sb `ad95d66`.
