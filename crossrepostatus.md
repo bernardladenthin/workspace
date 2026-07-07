@@ -500,7 +500,10 @@ on skipped/cancelled, so the `publish_to_central` manual gate still holds; jllam
 keeps its `package-fatjars.result == 'success'` condition). Fail-loud edge preserved: if the
 deploy fails *before* signing, the collect step finds nothing, no artifact is uploaded
 (`if-no-files-found: warn` default), and the GitHub job reds on its `download-artifact` —
-nothing half-signed ever reaches the release page silently.
+nothing half-signed ever reaches the release page silently. Forward-looking only: for an
+already-red run, attach the assets manually or re-run the workflow (the duplicate Central
+deploy fails, but the GitHub job now still attaches the freshly built signed assets).
+Commits — **jllama** `ad316cb` · **BAF** `4a8b9ac` · **sb** `ce2c08f` · **plugin** `84531d2`.
 
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
