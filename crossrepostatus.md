@@ -486,6 +486,22 @@ Operational note: after such a timeout, **check Central before re-running** — 
 likely published despite the red job, and re-deploying an already-published release version
 fails. Commits — **jllama** `5710d5e` · **BAF** `26e6b0e` · **sb** `415a6bd` · **plugin** `f180fa6`.
 
+**Follow-up (same day, same branch): GitHub release assets no longer lost when the Central
+publish job reds.** The jllama 5.0.6 timeout also exposed a second gap: the assets *did* publish
+to Central but **never reached the GitHub release page**, because two layers both required
+publish success — (1) `github-snapshot`/`github-release(-signed)` were gated
+`if: needs.publish-*.result == 'success'`, and (2) inside the publish job the
+`Collect signed artifacts` + `upload-artifact` steps run *after* the `mvn deploy` step, so a
+deploy failure (even at the final poll, when all jars + `.asc` signatures already exist —
+GPG signing happens at `verify`, long before the Central wait) skipped collection entirely.
+Fixed identically in all four `publish.yml`: the collect + upload steps got
+`if: ${{ !cancelled() }}`, and the GitHub jobs now run on publish **success OR failure** (never
+on skipped/cancelled, so the `publish_to_central` manual gate still holds; jllama additionally
+keeps its `package-fatjars.result == 'success'` condition). Fail-loud edge preserved: if the
+deploy fails *before* signing, the collect step finds nothing, no artifact is uploaded
+(`if-no-files-found: warn` default), and the GitHub job reds on its `download-artifact` —
+nothing half-signed ever reaches the release page silently.
+
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 **Standing policy:** run `mvn spotless:apply` before every commit that touches `.java` — 📌 active in all 4 repos (Spotless 3.7.0 + Palantir Java Format 2.92.0; `spotless:check` is bound to `verify` and the early `code-style` CI job. See [`policies/spotless-formatting.md`](policies/spotless-formatting.md)).
