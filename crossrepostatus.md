@@ -464,6 +464,28 @@ every push to `main`; publishing is now manual-only in all four. Commits — **B
 misroute was invisible to PR CI because publish jobs run only on `main`/tag/dispatch — same
 hardening direction as the javadoc/code-style traps (exercise the publish path earlier).
 
+**Central publish polling timeout raised to 6 h + effective-POM debug step (all 4 repos,
+2026-07-07, branch `claude/build-timeout-config-nzli8l`).** The jllama **5.0.6 release deploy
+failed** with `Polling for <deploymentId> timed out before the deployment completed`: the
+`central-publishing-maven-plugin` (0.11.0, latest) polls the Central Portal for the `PUBLISHED`
+state (`<waitUntil>published</waitUntil>`) with a default **`waitMaxTime` of 1800 s (30 min)** —
+verified from the plugin jar's `plugin.xml` (`waitMaxTime` default 1800, `waitPollingInterval`
+default 5 s). On a slow portal day the bundle **uploads fine and publishes server-side anyway**
+(`autoPublish=true` → "Deployment will publish automatically"); only the confirmation poll gives
+up, redding the job after the release is effectively out. All four repos carry the identical
+release-profile config, so the fix landed everywhere:
+- **pom.xml** — added `<waitMaxTime>21600</waitMaxTime>` (6 h) next to `waitUntil` in the release
+  profile's central-publishing configuration. The fail-loud `published` gate is kept; only the
+  patience grew. Note: 6 h coincides with GitHub's default job limit, so a genuinely stuck
+  deployment ends at the job ceiling — intended ("wait as long as the job can").
+- **publish.yml** — an informational `Show effective POM (debug)` step (`help:effective-pom`
+  with the same profile set as the adjacent deploy) inserted before the deploy step in both the
+  `publish-snapshot` and `publish-release` jobs, so the resolved publishing configuration is
+  visible in the job log. Nothing depends on it.
+Operational note: after such a timeout, **check Central before re-running** — the artifact most
+likely published despite the red job, and re-deploying an already-published release version
+fails. Commits — **jllama** `5710d5e` · **BAF** `26e6b0e` · **sb** `415a6bd` · **plugin** `f180fa6`.
+
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 **Standing policy:** run `mvn spotless:apply` before every commit that touches `.java` — 📌 active in all 4 repos (Spotless 3.7.0 + Palantir Java Format 2.92.0; `spotless:check` is bound to `verify` and the early `code-style` CI job. See [`policies/spotless-formatting.md`](policies/spotless-formatting.md)).
