@@ -27,7 +27,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4: Checker 4.2.0, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.9.8.3, spotless 3.7.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.6, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.0, hamcrest 3.0, pitest-maven 1.25.5 (pitest-junit5-plugin 1.2.3). **All on latest stable** (pitest bumped 1.25.3→1.25.5; verified 2026-06-07 against Maven Central — see "Dependency / plugin freshness" below). |
+| Tool versions | Identical across all 4: Checker 4.2.1, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.2.0, spotless 3.8.0, palantir 2.94.0, errorprone 2.50.0, nullaway 0.13.7, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.1, hamcrest 3.0, pitest-maven 1.25.6 (pitest-junit5-plugin 1.2.3). **All on latest stable** (pitest bumped 1.25.5→1.25.6 and the row refreshed to the actual pom values; verified 2026-07-08 against Maven Central — see "Dependency / plugin freshness" below). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
 | PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package (179 mutations) · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser`+`json.ChatResponseParser`+`json.CompletionResponseParser` (243 mutations as of 2026-06-25; **not fully hermetic — see "Deliberate non-parity" below**) · **plugin** explicit 21-class list (146 mutations) · **BAF** explicit 16-class list (65 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. Canonical command + the `@{argLine}`/jacoco invocation rule live in [`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md). |
@@ -305,7 +305,7 @@ local gates (spotless, spotbugs, pitest). Per-repo scope:
   documented in [`policies/lombok-config.md`](policies/lombok-config.md) so Sonar ignores
   synthetic getters/`equals`/`toString`.
 
-### Dependency / plugin freshness (verified 2026-06-07)
+### Dependency / plugin freshness (verified 2026-06-07, re-verified 2026-07-08)
 
 All four repos are on the **newest stable** versions of every dependency and build plugin
 (checked with `versions:display-dependency-updates` + `display-plugin-updates` against
@@ -315,6 +315,22 @@ versions plugin does not scan: Error Prone, NullAway, Checker). The only "update
 `maven-surefire-plugin:3.6.0-M1`, `slf4j-api:2.1.0-alpha1`, Maven-core `4.0.0-rc-5` — which are
 deliberately **not** adopted, plus **jqwik 1.10.1** which is 📌 **banned** (see policy). No
 action needed.
+
+**2026-07-08 bump round (branch `claude/build-timeout-config-nzli8l`):** pitest-maven
+1.25.5→1.25.6 (all 4; every 100% gate re-run green on the new version — sb 179/179
+whole-package, BAF 65/65, jllama 295/295, plugin 565/565 — and the pin updated in
+[`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md)); jackson 2.22.0→2.22.1
+(BAF + jllama); jllama-only: kotlin 2.2.21→**2.4.0** for the `llama-kotlin` module (bytecode
+re-verified class-file major **52** / Java 8; consumer floor moves Kotlin 2.1+→2.3+ per the
+metadata one-minor-back rule — README updated), langchain4j-core 1.17.1→1.17.2,
+maven-jar-plugin 3.4.1→3.5.0 in `llama-kotlin` (drift fix — the other three repos and the
+jllama core were already on 3.5.0). **Deliberately kept back:** plugin's `net.ladenthin:llama`
+stays **5.0.4** (owner decision; 5.0.6 is live on Central) — which required a
+`checker-qual` `dependencyManagement` convergence pin in the plugin pom (its own
+checker-qual moved to 4.2.1 while llama 5.0.4 transitively brings 4.2.0; without the pin the
+enforcer's DependencyConvergence fails every build). Kotlin 2.4.0 was found by direct
+metadata probe — the versions plugin only offered `2.4.20-Beta1` and hid the stable 2.4.0.
+Commits — **BAF** `f1a81af` · **sb** `d0c5f47` · **plugin** `ed16a76` · **jllama** `4db9edf`.
 
 **Layered-rule sharpening (jdeps fact-based audit, done):** the compiled package
 graph of all three multi-package repos was audited with `jdeps` (bytecode, not
