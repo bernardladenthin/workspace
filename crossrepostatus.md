@@ -27,7 +27,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4: Checker 4.2.0, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.9.8.3, spotless 3.7.0, palantir 2.91.0, errorprone 2.49.0, nullaway 0.13.6, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.0, hamcrest 3.0, pitest-maven 1.25.5 (pitest-junit5-plugin 1.2.3). **All on latest stable** (pitest bumped 1.25.3→1.25.5; verified 2026-06-07 against Maven Central — see "Dependency / plugin freshness" below). |
+| Tool versions | Identical across all 4: Checker 4.2.1, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.2.0, spotless 3.8.0, palantir 2.94.0, errorprone 2.50.0, nullaway 0.13.7, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.1, hamcrest 3.0, pitest-maven 1.25.6 (pitest-junit5-plugin 1.2.3). **All on latest stable** (pitest bumped 1.25.5→1.25.6 and the row refreshed to the actual pom values; verified 2026-07-08 against Maven Central — see "Dependency / plugin freshness" below). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
 | PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package (179 mutations) · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser`+`json.ChatResponseParser`+`json.CompletionResponseParser` (243 mutations as of 2026-06-25; **not fully hermetic — see "Deliberate non-parity" below**) · **plugin** explicit 21-class list (146 mutations) · **BAF** explicit 16-class list (65 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. Canonical command + the `@{argLine}`/jacoco invocation rule live in [`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md). |
@@ -305,7 +305,7 @@ local gates (spotless, spotbugs, pitest). Per-repo scope:
   documented in [`policies/lombok-config.md`](policies/lombok-config.md) so Sonar ignores
   synthetic getters/`equals`/`toString`.
 
-### Dependency / plugin freshness (verified 2026-06-07)
+### Dependency / plugin freshness (verified 2026-06-07, re-verified 2026-07-08)
 
 All four repos are on the **newest stable** versions of every dependency and build plugin
 (checked with `versions:display-dependency-updates` + `display-plugin-updates` against
@@ -315,6 +315,18 @@ versions plugin does not scan: Error Prone, NullAway, Checker). The only "update
 `maven-surefire-plugin:3.6.0-M1`, `slf4j-api:2.1.0-alpha1`, Maven-core `4.0.0-rc-5` — which are
 deliberately **not** adopted, plus **jqwik 1.10.1** which is 📌 **banned** (see policy). No
 action needed.
+
+**2026-07-08 bump round (branch `claude/build-timeout-config-nzli8l`):** pitest-maven
+1.25.5→1.25.6 (all 4; every 100% gate re-run green on the new version — sb 179/179
+whole-package, BAF 65/65, jllama 295/295, plugin 565/565 — and the pin updated in
+[`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md)); jackson 2.22.0→2.22.1
+(BAF + jllama); jllama-only: kotlin 2.2.21→**2.4.0** for the `llama-kotlin` module (bytecode
+re-verified class-file major **52** / Java 8; consumer floor moves Kotlin 2.1+→2.3+ per the
+metadata one-minor-back rule — README updated), langchain4j-core 1.17.1→1.17.2,
+maven-jar-plugin 3.4.1→3.5.0 in `llama-kotlin` (drift fix — the other three repos and the
+jllama core were already on 3.5.0). Kotlin 2.4.0 was found by direct
+metadata probe — the versions plugin only offered `2.4.20-Beta1` and hid the stable 2.4.0.
+Commits — **BAF** `f1a81af` · **sb** `d0c5f47` · **plugin** `ed16a76` · **jllama** `4db9edf`.
 
 **Layered-rule sharpening (jdeps fact-based audit, done):** the compiled package
 graph of all three multi-package repos was audited with `jdeps` (bytecode, not
@@ -463,6 +475,60 @@ every push to `main`; publishing is now manual-only in all four. Commits — **B
 `a729f54`; **jllama** guard `53204f2` + flag `02c02d0`. Detection-gap lesson (recurring): the
 misroute was invisible to PR CI because publish jobs run only on `main`/tag/dispatch — same
 hardening direction as the javadoc/code-style traps (exercise the publish path earlier).
+
+**Central publish polling timeout raised to 6 h + effective-POM debug step (all 4 repos,
+2026-07-07, branch `claude/build-timeout-config-nzli8l`).** The jllama **5.0.6 release deploy
+failed** with `Polling for <deploymentId> timed out before the deployment completed`: the
+`central-publishing-maven-plugin` (0.11.0, latest) polls the Central Portal for the `PUBLISHED`
+state (`<waitUntil>published</waitUntil>`) with a default **`waitMaxTime` of 1800 s (30 min)** —
+verified from the plugin jar's `plugin.xml` (`waitMaxTime` default 1800, `waitPollingInterval`
+default 5 s). On a slow portal day the bundle **uploads fine and publishes server-side anyway**
+(`autoPublish=true` → "Deployment will publish automatically"); only the confirmation poll gives
+up, redding the job after the release is effectively out. All four repos carry the identical
+release-profile config, so the fix landed everywhere:
+- **pom.xml** — added `<waitMaxTime>21600</waitMaxTime>` (6 h) next to `waitUntil` in the release
+  profile's central-publishing configuration. The fail-loud `published` gate is kept; only the
+  patience grew. Note: 6 h coincides with GitHub's default job limit, so a genuinely stuck
+  deployment ends at the job ceiling — intended ("wait as long as the job can").
+- **publish.yml** — an informational `Show effective POM (debug)` step (`help:effective-pom`
+  with the same profile set as the adjacent deploy) inserted before the deploy step in both the
+  `publish-snapshot` and `publish-release` jobs, so the resolved publishing configuration is
+  visible in the job log. Nothing depends on it.
+Operational note: after such a timeout, **check Central before re-running** — the artifact most
+likely published despite the red job, and re-deploying an already-published release version
+fails. Commits — **jllama** `5710d5e` · **BAF** `26e6b0e` · **sb** `415a6bd` · **plugin** `f180fa6`.
+
+**Follow-up (same day, same branch): GitHub release assets no longer lost when the Central
+publish job reds.** The jllama 5.0.6 timeout also exposed a second gap: the assets *did* publish
+to Central but **never reached the GitHub release page**, because two layers both required
+publish success — (1) `github-snapshot`/`github-release(-signed)` were gated
+`if: needs.publish-*.result == 'success'`, and (2) inside the publish job the
+`Collect signed artifacts` + `upload-artifact` steps run *after* the `mvn deploy` step, so a
+deploy failure (even at the final poll, when all jars + `.asc` signatures already exist —
+GPG signing happens at `verify`, long before the Central wait) skipped collection entirely.
+Fixed identically in all four `publish.yml`: the collect + upload steps got
+`if: ${{ !cancelled() }}`, and the GitHub jobs now run on publish **success OR failure** (never
+on skipped/cancelled, so the `publish_to_central` manual gate still holds; jllama additionally
+keeps its `package-fatjars.result == 'success'` condition). Fail-loud edge preserved: if the
+deploy fails *before* signing, the collect step finds nothing, no artifact is uploaded
+(`if-no-files-found: warn` default), and the GitHub job reds on its `download-artifact` —
+nothing half-signed ever reaches the release page silently. Forward-looking only: for an
+already-red run, attach the assets manually or re-run the workflow (the duplicate Central
+deploy fails, but the GitHub job now still attaches the freshly built signed assets).
+Commits — **jllama** `ad316cb` · **BAF** `4a8b9ac` · **sb** `ce2c08f` · **plugin** `84531d2`.
+
+**Follow-up 2 (same day, same branch): `waitUntil` relaxed `published` → `validated` (all 4
+repos).** The plugin supports `uploaded` / `validated` / `published` (enum `WaitUntilRequest`;
+the plugin's own default is `VALIDATED`) — the strict `published` wait was an opt-in. Portal
+**validation** is where every real error surfaces (bad signature, missing javadoc, POM rules,
+coordinate conflicts) and completes in seconds–minutes; the subsequent publish/replication step
+runs server-side via `autoPublish=true` and, after a passed validation, effectively only
+"fails" through portal slowness — exactly the 5.0.6 false-alarm class. `validated` therefore
+keeps the fail-loud gate for genuine errors while eliminating the multi-hour wait; the
+`waitMaxTime=21600` stays as harmless headroom for the (fast) validation poll. `uploaded` was
+rejected — it would leave the job green on a validation failure while nothing publishes.
+Trade-off accepted: a green job now means "valid + will publish", not "confirmed live on
+Central". Commits — **jllama** `52ca3af` · **BAF** `a111584` · **sb** `6bb9812` · **plugin** `2899d1b`.
 
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
