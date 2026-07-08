@@ -505,6 +505,19 @@ already-red run, attach the assets manually or re-run the workflow (the duplicat
 deploy fails, but the GitHub job now still attaches the freshly built signed assets).
 Commits — **jllama** `ad316cb` · **BAF** `4a8b9ac` · **sb** `ce2c08f` · **plugin** `84531d2`.
 
+**Follow-up 2 (same day, same branch): `waitUntil` relaxed `published` → `validated` (all 4
+repos).** The plugin supports `uploaded` / `validated` / `published` (enum `WaitUntilRequest`;
+the plugin's own default is `VALIDATED`) — the strict `published` wait was an opt-in. Portal
+**validation** is where every real error surfaces (bad signature, missing javadoc, POM rules,
+coordinate conflicts) and completes in seconds–minutes; the subsequent publish/replication step
+runs server-side via `autoPublish=true` and, after a passed validation, effectively only
+"fails" through portal slowness — exactly the 5.0.6 false-alarm class. `validated` therefore
+keeps the fail-loud gate for genuine errors while eliminating the multi-hour wait; the
+`waitMaxTime=21600` stays as harmless headroom for the (fast) validation poll. `uploaded` was
+rejected — it would leave the job green on a validation failure while nothing publishes.
+Trade-off accepted: a green job now means "valid + will publish", not "confirmed live on
+Central". Commits — **jllama** `52ca3af` · **BAF** `a111584` · **sb** `6bb9812` · **plugin** `2899d1b`.
+
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 **Standing policy:** run `mvn spotless:apply` before every commit that touches `.java` — 📌 active in all 4 repos (Spotless 3.7.0 + Palantir Java Format 2.92.0; `spotless:check` is bound to `verify` and the early `code-style` CI job. See [`policies/spotless-formatting.md`](policies/spotless-formatting.md)).
