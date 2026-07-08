@@ -324,11 +324,7 @@ whole-package, BAF 65/65, jllama 295/295, plugin 565/565 — and the pin updated
 re-verified class-file major **52** / Java 8; consumer floor moves Kotlin 2.1+→2.3+ per the
 metadata one-minor-back rule — README updated), langchain4j-core 1.17.1→1.17.2,
 maven-jar-plugin 3.4.1→3.5.0 in `llama-kotlin` (drift fix — the other three repos and the
-jllama core were already on 3.5.0). **Deliberately kept back:** plugin's `net.ladenthin:llama`
-stays **5.0.4** (owner decision; 5.0.6 is live on Central) — which required a
-`checker-qual` `dependencyManagement` convergence pin in the plugin pom (its own
-checker-qual moved to 4.2.1 while llama 5.0.4 transitively brings 4.2.0; without the pin the
-enforcer's DependencyConvergence fails every build). Kotlin 2.4.0 was found by direct
+jllama core were already on 3.5.0). Kotlin 2.4.0 was found by direct
 metadata probe — the versions plugin only offered `2.4.20-Beta1` and hid the stable 2.4.0.
 Commits — **BAF** `f1a81af` · **sb** `d0c5f47` · **plugin** `ed16a76` · **jllama** `4db9edf`.
 
