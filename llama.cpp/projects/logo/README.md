@@ -22,6 +22,7 @@ with the font embedded** (default — editable, selectable) or, with
 | `generate_srcmorph_logo.py` | srcmorph generator (wordmark + blurred m-in-"morph"). |
 | `srcmorph-logo-config.json` | Config for the srcmorph logo. |
 | `preview_icon.py` | Fast **shard-icon** preview (PIL, no font) — for J-shape iteration. |
+| `generate_app_icon.py` | Square **Android app icon** from the shard-J (full set via `--android-set`); see [`app-icon/`](app-icon/README.md). |
 | `MartianMono-Regular.ttf` | Wordmark font (OFL-1.1), embedded into the SVG as base64. |
 | `*-generated.svg` / `*.png` | Generated output (embedded-font wordmark). |
 | `*-outlined.svg` | Generated output with the wordmark as `<path>` outlines (`--outline-text`) — no embedded font, no `<text>`. |
@@ -62,6 +63,9 @@ python generate_java_llama_logo.py -c java-llama-logo-config.json -o debug.svg -
 
 # Fast icon-shape preview while tuning geometry (no font needed)
 python preview_icon.py -c java-llama-logo-config.json -o preview_icon.png
+
+# Square Android app icon (full drop-in res/ set) from the shard-J
+python generate_app_icon.py -c java-llama-logo-config.json --android-set app-icon
 
 # srcmorph — same flags (including --outline-text)
 python generate_srcmorph_logo.py -c srcmorph-logo-config.json \
