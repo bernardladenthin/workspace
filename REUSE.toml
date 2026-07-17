@@ -1,5 +1,11 @@
 version = 1
 
+# Repo dotfiles that carry no inline SPDX header.
+[[annotations]]
+path = [".gitignore"]
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
 # Documentation: Markdown + the CLAUDE.md template. These carry no inline SPDX
 # headers (some contain SPDX *examples*, wrapped in REUSE-Ignore comments so the
 # examples are not mistaken for the file's own license).
@@ -8,12 +14,17 @@ path = ["**/*.md", "*.md", "**/*.template"]
 SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
 
-# Logo generator: JSON configs (no comment syntax) + generated SVG/PNG output.
+# Logo generator: JSON configs (no comment syntax) + generated SVG/PNG output,
+# including the Android app-icon set (nested res/ tree: SVG/PNG/XML).
 [[annotations]]
 path = [
     "llama.cpp/projects/logo/*.json",
     "llama.cpp/projects/logo/*.svg",
     "llama.cpp/projects/logo/*.png",
+    "llama.cpp/projects/logo/app-icon/*.svg",
+    "llama.cpp/projects/logo/app-icon/*.png",
+    "llama.cpp/projects/logo/app-icon/**/*.png",
+    "llama.cpp/projects/logo/app-icon/**/*.xml",
 ]
 SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT OR Apache-2.0"

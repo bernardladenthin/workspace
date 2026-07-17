@@ -1,0 +1,3 @@
+# Python bytecode caches from the logo/app-icon generators
+__pycache__/
+*.pyc

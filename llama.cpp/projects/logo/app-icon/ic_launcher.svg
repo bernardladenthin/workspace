@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024"
+     fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>java-llama.cpp app icon</title>
+  <desc>Square app-icon crop of the llama.cpp-style shard J.</desc>
+  <rect id="background" width="1024" height="1024" fill="#111111"/>
+  <g id="j-symbol" transform="translate(-82.082 -345.029) scale(1.565)" fill="#F65E00">
+    <path id="j-cap" d="M 325.119 335.337 Q 330.72 312 354.72 312 L 512.72 312 L 497.84 374 L 315.84 374 Z"/>
+    <path id="j-stem" d="M 432 390 L 494 390 L 422 690 L 360 690 Z"/>
+    <path id="j-hook" d="M 290.96 597 L 328.96 597 Q 352.96 597 347.359 620.337 L 308.32 783 L 268.32 783 Q 246.32 783 251.454 761.607 Z"/>
+  </g>
+</svg>
