@@ -1,7 +1,10 @@
 # Logo generators — llama.cpp-style brand family
 
 Two parameterised generators sharing one visual language (dark `#111`, Martian
-Mono wordmark, orange accent, **embedded font — no outlines**):
+Mono wordmark, orange accent). The wordmark ships two ways: as **real `<text>`
+with the font embedded** (default — editable, selectable) or, with
+`--outline-text`, as **`<path>` outlines** (font-independent, ~5× smaller — see
+[Outlined wordmarks](#outlined-wordmarks---outline-text)):
 
 - **java-llama.cpp** — a 3-shard **"J"** icon (small hook top, stem, hook
   bottom, flush right edge) in the style of the
@@ -13,14 +16,15 @@ Mono wordmark, orange accent, **embedded font — no outlines**):
 
 | File | Purpose |
 |---|---|
-| `logolib.py` | Shared base: `BaseConfig` (canvas/font fields), font embedding, config load/write, PNG export, Martian Mono metrics, `fmt`. |
+| `logolib.py` | Shared base: `BaseConfig` (canvas/font fields), font embedding, text→path outlining (`text_to_path_d`), config load/write, PNG export, Martian Mono metrics, `fmt`. |
 | `generate_java_llama_logo.py` | java-llama.cpp generator (shard-J geometry + wordmark). |
 | `java-llama-logo-config.json` | Config for the java-llama.cpp logo. |
 | `generate_srcmorph_logo.py` | srcmorph generator (wordmark + blurred m-in-"morph"). |
 | `srcmorph-logo-config.json` | Config for the srcmorph logo. |
 | `preview_icon.py` | Fast **shard-icon** preview (PIL, no font) — for J-shape iteration. |
 | `MartianMono-Regular.ttf` | Wordmark font (OFL-1.1), embedded into the SVG as base64. |
-| `*-generated.svg` / `*.png` | Generated output. |
+| `*-generated.svg` / `*.png` | Generated output (embedded-font wordmark). |
+| `*-outlined.svg` | Generated output with the wordmark as `<path>` outlines (`--outline-text`) — no embedded font, no `<text>`. |
 
 **Font:** [Martian Mono](https://github.com/evilmartians/mono) by the Martian
 Mono Project Authors (Evil Martians), licensed under the SIL Open Font License
@@ -49,17 +53,48 @@ python generate_java_llama_logo.py -c java-llama-logo-config.json \
 # Write a fresh default config to edit
 python generate_java_llama_logo.py --write-default-config myconfig.json
 
+# Font-independent wordmark: <path> outlines instead of embedded font + <text>
+python generate_java_llama_logo.py -c java-llama-logo-config.json \
+    --outline-text -o java-llama-cpp-outlined.svg
+
 # Construction anchors overlay
 python generate_java_llama_logo.py -c java-llama-logo-config.json -o debug.svg --debug
 
 # Fast icon-shape preview while tuning geometry (no font needed)
 python preview_icon.py -c java-llama-logo-config.json -o preview_icon.png
 
-# srcmorph — same flags
+# srcmorph — same flags (including --outline-text)
 python generate_srcmorph_logo.py -c srcmorph-logo-config.json \
     -o srcmorph-generated.svg --png srcmorph.png
+python generate_srcmorph_logo.py -c srcmorph-logo-config.json \
+    --outline-text -o srcmorph-outlined.svg
 python generate_srcmorph_logo.py --write-default-config srcmorph-logo-config.json
 ```
+
+## Outlined wordmarks (`--outline-text`)
+
+By default the wordmark is real `<text>` with `MartianMono-Regular.ttf`
+base64-embedded via `@font-face`. That blob is ~64 KB — about 98% of each
+generated SVG — because it ships the *whole* font. `--outline-text` instead
+converts only the glyphs actually used into `<path>` outlines (via fontTools'
+`text_to_path_d` in `logolib.py`), so the file drops to ~13–16 KB and needs no
+font at all. The `srcmorph` blur is preserved: the `feGaussianBlur` filters move
+from the `<text>` onto the outlined groups (filters work on any element).
+
+| | Embedded font (default) | `--outline-text` |
+|---|---|---|
+| Wordmark markup | `<text>` + `@font-face` | `<path>` only |
+| Self-contained / portable | ✅ | ✅ |
+| Text selectable / restyleable / editable | ✅ | ❌ (frozen geometry) |
+| Font binary redistributed in the file | yes (OFL-1.1, permitted) | no |
+| Survives renderers that strip `<style>`/`@font-face` | ❌ | ✅ |
+| File size | ~65–71 KB | ~13–16 KB |
+
+Use the **default** when the SVG is a working master you may re-letter or when
+selectable text matters; use **`--outline-text`** for distribution — smaller,
+font-independent, and robust in sanitizing renderers. Outlining needs
+[`fonttools`](https://pypi.org/project/fonttools/) (`pip install fonttools`); the
+default text mode does not.
 
 ## How the java-llama.cpp icon is built
 
@@ -106,8 +141,9 @@ manually.
 
 ### Wordmark
 
-`java-` is drawn in `orange`, `llama.cpp` in `white`, as **real `<text>`** with
-the font embedded (`embed_font: true`) — nothing is converted to outlines.
+`java-` is drawn in `orange`, `llama.cpp` in `white`. By default it is **real
+`<text>`** with the font embedded (`embed_font: true`); pass `--outline-text` to
+emit `<path>` outlines instead (see [Outlined wordmarks](#outlined-wordmarks---outline-text)).
 
 ## How the srcmorph "m" is built
 

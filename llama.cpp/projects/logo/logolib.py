@@ -54,6 +54,65 @@ def clamp01(v: float) -> float:
     return max(0.0, min(1.0, v))
 
 
+_FONT_CACHE: dict = {}
+
+
+def _load_font(font_path: str):
+    """Load (and cache) a ``TTFont`` for outline extraction."""
+    path = Path(font_path) if font_path else DEFAULT_FONT
+    key = str(path)
+    if key not in _FONT_CACHE:
+        if not path.exists():
+            raise SystemExit(f"Font not found for outlining: {path}")
+        from fontTools.ttLib import TTFont  # lazy: only needed for --outline-text
+
+        _FONT_CACHE[key] = TTFont(key)
+    return _FONT_CACHE[key]
+
+
+def text_to_path_d(
+    text: str,
+    font_size: float,
+    x0: float,
+    baseline: float,
+    letter_spacing: float = 0.0,
+    font_path: str = "",
+) -> "tuple[str, float]":
+    """Convert a text run to one SVG path ``d`` string using the font outlines.
+
+    Each glyph outline is baked into a shared path via a per-glyph affine that
+    scales font units to user units and flips y (font y-up -> SVG y-down):
+    ``(s, 0, 0, -s, x, baseline)`` with ``s = font_size / unitsPerEm``. Advances
+    come from the font's ``hmtx`` (monospaced 700/1000 for Martian Mono), so the
+    glyphs land on exactly the same x-positions the ``<text>`` layout produces.
+
+    Returns ``(d, end_x)`` where ``end_x`` is the pen position after the run, so
+    callers can chain differently-coloured runs (e.g. ``java-`` then ``llama.cpp``).
+    """
+    from fontTools.pens.svgPathPen import SVGPathPen
+    from fontTools.pens.transformPen import TransformPen
+
+    font = _load_font(font_path)
+    upm = font["head"].unitsPerEm
+    cmap = font.getBestCmap()
+    glyph_set = font.getGlyphSet()
+    hmtx = font["hmtx"]
+    scale = font_size / upm
+
+    pen = SVGPathPen(glyph_set)
+    x = x0
+    for ch in text:
+        gname = cmap.get(ord(ch))
+        if gname is None:
+            # No glyph for this codepoint: advance by the monospace default so
+            # spacing stays intact even if the mark is missing.
+            x += (MM_ADVANCE / upm) * font_size + letter_spacing
+            continue
+        glyph_set[gname].draw(TransformPen(pen, (scale, 0, 0, -scale, x, baseline)))
+        x += hmtx[gname][0] * scale + letter_spacing
+    return pen.getCommands(), x
+
+
 def font_face_rule(font_path: str, family: str, weight: int) -> str:
     """Return the bare ``@font-face { ... }`` rule with the font base64-embedded.
 
