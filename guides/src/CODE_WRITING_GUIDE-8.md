@@ -250,6 +250,7 @@ sibling repos have zero usages.
 Every source file across every sibling repo must include the SPDX-format
 license header:
 
+<!-- REUSE-IgnoreStart -->
 ```java
 // SPDX-FileCopyrightText: <YEAR-RANGE> Bernard Ladenthin <bernard.ladenthin@gmail.com>
 //
@@ -276,6 +277,8 @@ Rules:
   //
   // SPDX-License-Identifier: MIT
   ```
+
+<!-- REUSE-IgnoreEnd -->
 
 REUSE-tool compliance is enforced via the `reuse.yml` GitHub workflow
 in every repo.

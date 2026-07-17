@@ -34,6 +34,7 @@
 
 Every test file **must** start with the SPDX-format license header:
 
+<!-- REUSE-IgnoreStart -->
 ```java
 // SPDX-FileCopyrightText: <YEAR-RANGE> Bernard Ladenthin <bernard.ladenthin@gmail.com>
 //
@@ -47,6 +48,8 @@ package net.ladenthin.<repo>;
 - jllama uses `SPDX-License-Identifier: MIT` with a dual-copyright
   line (Konstantin Herud upstream attribution); everywhere else is
   `Apache-2.0`.
+
+<!-- REUSE-IgnoreEnd -->
 
 REUSE-tool compliance is enforced in CI in every repo.
 
