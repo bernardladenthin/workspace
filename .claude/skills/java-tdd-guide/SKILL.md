@@ -6,7 +6,7 @@ description: Bernard Ladenthin's personal Java Test-Driven Development skill —
 # Java TDD Skill — Test-Driven Development
 
 **Author:** Bernard Ladenthin
-**License:** Apache 2.0
+**License:** MIT OR Apache-2.0
 
 This is the canonical Java TDD skill for the four sibling repos
 (`BitcoinAddressFinder`, `streambuffer`, `java-llama.cpp`,
@@ -74,6 +74,7 @@ Repeat for each behaviour increment.
 
 Every test file **must** start with the SPDX-format license header:
 
+<!-- REUSE-IgnoreStart -->
 ```java
 // SPDX-FileCopyrightText: <YEAR-RANGE> Bernard Ladenthin <bernard.ladenthin@gmail.com>
 //
@@ -88,6 +89,8 @@ package net.ladenthin.<repo>;
 - jllama uses MIT (`SPDX-License-Identifier: MIT`) with a dual-copyright
   line for the upstream Konstantin Herud attribution; everywhere else
   is Apache-2.0.
+
+<!-- REUSE-IgnoreEnd -->
 
 ### Class declaration
 

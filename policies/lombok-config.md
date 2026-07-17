@@ -29,6 +29,7 @@ load-bearing — none of them is optional.
 
 Copy verbatim into `<repo-root>/lombok.config`:
 
+<!-- REUSE-IgnoreStart -->
 ```
 # SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
 #
@@ -86,6 +87,7 @@ lombok.anyConstructor.addConstructorProperties = false
 # Allow Lombok-style accessor patterns without warnings.
 lombok.accessors.flagUsage = ALLOW
 ```
+<!-- REUSE-IgnoreEnd -->
 
 ## Why each setting earns its keep
 

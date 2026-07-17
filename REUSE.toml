@@ -1,0 +1,26 @@
+version = 1
+
+# Documentation: Markdown + the CLAUDE.md template. These carry no inline SPDX
+# headers (some contain SPDX *examples*, wrapped in REUSE-Ignore comments so the
+# examples are not mistaken for the file's own license).
+[[annotations]]
+path = ["**/*.md", "*.md", "**/*.template"]
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
+# Logo generator: JSON configs (no comment syntax) + generated SVG/PNG output.
+[[annotations]]
+path = [
+    "llama.cpp/projects/logo/*.json",
+    "llama.cpp/projects/logo/*.svg",
+    "llama.cpp/projects/logo/*.png",
+]
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
+# Bundled Martian Mono font (Regular weight) — third-party, kept under its own
+# OFL-1.1 license (not dual-licensed).
+[[annotations]]
+path = "llama.cpp/projects/logo/MartianMono-Regular.ttf"
+SPDX-FileCopyrightText = "2021 The Martian Mono Project Authors (https://github.com/evilmartians/mono)"
+SPDX-License-Identifier = "OFL-1.1"

@@ -69,4 +69,4 @@ scope alongside the active sibling repo.
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+MIT OR Apache-2.0 — dual-licensed at your option; see [LICENSE](LICENSE) and the [`LICENSES/`](LICENSES) folder.
