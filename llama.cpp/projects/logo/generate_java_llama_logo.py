@@ -103,6 +103,10 @@ class LogoConfig(BaseConfig):
     java_text: str = "java-"
     llama_text: str = "llama.cpp"
 
+    # Emit the wordmark as <path> outlines instead of <text> + embedded font.
+    # Font/text-independent: no @font-face, no <text>, smaller file, license-clean.
+    outline_text: bool = False
+
     # Debug layer (anchors + seam lines)
     debug: bool = False
 
@@ -318,16 +322,42 @@ def build_svg(c: LogoConfig) -> str:
             '\n    <g id="debug-guides">\n' + "\n".join(lines) + "\n    </g>"
         )
 
-    font_family = escape(c.font_family, {'"': "&quot;"})
-    java_text = escape(c.java_text)
-    llama_text = escape(c.llama_text)
-    style = font_face_style(c)
+    if c.outline_text:
+        style = ""
+        desc = "Shard J icon in the llama.cpp style with an outlined wordmark."
+        java_d, split_x = logolib.text_to_path_d(
+            c.java_text, c.font_size, text_x, text_baseline, c.letter_spacing, c.font_path
+        )
+        llama_d, _ = logolib.text_to_path_d(
+            c.llama_text, c.font_size, split_x, text_baseline, c.letter_spacing, c.font_path
+        )
+        wordmark = (
+            f'  <g id="wordmark">\n'
+            f'    <path id="java-part" d="{java_d}" fill="{c.orange}"/>\n'
+            f'    <path id="llama-part" d="{llama_d}" fill="{c.white}"/>\n'
+            f'  </g>'
+        )
+    else:
+        style = font_face_style(c)
+        desc = "Shard J icon in the llama.cpp style with an embedded-font wordmark."
+        font_family = escape(c.font_family, {'"': "&quot;"})
+        java_text = escape(c.java_text)
+        llama_text = escape(c.llama_text)
+        wordmark = (
+            f'  <text id="wordmark" x="{fmt(text_x)}" y="{fmt(text_baseline)}"\n'
+            f'        font-family="{font_family}, monospace"\n'
+            f'        font-size="{fmt(c.font_size)}px"\n'
+            f'        font-weight="{c.font_weight}"\n'
+            f'        letter-spacing="{fmt(c.letter_spacing)}px">'
+            f'<tspan id="java-part" fill="{c.orange}">{java_text}</tspan>'
+            f'<tspan id="llama-part" fill="{c.white}">{llama_text}</tspan></text>'
+        )
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <svg width="{fmt(c.width)}" height="{fmt(c.height)}" viewBox="0 0 {fmt(c.width)} {fmt(c.height)}"
      fill="none" xmlns="http://www.w3.org/2000/svg">
   <title>java-llama.cpp cover</title>
-  <desc>Shard J icon in the llama.cpp style with an embedded-font wordmark.</desc>{style}
+  <desc>{desc}</desc>{style}
 
   <rect id="background" width="{fmt(c.width)}" height="{fmt(c.height)}" fill="{c.background}"/>
 
@@ -335,11 +365,7 @@ def build_svg(c: LogoConfig) -> str:
 {icon_body}{debug_layer}
   </g>
 
-  <text id="wordmark" x="{fmt(text_x)}" y="{fmt(text_baseline)}"
-        font-family="{font_family}, monospace"
-        font-size="{fmt(c.font_size)}px"
-        font-weight="{c.font_weight}"
-        letter-spacing="{fmt(c.letter_spacing)}px"><tspan id="java-part" fill="{c.orange}">{java_text}</tspan><tspan id="llama-part" fill="{c.white}">{llama_text}</tspan></text>
+{wordmark}
 </svg>
 """
 
@@ -350,6 +376,8 @@ def main() -> None:
     parser.add_argument("-c", "--config", type=Path, help="JSON file overriding defaults")
     parser.add_argument("--write-default-config", type=Path, help="Write the default JSON config and exit")
     parser.add_argument("--debug", action="store_true", help="Render construction anchors")
+    parser.add_argument("--outline-text", action="store_true",
+                        help="Emit the wordmark as <path> outlines (no embedded font, no <text>)")
     parser.add_argument("--png", type=Path, help="Also rasterise a PNG (needs 'pip install resvg-py')")
     parser.add_argument("--png-width", type=int, default=2250, help="PNG width in px")
     args = parser.parse_args()
@@ -361,6 +389,8 @@ def main() -> None:
     config = logolib.load_config(LogoConfig, args.config)
     if args.debug:
         config = replace(config, debug=True)
+    if args.outline_text:
+        config = replace(config, outline_text=True)
 
     svg = build_svg(config)
     args.output.write_text(svg, encoding="utf-8")

@@ -59,6 +59,10 @@ class SrcmorphConfig(BaseConfig):
     text_x: float = 1500         # manual mode
     text_baseline: float = 1500  # manual mode
 
+    # Emit the wordmark as <path> outlines instead of <text> + embedded font.
+    # The blur filters move onto the outlined groups, so the morph is preserved.
+    outline_text: bool = False
+
 
 def font_face_style(c: SrcmorphConfig) -> str:
     if not c.embed_font:
@@ -83,6 +87,12 @@ def morph_glyph(c: SrcmorphConfig, glyph: str, gx: float, baseline: float):
     max_blur = c.max_blur_em * F
     n = max(2, c.m_layers)
     span = 1.0 / (n - 1)
+
+    glyph_d = None
+    if c.outline_text:
+        glyph_d, _ = logolib.text_to_path_d(
+            glyph, F, gx, baseline, c.letter_spacing, c.font_path
+        )
 
     defs, body = [], []
     for i in range(n):
@@ -113,11 +123,16 @@ def morph_glyph(c: SrcmorphConfig, glyph: str, gx: float, baseline: float):
             f'<rect width="{fmt(c.width)}" height="{fmt(c.height)}" fill="url(#mg{i})"/></mask>'
         )
         op = c.fade_to + (1.0 - c.fade_to) * p   # left dissolves, right solid
-        body.append(
-            f'<g mask="url(#mm{i})" opacity="{fmt(op)}">'
-            f'<text x="{fmt(gx)}" y="{fmt(baseline)}" font-family="{c.font_family}, monospace" '
-            f'font-size="{fmt(F)}" fill="{c.morph_color}" filter="url(#mf{i})">{glyph}</text></g>'
-        )
+        if c.outline_text:
+            inner = (
+                f'<path d="{glyph_d}" fill="{c.morph_color}" filter="url(#mf{i})"/>'
+            )
+        else:
+            inner = (
+                f'<text x="{fmt(gx)}" y="{fmt(baseline)}" font-family="{c.font_family}, monospace" '
+                f'font-size="{fmt(F)}" fill="{c.morph_color}" filter="url(#mf{i})">{glyph}</text>'
+            )
+        body.append(f'<g mask="url(#mm{i})" opacity="{fmt(op)}">{inner}</g>')
     return "".join(defs), "".join(body)
 
 
@@ -151,15 +166,25 @@ def build_svg(c: SrcmorphConfig) -> str:
     m_x = text_x + n_src * adv + space_before
     tail_x = m_x + adv + space_after
 
-    common = (
-        f'font-family="{c.font_family}, monospace" font-size="{fmt(c.font_size)}px" '
-        f'font-weight="{c.font_weight}" letter-spacing="{fmt(c.letter_spacing)}px"'
-    )
-    src_el = f'<text id="src-part" x="{fmt(src_x)}" y="{fmt(baseline)}" {common} fill="{c.src_color}">{c.src_text}</text>'
-    tail_el = f'<text id="orph-part" x="{fmt(tail_x)}" y="{fmt(baseline)}" {common} fill="{c.morph_color}">{tail}</text>'
+    if c.outline_text:
+        src_d, _ = logolib.text_to_path_d(
+            c.src_text, c.font_size, src_x, baseline, c.letter_spacing, c.font_path
+        )
+        tail_d, _ = logolib.text_to_path_d(
+            tail, c.font_size, tail_x, baseline, c.letter_spacing, c.font_path
+        )
+        src_el = f'<path id="src-part" d="{src_d}" fill="{c.src_color}"/>'
+        tail_el = f'<path id="orph-part" d="{tail_d}" fill="{c.morph_color}"/>'
+    else:
+        common = (
+            f'font-family="{c.font_family}, monospace" font-size="{fmt(c.font_size)}px" '
+            f'font-weight="{c.font_weight}" letter-spacing="{fmt(c.letter_spacing)}px"'
+        )
+        src_el = f'<text id="src-part" x="{fmt(src_x)}" y="{fmt(baseline)}" {common} fill="{c.src_color}">{c.src_text}</text>'
+        tail_el = f'<text id="orph-part" x="{fmt(tail_x)}" y="{fmt(baseline)}" {common} fill="{c.morph_color}">{tail}</text>'
     mdefs, mbody = morph_glyph(c, m_char, m_x, baseline)
 
-    style = font_face_style(c)
+    style = "" if c.outline_text else font_face_style(c)
     defs = f"<style>{style}</style>{mdefs}" if style else mdefs
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -187,6 +212,8 @@ def main() -> None:
     parser.add_argument("--write-default-config", type=Path, help="Write the default JSON config and exit")
     parser.add_argument("--png", type=Path, help="Also rasterise a PNG (needs 'pip install resvg-py')")
     parser.add_argument("--png-width", type=int, default=2250)
+    parser.add_argument("--outline-text", action="store_true",
+                        help="Emit the wordmark as <path> outlines (no embedded font, no <text>)")
     args = parser.parse_args()
 
     if args.write_default_config:
@@ -194,6 +221,9 @@ def main() -> None:
         return
 
     config = logolib.load_config(SrcmorphConfig, args.config)
+    if args.outline_text:
+        from dataclasses import replace
+        config = replace(config, outline_text=True)
     svg = build_svg(config)
     args.output.write_text(svg, encoding="utf-8")
 
