@@ -30,7 +30,35 @@ Appended to the same `<argLine>`:
 -XX:+HeapDumpOnOutOfMemoryError   # write a heap dump on OOM …
 -XX:HeapDumpPath=.                # … into the workspace root (*.hprof)
 -XX:ErrorFile=hs_err_pid%p.log    # JVM crash log lands at a known path
+-XX:+EnableDynamicAgentLoading    # silence the JDK 21 dynamic-agent warning (see § 2.1)
 ```
+
+### § 2.1 `-XX:+EnableDynamicAgentLoading` — dynamic-agent warning guard (all 4 repos)
+
+On **JDK 21+** the JVM prints a 3-line `WARNING: A Java agent has been loaded
+dynamically (…byte-buddy-agent-*.jar)` the first time a test **self-attaches** a
+Java agent at runtime (JEP 451; no static `-javaagent` configured). The trigger
+differs per repo but is always **byte-buddy-agent**:
+
+- **BAF** — Mockito's inline mock maker self-attaches byte-buddy on first mock.
+- **jllama / sb / plugin** — **Lincheck** self-attaches byte-buddy for its
+  model-checking bytecode instrumentation (`*LincheckTest` runs in the default
+  `mvn test`).
+
+The warning is written to the fork's **native stderr**, *outside* Surefire's
+wrapped `System.err`. Harmless on its own — but the native write can
+**intermittently corrupt Surefire's encoded fork channel**, surfacing as
+`Corrupted channel by directly writing to native stream` followed by a **bogus**
+`There was a timeout in the fork` (a fully green test run reported as a build
+failure). `-XX:+EnableDynamicAgentLoading` pre-authorizes the attach, so the
+native write — and the race — disappear.
+
+Frequency: the **warning** appears on essentially every run (frequent); the
+**channel corruption** is a rare race — BAF hit it under Mockito across 2000+
+tests, while the Lincheck repos print the warning but rarely corrupt — so the
+flag is both log-hygiene and cheap insurance. It is a test-fork `-XX` flag only
+and is **not** part of the `--add-opens`/`--add-exports` set enforced by BAF's
+`JvmModuleFlagConsistencyTest`.
 
 ### `@{argLine}` is mandatory where JaCoCo is active (all 4 repos)
 
@@ -41,10 +69,10 @@ replacement) so the JaCoCo agent that `prepare-agent` injects into the
 Two equivalent shapes are in use (both correct):
 
 - **siblings** (jllama, sb, plugin): one surefire `<configuration>`:
-  `<argLine>@{argLine} -Xmx2g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -XX:ErrorFile=hs_err_pid%p.log</argLine>`
+  `<argLine>@{argLine} -Xmx2g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -XX:ErrorFile=hs_err_pid%p.log -XX:+EnableDynamicAgentLoading</argLine>`
 - **BAF**: the flags live in an `<argLine>` *property* (which also carries the
   lmdbjava `--add-opens`/`--add-exports` set), and surefire config consumes it
-  via `<argLine>@{argLine}</argLine>`.
+  via `<argLine>@{argLine} -XX:+EnableDynamicAgentLoading</argLine>`.
 
 ## 3. CI per test job (every `mvn test`/`verify` job in `publish.yml`)
 
@@ -94,10 +122,10 @@ dependencies; do **not** "synchronize" them blindly:
 
 | Repo | surefire argLine | CI memory steps + crash upload |
 |---|---|---|
-| **BAF** | `<argLine>` property: `-Xmx2g … -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -XX:ErrorFile=hs_err_pid%p.log`; surefire `@{argLine}` | `test` matrix (Linux-guarded) + pocl job; uploads include `*.hprof` |
-| **jllama** | `<argLine>@{argLine} -Xmx2g -XX:ErrorFile=… -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.</argLine>` | already had memory steps + crash upload; `mvn -e` added |
-| **sb** | new surefire `<argLine>@{argLine} -Xmx2g -XX:…</argLine>` (pluginManagement) | `test` job: memory before/after + crash upload added |
-| **plugin** | new surefire `<argLine>@{argLine} -Xmx2g -XX:…</argLine>` (pluginManagement) | `test` job: memory before/after + crash upload added |
+| **BAF** | `<argLine>` property: `-Xmx2g … -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -XX:ErrorFile=hs_err_pid%p.log`; surefire `@{argLine} -XX:+EnableDynamicAgentLoading` | `test` matrix (Linux-guarded) + pocl job; uploads include `*.hprof` |
+| **jllama** | `<argLine>@{argLine} -Xmx2g -XX:ErrorFile=… -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -XX:+EnableDynamicAgentLoading</argLine>` | already had memory steps + crash upload; `mvn -e` added |
+| **sb** | surefire `<argLine>@{argLine} -Xmx2g -XX:… -XX:+EnableDynamicAgentLoading</argLine>` | `test` job: memory before/after + crash upload added |
+| **plugin** (srcmorph reactor) | surefire `<argLine>@{argLine} -Xmx2g -XX:… -XX:+EnableDynamicAgentLoading</argLine>` in each module pom (`srcmorph`, `srcmorph-cli`, `srcmorph-maven-plugin`) | `test` job: memory before/after + crash upload added |
 
 ## Maintenance
 
