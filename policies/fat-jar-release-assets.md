@@ -70,8 +70,32 @@ attached). Symptom of forgetting: a tag release with `assets: []`.
   jars with a **byte-identical** `.github/sign-fatjars.sh` (dual-licensed `MIT OR Apache-2.0`, the
   cross-repo-synced-file convention) — it imports the key into an ephemeral keyring and produces a
   verified detached armored `.asc` for every `*-jar-with-dependencies*.jar` in a directory. **Sync
-  any edit to both copies** (same discipline as the byte-identical `verify-signing-key` job).
+  any edit to both copies, and update the recorded checksum below** (same discipline as the
+  byte-identical `verify-signing-key` job).
   BAF does **not** use it: its single fat jar is an *attached* Maven artifact, so `maven-gpg-plugin`
   signs it directly during the `verify` run.
 - **Signature convention.** New fat-jar-shipping surfaces should sign with a detached armored
   `.asc` using the `maven-central`-scoped key, in a dispatch-gated job, reusing `sign-fatjars.sh`.
+
+## Drift check — `sign-fatjars.sh` checksum
+
+The shared script must be **byte-identical** in both repos. Its canonical SHA-256 is recorded here
+so the two copies can be verified from the workspace repo without diffing across trees:
+
+```
+sign-fatjars.sh  SHA-256: 3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36
+  ../java-llama.cpp/.github/sign-fatjars.sh
+  ../srcmorph/.github/sign-fatjars.sh
+```
+
+Verify (run from the `workspace` repo root — the siblings are checked out next to it):
+
+```bash
+EXPECT=3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36
+sha256sum ../java-llama.cpp/.github/sign-fatjars.sh ../srcmorph/.github/sign-fatjars.sh
+# both hashes must equal $EXPECT. A mismatch means either the copies have drifted
+# (re-sync them) or the script was intentionally edited (update BOTH copies AND this hash).
+```
+
+On any intentional edit to `sign-fatjars.sh`, update both copies **and** the hash above in the same
+change set.
