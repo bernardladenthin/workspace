@@ -48,14 +48,22 @@ Files kept **byte-identical across repos** (sync any edit to every copy AND the 
 | `.github/signing-selftest/settings.gradle.kts` | `9b2ea5b5ff8d48607e26e4e211ad6d496f7660e71c84e42caaa82b84f7001710` | all 4 repos |
 | `.github/sign-fatjars.sh` | `3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36` | jllama + srcmorph (see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md)) |
 | `lombok.config` (jllama: `llama/lombok.config`) | `42f1842270af691bdfe561355bee4eb9ae326383f1852db19763abb888d6b90e` | the 3 Lombok repos: jllama + BAF + srcmorph (sb has no Lombok). Canonical content in [`policies/lombok-config.md`](policies/lombok-config.md) |
+| `.github/ISSUE_TEMPLATE/bug_report.md` | `7232b092d3ba49b97bee7b539aaf6ee4c698e86bd3d4dd256e8ae2f85f653ee9` | all 4 repos |
+| `.github/ISSUE_TEMPLATE/feature_request.md` | `0f08122e597f93dbbdc9c80e88984b4bf4738951d5902813df3d4640cdb11bac` | all 4 repos |
+| `.github/PULL_REQUEST_TEMPLATE.md` | `ebfcc0adf59f5858bbe4dc077c906304a197f72a55256f0d5aac669bee5e871f` | all 4 repos |
 
 Verify from the `workspace` repo root (siblings checked out alongside):
 
 ```bash
+# Repo names are listed explicitly in each {…} — bash runs brace expansion BEFORE
+# variable expansion, so a $var inside {…} would not expand into the repo list.
 sha256sum ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/build.gradle.kts \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/settings.gradle.kts \
           ../{java-llama.cpp,srcmorph}/.github/sign-fatjars.sh \
-          ../java-llama.cpp/llama/lombok.config ../{BitcoinAddressFinder,srcmorph}/lombok.config
+          ../java-llama.cpp/llama/lombok.config ../{BitcoinAddressFinder,srcmorph}/lombok.config \
+          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/bug_report.md \
+          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/feature_request.md \
+          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/PULL_REQUEST_TEMPLATE.md
 # each file's copies must all show the hash in the table above; a mismatch = drift (re-sync) or an
 # intentional edit (update every copy AND this table in the same change set).
 ```
