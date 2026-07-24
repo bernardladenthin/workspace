@@ -31,6 +31,7 @@ policies/spotless-formatting.md          Spotless/Palantir formatting; run spotl
 policies/jqwik-prompt-injection.md       jqwik pin + incident note
 policies/lombok-config.md                Canonical lombok.config content for Lombok-using repos
 policies/jpms-module-descriptor.md       module-info compile/javadoc/test interactions + the Java-bump javadoc trap
+policies/fat-jar-release-assets.md       fat jar (jar-with-dependencies) = GitHub-Release asset only, never Central, signed .asc
 policies/code-quality-todos.md           Recurring per-repo audits
 policies/ci-test-diagnostics.md          Test-JVM heap (-Xmx2g, no -Xms) + crash-dump CI standard
 policies/pit-mutation-testing.md         PIT version/threshold + the test-compile/@{argLine} invocation rule
