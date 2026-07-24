@@ -79,23 +79,9 @@ attached). Symptom of forgetting: a tag release with `assets: []`.
 
 ## Drift check — `sign-fatjars.sh` checksum
 
-The shared script must be **byte-identical** in both repos. Its canonical SHA-256 is recorded here
-so the two copies can be verified from the workspace repo without diffing across trees:
-
-```
-sign-fatjars.sh  SHA-256: 3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36
-  ../java-llama.cpp/.github/sign-fatjars.sh
-  ../srcmorph/.github/sign-fatjars.sh
-```
-
-Verify (run from the `workspace` repo root — the siblings are checked out next to it):
-
-```bash
-EXPECT=3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36
-sha256sum ../java-llama.cpp/.github/sign-fatjars.sh ../srcmorph/.github/sign-fatjars.sh
-# both hashes must equal $EXPECT. A mismatch means either the copies have drifted
-# (re-sync them) or the script was intentionally edited (update BOTH copies AND this hash).
-```
-
-On any intentional edit to `sign-fatjars.sh`, update both copies **and** the hash above in the same
+The shared script must be **byte-identical** in both repos (jllama + srcmorph). Its canonical
+SHA-256 and a one-line verify command live in the single consolidated drift-check table —
+**"Cross-repo byte-identical files — checksum drift check"** in
+[`../crossrepostatus.md`](../crossrepostatus.md) (alongside the `signing-selftest` `.kts` files).
+On any intentional edit to `sign-fatjars.sh`, update both copies **and** that table in the same
 change set.

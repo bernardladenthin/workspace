@@ -36,7 +36,27 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
 | `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing` | All 4 ✅ |
 | GPG signing-key preflight (`verify-signing-key` job) | All 4 wired **byte-identically** in `publish.yml`: a standalone job (**no `needs:`**, runs in parallel at pipeline start on **every** trigger) under `environment: maven-central` that reproduces what **maven-gpg-plugin** does at deploy time — import the key into an ephemeral keyring, assert it is present / not expired / signing-capable, then a **passphrase-unlock → detached-sign → verify roundtrip** — so a bad/expired key or wrong passphrase reds in ~20s instead of failing the publish stage. **Prints only PUBLIC key metadata** (key id, fingerprint, owner UID, algo, created/expiry); passphrase fed on **fd 3** (never argv/logs), `set -x` never enabled, passphrase `::add-mask::`ed. **Red-by-design** on refs where the secret is not delivered (fork PRs / other contributors' branches — the `maven-central` environment gate rejects them *before a runner is assigned*, so `runner_id: 0` + ~2s failure is the gate, not a runner shortage). Verified green on jllamacpp-ai-index `main` 2026-07-09 (key `ED0D9440BF148ED2`, "Good signature"). Added 2026-07-09, branch `claude/android-signing-failure-q7zml9`. A companion **Gradle/BouncyCastle** preflight is likewise byte-identical in all 4 — see the next row. |
-| GPG signing-key preflight — Gradle/BouncyCastle (`verify-signing-key-gradle` job) | All 4 wired **byte-identically** (same job + the throwaway `.github/signing-selftest/` Gradle project). Companion to the gpg row above: it drives **Gradle's `signing` plugin + `useInMemoryPgpKeys` (BouncyCastle)** — the path any Gradle-based publish (e.g. an Android AAR) uses — which is a **stricter** armored-key parser than gpg, so it catches key/format problems gpg tolerates (it is exactly what surfaced the primary-vs-signing-subkey `null PGPPrivateKey`). It signs a throwaway Zip (**no repo build involved**), so it runs even in repos that don't publish via Gradle yet — **"prepared for Gradle"**, uniform-by-choice (identical pipelines preferred over minimalism). Same standalone / no-`needs:` / parallel / `environment: maven-central` / red-by-design / no-secret-material properties as the gpg row; selects the signing subkey via `MAVEN_GPG_KEY_ID` (env secret `GPG_KEY_ID = 07D2D767`, a public key id). Added 2026-07-09, branch `claude/android-signing-failure-q7zml9`. |
+| GPG signing-key preflight — Gradle/BouncyCastle (`verify-signing-key-gradle` job) | All 4 wired **byte-identically** (same job + the throwaway `.github/signing-selftest/` Gradle project). Companion to the gpg row above: it drives **Gradle's `signing` plugin + `useInMemoryPgpKeys` (BouncyCastle)** — the path any Gradle-based publish (e.g. an Android AAR) uses — which is a **stricter** armored-key parser than gpg, so it catches key/format problems gpg tolerates (it is exactly what surfaced the primary-vs-signing-subkey `null PGPPrivateKey`). It signs a throwaway Zip (**no repo build involved**), so it runs even in repos that don't publish via Gradle yet — **"prepared for Gradle"**, uniform-by-choice (identical pipelines preferred over minimalism). Same standalone / no-`needs:` / parallel / `environment: maven-central` / red-by-design / no-secret-material properties as the gpg row; selects the signing subkey via `MAVEN_GPG_KEY_ID` (env secret `GPG_KEY_ID = 07D2D767`, a public key id). Added 2026-07-09, branch `claude/android-signing-failure-q7zml9`. **The `.github/signing-selftest/` `.kts` files are now *literally* byte-identical in all 4** (dual-licensed `MIT OR Apache-2.0`) — until 2026-07-24 the body matched but the SPDX header drifted (jllama `MIT`, the others `Apache-2.0`); unified + `streambuffer/LICENSES/MIT.txt` added. Checksums recorded in the drift-check below. |
+
+### Cross-repo byte-identical files — checksum drift check
+
+Files kept **byte-identical across repos** (sync any edit to every copy AND the hash here):
+
+| File | SHA-256 | Copies |
+|---|---|---|
+| `.github/signing-selftest/build.gradle.kts` | `ab45f5c102b47dd16c325d4d9c283d158ba90c05f484eac45b2767885c4462f9` | all 4 repos |
+| `.github/signing-selftest/settings.gradle.kts` | `9b2ea5b5ff8d48607e26e4e211ad6d496f7660e71c84e42caaa82b84f7001710` | all 4 repos |
+| `.github/sign-fatjars.sh` | `3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36` | jllama + srcmorph (see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md)) |
+
+Verify from the `workspace` repo root (siblings checked out alongside):
+
+```bash
+sha256sum ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/build.gradle.kts \
+          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/settings.gradle.kts \
+          ../{java-llama.cpp,srcmorph}/.github/sign-fatjars.sh
+# each file's copies must all show the hash in the table above; a mismatch = drift (re-sync) or an
+# intentional edit (update every copy AND this table in the same change set).
+```
 
 ## Deliberate non-parity (NOT drift)
 
