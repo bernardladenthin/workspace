@@ -54,7 +54,7 @@ attached). Symptom of forgetting: a tag release with `assets: []`.
 | Repo | Fat jar(s) | Kept off Central by | Built + signed by |
 |---|---|---|---|
 | **jllama** (`java-llama.cpp`) | Multi-backend **`all-<os>-<arch>`** jars (default CPU + every GPU backend of that OS/arch in `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` subdirs, runtime-selected by `LlamaLoader` via the `jllama-backends.txt` manifest) + the default CPU fat jar | The Central `deploy` runs **without** the `assembly` profile; the fat jars are assembled by a separate `package-fatjars` job | `.github/package-fatjars.sh` assembles them; `.github/sign-fatjars.sh` GPG-signs each (`.asc`) in the `github-release-signed` / `github-snapshot` attach jobs (which declare `environment: maven-central` + `checkout`). `.sha256` **and** `.asc`. |
-| **srcmorph** (`srcmorph-cli`) | One CLI fat jar **per `net.ladenthin:llama` classifier** (default all-platform CPU + one per GPU classifier: `cuda13-*`, `vulkan-*`, `opencl-*`, `rocm-*`, `sycl-*`, `openvino-*`, `msvc-windows`) named `srcmorph-cli-<v>-jar-with-dependencies[-<classifier>].jar` | `srcmorph-cli/pom.xml` sets `<attach>false</attach>` on the assembly execution → built into `target/` but never installed/deployed | The `publish-{release,snapshot}` jobs loop over the classifier set (`mvn -pl srcmorph-cli -am -Dllama.classifier=<c> package`), rename per classifier (default built **last** = unsuffixed CPU jar), then `gpg --detach-sign` each. `.asc` only. |
+| **srcmorph** (`srcmorph-cli`) | One CLI fat jar **per `net.ladenthin:llama` classifier** (default all-platform CPU + one per GPU classifier: `cuda13-*`, `vulkan-*`, `opencl-*`, `rocm-*`, `sycl-*`, `openvino-*`, `msvc-windows`) named `srcmorph-cli-<v>-jar-with-dependencies[-<classifier>].jar` | `srcmorph-cli/pom.xml` sets `<attach>false</attach>` on the assembly execution → built into `target/` but never installed/deployed | The `publish-{release,snapshot}` jobs loop over the classifier set (`mvn -pl srcmorph-cli -am -Dllama.classifier=<c> package`), rename per classifier (default built **last** = unsuffixed CPU jar), collect them into the asset dir, then sign via `.github/sign-fatjars.sh`. `.asc` only. |
 | **BAF** (`BitcoinAddressFinder`) | **Single** fat jar (`jocl` bundles all-platform OpenCL natives in one jar, so no classifier split) | The Central `deploy` runs `-P release` **without** `assembly`; the fat jar is built by a **second** invocation that stops at `verify` (never reaching `deploy`), so `central-publishing`'s deploy-bound publish goal never runs | `mvn -P release,assembly verify` in the `publish-{release,snapshot}` jobs; `maven-gpg-plugin` (bound to `verify`) signs the attached fat jar → `.asc`. |
 | **sb** (`streambuffer`) | ➖ N/A — a pure library with no runnable entry point, so no fat jar is produced or shipped | — | — |
 
@@ -66,6 +66,12 @@ attached). Symptom of forgetting: a tag release with `assets: []`.
   ranked/excluded. srcmorph's `publish.yml` hardcodes the classifier array — **on a
   `net.ladenthin:llama` version bump, re-check that list against the pom** (and confirm every
   classifier is actually published on Central for the pinned version).
+- **Shared signing script (`.github/sign-fatjars.sh`).** jllama and srcmorph sign their loose fat
+  jars with a **byte-identical** `.github/sign-fatjars.sh` (dual-licensed `MIT OR Apache-2.0`, the
+  cross-repo-synced-file convention) — it imports the key into an ephemeral keyring and produces a
+  verified detached armored `.asc` for every `*-jar-with-dependencies*.jar` in a directory. **Sync
+  any edit to both copies** (same discipline as the byte-identical `verify-signing-key` job).
+  BAF does **not** use it: its single fat jar is an *attached* Maven artifact, so `maven-gpg-plugin`
+  signs it directly during the `verify` run.
 - **Signature convention.** New fat-jar-shipping surfaces should sign with a detached armored
-  `.asc` using the `maven-central`-scoped key, in a dispatch-gated job, mirroring
-  `.github/sign-fatjars.sh`.
+  `.asc` using the `maven-central`-scoped key, in a dispatch-gated job, reusing `sign-fatjars.sh`.
