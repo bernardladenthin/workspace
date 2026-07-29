@@ -59,7 +59,7 @@ REUSE-tool compliance is enforced in CI in every repo.
 
 | Concern | Choice |
 |---|---|
-| Runner | JUnit Jupiter 6.1.0 (`org.junit.jupiter.api.*`) |
+| Runner | JUnit Jupiter 6.1.2 (`org.junit.jupiter.api.*`) |
 | Assertions | Hamcrest 3.0 (`assertThat(actual, is(equalTo(expected)))`) |
 | Parameterized | `@ParameterizedTest` + `@MethodSource(SourceClass.CONSTANT_NAME)` |
 | Mocking | Mockito (BAF, plugin) |

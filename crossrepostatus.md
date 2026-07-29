@@ -4,7 +4,7 @@ This file tracks **only items that span ≥ 2 of the four sibling repos**. Singl
 
 - [`../BitcoinAddressFinder/TODO.md`](../BitcoinAddressFinder/TODO.md)
 - [`../java-llama.cpp/TODO.md`](../java-llama.cpp/TODO.md)
-- [`../llamacpp-ai-index-maven-plugin/TODO.md`](../llamacpp-ai-index-maven-plugin/TODO.md)
+- [`../srcmorph/TODO.md`](../srcmorph/TODO.md)
 - [`../streambuffer/TODO.md`](../streambuffer/TODO.md)
 
 Recurring per-repo audits (mostly cross-repo by nature but living per-repo today) are documented in [`policies/code-quality-todos.md`](policies/code-quality-todos.md).
@@ -35,7 +35,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | Tool versions | Identical across all 4: Checker 4.2.1, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.3.0, spotless 3.9.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.2, hamcrest 3.0, pitest-maven 1.25.8 (pitest-junit5-plugin 1.2.3). **All on latest stable** — this row is the **canonical cross-repo tool-version matrix** (the policy files point here rather than re-pinning). Verified 2026-07-29 against the poms + Maven Central; see "Dependency / plugin freshness" below. |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
-| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package (179 mutations) · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser`+`json.ChatResponseParser`+`json.CompletionResponseParser` (243 mutations as of 2026-06-25; **not fully hermetic — see "Deliberate non-parity" below**) · **plugin** explicit 21-class list (146 mutations) · **BAF** explicit 16-class list (65 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. Canonical command + the `@{argLine}`/jacoco invocation rule live in [`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md). |
+| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package (179 mutations) · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser`+`json.ChatResponseParser`+`json.CompletionResponseParser` (243 mutations as of 2026-06-25; **not fully hermetic — see "Deliberate non-parity" below**) · **srcmorph** (reactor core module) explicit 47-class list · **BAF** explicit 16-class list (65 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. Canonical command + the `@{argLine}`/jacoco invocation rule live in [`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md). |
 | Checker Framework as 2nd nullness pass | All 4 ✅ |
 | JPMS `module-info.java` present | All 4 ✅ |
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |

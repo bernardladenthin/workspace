@@ -12,7 +12,7 @@ Three sibling repos use Lombok today and therefore carry `lombok.config`:
 |---|---|---|
 | `BitcoinAddressFinder` | Java 21 | `@Data` / `@Value` / `@Getter` on configuration POJOs |
 | `java-llama.cpp` | Java 8 | `@EqualsAndHashCode` / `@ToString` on value classes |
-| `llamacpp-ai-index-maven-plugin` | Java 8 | `@Getter` on Mojo `@Parameter` POJOs |
+| `srcmorph` | Java 8 | `@Getter` on Mojo `@Parameter` POJOs |
 
 `streambuffer` does **not** use Lombok (no `lombok.config`, no Lombok
 dependency) and is out of scope.

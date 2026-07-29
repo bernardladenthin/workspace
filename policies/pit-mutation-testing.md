@@ -67,13 +67,19 @@ passes. This divergence is deliberate.
 |---|---|---|---|
 | streambuffer | whole package `net.ladenthin.streambuffer.*` | 179 | yes |
 | BitcoinAddressFinder | explicit 16-class list (util/model/io/core/keyproducer/secret/configuration/statistics leaves + custom exceptions) | 65 | yes |
-| llamacpp-ai-index-maven-plugin | explicit 21-class list (config / document / prompt / provider / support) | 146 | yes |
+| srcmorph (reactor `srcmorph` core module) | explicit 47-class list (config / document / engine / indexer / prompt / provider / support) | see `srcmorph/pom.xml`† | yes |
 | java-llama.cpp | `value.*` + `exception.*` + `args.*` + `json.{TimingsLogger,RerankResponseParser,ChatResponseParser,CompletionResponseParser}` | 243 | **no — see §4** |
 
 \* Mutation counts verified 2026-06-25 (`pitest-maven 1.25.5`); all four gates
 re-run green 2026-07-08 on `pitest-maven 1.25.6`. The pin has since bumped to
 `1.25.8` (current). Counts drift as code changes — treat them as a snapshot, not a
 contract; the **100% gate** is the contract.
+
+† srcmorph became a 3-module reactor (rename from `llamacpp-ai-index-maven-plugin`); its
+PIT gate now targets the framework-free **`srcmorph` core module** (47 classes, `mutationThreshold`
+100), authoritative list in `srcmorph/pom.xml`. The `srcmorph-cli` / `srcmorph-maven-plugin`
+modules are not PIT-gated yet. The exact mutation total for the 47-class set has not been
+re-recorded here — the 100% gate is the contract.
 
 ## 4. Hermeticity caveat — java-llama.cpp audio path
 

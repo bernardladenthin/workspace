@@ -1,7 +1,7 @@
 # Release Process (canonical, cross-repo)
 
 Maintainer-facing release procedure shared by all sibling repos
-(BitcoinAddressFinder, java-llama.cpp, streambuffer, llamacpp-ai-index-maven-plugin).
+(BitcoinAddressFinder, java-llama.cpp, streambuffer, srcmorph).
 End users should consult each repo's `CHANGELOG.md`.
 
 Each sibling's `docs/RELEASE.md` points here and adds only **repo-specific** notes
