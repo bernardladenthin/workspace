@@ -12,8 +12,13 @@ Recurring per-repo audits (mostly cross-repo by nature but living per-repo today
 Repos:
 - **BAF** = `/home/user/BitcoinAddressFinder`
 - **jllama** = `/home/user/java-llama.cpp`
-- **plugin** = `/home/user/llamacpp-ai-index-maven-plugin`
+- **plugin** = `/home/user/srcmorph` (repo renamed `llamacpp-ai-index-maven-plugin` → **srcmorph**, now a 3-module reactor; the `plugin` shorthand is kept here for continuity with the historical rows below)
 - **sb** = `/home/user/streambuffer`
+
+> **Scope note:** the parity/history tables below track the **four sibling library repos**
+> (BAF, jllama, srcmorph, sb). The **do-not-bump registry** under "Dependency / plugin
+> freshness" additionally covers **BroomCabinet** pins, because a cross-repo dependency audit
+> needs one reference for every deliberate pin regardless of which repo owns it.
 
 Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing policy
 
@@ -27,7 +32,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4: Checker 4.2.1, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.2.0, spotless 3.8.0, palantir 2.94.0, errorprone 2.50.0, nullaway 0.13.7, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.1, hamcrest 3.0, pitest-maven 1.25.6 (pitest-junit5-plugin 1.2.3). **All on latest stable** (pitest bumped 1.25.5→1.25.6 and the row refreshed to the actual pom values; verified 2026-07-08 against Maven Central — see "Dependency / plugin freshness" below). |
+| Tool versions | Identical across all 4: Checker 4.2.1, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.3.0, spotless 3.9.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.2, hamcrest 3.0, pitest-maven 1.25.8 (pitest-junit5-plugin 1.2.3). **All on latest stable** — this row is the **canonical cross-repo tool-version matrix** (the policy files point here rather than re-pinning). Verified 2026-07-29 against the poms + Maven Central; see "Dependency / plugin freshness" below. |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
 | PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package (179 mutations) · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser`+`json.ChatResponseParser`+`json.CompletionResponseParser` (243 mutations as of 2026-06-25; **not fully hermetic — see "Deliberate non-parity" below**) · **plugin** explicit 21-class list (146 mutations) · **BAF** explicit 16-class list (65 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. Canonical command + the `@{argLine}`/jacoco invocation rule live in [`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md). |
@@ -338,16 +343,49 @@ local gates (spotless, spotbugs, pitest). Per-repo scope:
   documented in [`policies/lombok-config.md`](policies/lombok-config.md) so Sonar ignores
   synthetic getters/`equals`/`toString`.
 
-### Dependency / plugin freshness (verified 2026-06-07, re-verified 2026-07-08)
+### Dependency / plugin freshness (verified 2026-06-07, re-verified 2026-07-08, re-verified 2026-07-29)
 
 All four repos are on the **newest stable** versions of every dependency and build plugin
 (checked with `versions:display-dependency-updates` + `display-plugin-updates` against
 Maven Central, and direct `maven-metadata.xml` probes for the annotation-processor paths the
 versions plugin does not scan: Error Prone, NullAway, Checker). The only "updates" offered are
 **pre-releases** — Maven 4 plugin `4.0.0-beta-*` (compiler/jar/source/resources/plugin),
-`maven-surefire-plugin:3.6.0-M1`, `slf4j-api:2.1.0-alpha1`, Maven-core `4.0.0-rc-5` — which are
-deliberately **not** adopted, plus **jqwik 1.10.1** which is 📌 **banned** (see policy). No
-action needed.
+`maven-surefire-plugin:3.6.0-M1`, `slf4j-api:2.1.0-alpha1`, `protobuf-javalite:4.36.0-RC1`,
+`kotlin:2.4.20-Beta2`, Maven-core `4.0.0-rc-5` — which are deliberately **not** adopted, plus
+**jqwik 1.10.1** which is 📌 **banned** (see policy). No action needed.
+
+**2026-07-29 audit (branch `claude/dependency-updates-audit-vv4mz5`):** full sweep of all
+sibling repos **plus** BroomCabinet (15 Maven modules) and the GitHub Actions / Gradle-Android
+surface. Result: everything is on latest stable; nothing bumped. Two doc-sync fixes only —
+the tool-version matrix above had drifted (spotbugs `4.10.2.0→4.10.3.0`, spotless
+`3.8.0→3.9.0`, palantir `2.94.0→2.96.0`, nullaway `0.13.7→0.13.8`, junit-jupiter `6.1.1→6.1.2`,
+pitest-maven `1.25.6→1.25.8` — the repos were already ahead of the doc) and the two policy
+files that re-pinned those numbers now point at the matrix instead. **GitHub Actions:** every
+`uses:` pin across all repos is at its latest release (floating `@vN` majors + version-pinned
+ones alike — checkout v7, setup-java v5, upload-artifact v7, download-artifact v8, cache v6,
+codeql v4, codecov v7, scorecard 2.4.4, osv-scanner 2.3.8, Jimver/cuda-toolkit 0.2.35,
+jakoch/install-vulkan-sdk 1.6.0, reuse v6, gradle/actions v6, android-emulator-runner v2,
+action-gh-release v3). **Gradle/Android (jllama):** Gradle 9.6.1 (latest stable; 9.7 is
+pre-release), AGP 9.3.0, Compose BOM 2026.06.01, kotlinx-coroutines 1.11.0, kotlin 2.4.10 — all
+current/deliberately pinned.
+
+#### Pinned dependencies — do-not-bump registry (cross-repo audit reference)
+
+The single place a dependency audit should consult before "upgrading" any of these. The
+**detailed rationale stays in the one repo that owns each pin** (this table only registers it so
+a cross-repo sweep does not mistake a deliberate pin for a stale dependency). "Newer available"
+= what `versions:display-*` offers and why it is rejected.
+
+| Pinned dep | Version | Repos | Newer available | Why pinned — authoritative source |
+|---|---|---|---|---|
+| `net.jqwik:jqwik` | 1.9.3 | BAF, jllama, srcmorph | 1.10.1 | 📌 prompt-injection incident — [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md) |
+| `com.h2database:h2` | 2.2.224 | BroomCabinet (`JOracleRowSetGetRowBug`) | 2.4.240 | **Last Java-8-compatible line** (2.3.x+ needs Java 11); module is `<release>8</release>`. Rationale in that module's `pom.xml` comment. |
+| `com.oracle.database.jdbc:ojdbc8` | 21.21.0.0 | BroomCabinet (`JOracleRowSetGetRowBug`) | 23.26.3.0.0 | The `oracle.jdbc.rowset.OracleCachedRowSet` class the bug reproducer needs exists **only in the 19.x/21.x ojdbc8 lines — Oracle removed the package in 23.x**. Rationale in that module's `pom.xml` comment + `BUG.md`. |
+| `org.bouncycastle:bcprov-jdk15to18` | 1.85.1 | BAF | (transitive) | Pins the bitcoinj-transitive bcprov to patch GHSA-c3fc-8qff-9hwx / GHSA-p93r-85wp-75v3. Rationale in BAF `CLAUDE.md` deps table. |
+| `com.google.protobuf:protobuf-javalite` | 4.35.1 | BAF | 4.36.0-RC1 | Latest **stable**; newer is RC only. |
+| `org.slf4j:slf4j-api` | 2.0.18 | all | 2.1.0-alpha1 | Latest **stable**; newer is alpha only. |
+| `org.jetbrains.kotlin` | 2.4.10 | jllama (`llama-kotlin`) | 2.4.20-Beta2 | Latest **stable**; newer is beta only. |
+| Maven-4 plugin line / surefire `3.6.0-M1` | — | all | `4.0.0-beta-*` / `-M1` | Maven-3 toolchain; Maven-4 betas + milestones deliberately not adopted. |
 
 **2026-07-08 bump round (branch `claude/build-timeout-config-nzli8l`):** pitest-maven
 1.25.5→1.25.6 (all 4; every 100% gate re-run green on the new version — sb 179/179
@@ -565,7 +603,7 @@ Central". Commits — **jllama** `52ca3af` · **BAF** `a111584` · **sb** `6bb98
 
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
-**Standing policy:** run `mvn spotless:apply` before every commit that touches `.java` — 📌 active in all 4 repos (Spotless 3.7.0 + Palantir Java Format 2.92.0; `spotless:check` is bound to `verify` and the early `code-style` CI job. See [`policies/spotless-formatting.md`](policies/spotless-formatting.md)).
+**Standing policy:** run `mvn spotless:apply` before every commit that touches `.java` — 📌 active in all 4 repos (versions in the canonical tool matrix above; `spotless:check` is bound to `verify` and the early `code-style` CI job. See [`policies/spotless-formatting.md`](policies/spotless-formatting.md)).
 
 ---
 
