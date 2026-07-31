@@ -18,7 +18,7 @@
 >
 > **This file (Java 8 baseline):** applies to every sibling Java repo
 > (`BitcoinAddressFinder`, `java-llama.cpp`,
-> `llamacpp-ai-index-maven-plugin`, `streambuffer`). Three of the four
+> `srcmorph`, `streambuffer`). Three of the four
 > build to Java 8 bytecode (`<release>8</release>` in `pom.xml`); BAF
 > targets Java 21 but still follows everything below.
 >
@@ -237,7 +237,7 @@ intent to readers and to static-analysis tools.
 applying it, check whether constructor injection, behaviour extraction,
 or making the observable property a public method achieves the same
 goal without widening visibility. See
-[`../policies/code-quality-todos.md`](../policies/code-quality-todos.md)
+[`../../policies/code-quality-todos.md`](../../policies/code-quality-todos.md)
 for the design-fit review.
 
 Verified in BAF: 16 sites across 5 production files. The other three

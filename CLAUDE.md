@@ -9,7 +9,7 @@ four Java projects:
 
 - [BitcoinAddressFinder](https://github.com/bernardladenthin/BitcoinAddressFinder) — Bitcoin/altcoin private-key scanner (`net.ladenthin:bitcoinaddressfinder`)
 - [java-llama.cpp](https://github.com/bernardladenthin/java-llama.cpp) — JNI bindings to llama.cpp (`net.ladenthin:llama`)
-- [llamacpp-ai-index-maven-plugin](https://github.com/bernardladenthin/llamacpp-ai-index-maven-plugin) — Maven plugin generating AI summaries (`net.ladenthin:llamacpp-ai-index-maven-plugin`)
+- [srcmorph](https://github.com/bernardladenthin/srcmorph) — prompt-driven source-tree transformer / AI-index generator, a 3-module reactor (`net.ladenthin:srcmorph` core + `srcmorph-cli` + `srcmorph-maven-plugin`; formerly `llamacpp-ai-index-maven-plugin`)
 - [streambuffer](https://github.com/bernardladenthin/streambuffer) — `OutputStream`/`InputStream` bridge over a dynamic FIFO (`net.ladenthin:streambuffer`)
 
 This repo carries **no production code and no build system** of its
@@ -43,7 +43,7 @@ crossrepostatus.md                       Live cross-repo status table
 
 ## Java version tier — important
 
-The canonical guides assume **Java 8 + JUnit Jupiter 6.1.0 + Hamcrest 3.0**
+The canonical guides assume **Java 8 + JUnit Jupiter 6.1.2 + Hamcrest 3.0**
 because that is the lowest common denominator across the four sibling
 repos:
 
@@ -51,7 +51,7 @@ repos:
 |---|---|---|
 | `streambuffer` | Java 8 | `pom.xml` `<release>${java.version}</release>` |
 | `java-llama.cpp` | Java 8 | `pom.xml` `<release>8</release>` |
-| `llamacpp-ai-index-maven-plugin` | Java 8 | `pom.xml` `<release>8</release>` |
+| `srcmorph` (formerly `llamacpp-ai-index-maven-plugin`) | Java 8 | `pom.xml` `<release>8</release>` |
 | `BitcoinAddressFinder` | Java 21 | `pom.xml` `<source>21</source>/<target>21</target>` |
 
 BAF additionally follows the
@@ -71,7 +71,7 @@ from the lowest applicable version up to the highest one your repo's
 
 BAF and streambuffer are hand-written by the owner and are the
 authoritative style references. `java-llama.cpp` and
-`llamacpp-ai-index-maven-plugin` are predominantly AI-generated;
+`srcmorph` are predominantly AI-generated;
 their patterns are useful as data points but should NOT be treated as
 canonical when they conflict with BAF/sb.
 

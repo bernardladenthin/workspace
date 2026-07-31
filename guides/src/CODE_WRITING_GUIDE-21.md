@@ -14,7 +14,7 @@
 > `<release>16</release>` or later (records require Java 16+). Today
 > only `BitcoinAddressFinder` (`<source>21</source>/<target>21</target>`)
 > qualifies. `streambuffer`, `java-llama.cpp`, and
-> `llamacpp-ai-index-maven-plugin` target Java 8 (`<release>8</release>`)
+> `srcmorph` target Java 8 (`<release>8</release>`)
 > and MUST NOT use the idioms below.
 >
 > **When BAF upgrades to a newer LTS** (Java 25 / 29 / ...): add

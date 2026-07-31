@@ -14,7 +14,7 @@ publish-snapshot") and the comments on BAF's `attach-javadocs` / `module-info-co
 |---|:--:|---|---|:--:|---|
 | streambuffer | 8 | `src/main/java` (excluded from default-compile) | `compile`, release 9 | 8 | classpath |
 | java-llama.cpp | 8 | `src/main/java` (excluded) | `compile`, release 9 | 1.8 | classpath |
-| llamacpp-ai-index-maven-plugin | 8 | `src/main/java` (excluded) | `compile`, release 9 | 8 | classpath |
+| srcmorph | 8 | `src/main/java` (excluded) | `compile`, release 9 | 8 | classpath |
 | BitcoinAddressFinder | 21 | `src/main/java9` | `prepare-package`, release 9 | 21 | classpath (forced) |
 
 Why a separate execution at all: a Java-8 main compile (`release 8`) literally cannot compile a
