@@ -20,7 +20,7 @@ Why never Central:
 - A jar-with-dependencies is **redundant** on Central: consumers depend on the *plain* jar and
   let Maven resolve the dependency graph; nobody `<dependency>`-references the uber jar.
 - It is **large** (bundles every runtime dependency), and where it bundles a **native binary**
-  (`net.ladenthin:llama`, jocl, …) it is also **platform-specific** — the wrong shape for a
+  (`net.ladenthin:llama`, LWJGL natives, …) it is also **platform-specific** — the wrong shape for a
   Central artifact that is meant to be portable coordinates.
 - Not shipping it to Central also avoids any redistribution obligation for bundled vendor
   binaries.
@@ -55,7 +55,7 @@ attached). Symptom of forgetting: a tag release with `assets: []`.
 |---|---|---|---|
 | **jllama** (`java-llama.cpp`) | Multi-backend **`all-<os>-<arch>`** jars (default CPU + every GPU backend of that OS/arch in `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` subdirs, runtime-selected by `LlamaLoader` via the `jllama-backends.txt` manifest) + the default CPU fat jar | The Central `deploy` runs **without** the `assembly` profile; the fat jars are assembled by a separate `package-fatjars` job | `.github/package-fatjars.sh` assembles them; `.github/sign-fatjars.sh` GPG-signs each (`.asc`) in the `github-release-signed` / `github-snapshot` attach jobs (which declare `environment: maven-central` + `checkout`). `.sha256` **and** `.asc`. |
 | **srcmorph** (`srcmorph-cli`) | One CLI fat jar **per `net.ladenthin:llama` classifier** (default all-platform CPU + one per GPU classifier: `cuda13-*`, `vulkan-*`, `opencl-*`, `rocm-*`, `sycl-*`, `openvino-*`, `msvc-windows`) named `srcmorph-cli-<v>-jar-with-dependencies[-<classifier>].jar` | `srcmorph-cli/pom.xml` sets `<attach>false</attach>` on the assembly execution → built into `target/` but never installed/deployed | The `publish-{release,snapshot}` jobs loop over the classifier set (`mvn -pl srcmorph-cli -am -Dllama.classifier=<c> package`), rename per classifier (default built **last** = unsuffixed CPU jar), collect them into the asset dir, then sign via `.github/sign-fatjars.sh`. `.asc` only. |
-| **BAF** (`BitcoinAddressFinder`) | **Single** fat jar (`jocl` bundles all-platform OpenCL natives in one jar, so no classifier split) | The Central `deploy` runs `-P release` **without** `assembly`; the fat jar is built by a **second** invocation that stops at `verify` (never reaching `deploy`), so `central-publishing`'s deploy-bound publish goal never runs | `mvn -P release,assembly verify` in the `publish-{release,snapshot}` jobs; `maven-gpg-plugin` (bound to `verify`) signs the attached fat jar → `.asc`. |
+| **BAF** (`BitcoinAddressFinder`) | **Single** fat jar (LWJGL ships one `natives-*` classifier jar per platform, but they may all sit on one classpath — LWJGL picks the match at runtime — so there is still no classifier split) | The Central `deploy` runs `-P release` **without** `assembly`; the fat jar is built by a **second** invocation that stops at `verify` (never reaching `deploy`), so `central-publishing`'s deploy-bound publish goal never runs | `mvn -P release,assembly verify` in the `publish-{release,snapshot}` jobs; `maven-gpg-plugin` (bound to `verify`) signs the attached fat jar → `.asc`. |
 | **sb** (`streambuffer`) | ➖ N/A — a pure library with no runnable entry point, so no fat jar is produced or shipped | — | — |
 
 ## Keep-in-sync notes
