@@ -229,4 +229,5 @@ until there's a real use case in the BAF codebase:
 - **Structured concurrency (`StructuredTaskScope`)** — preview API as
   of JDK 21; revisit when GA.
 - **Foreign Function & Memory API** — relevant for any future direct
-  native-memory work, but BAF currently uses JOCL for GPU off-heap.
+  native-memory work, but BAF currently uses LWJGL (its own `MemoryStack` /
+  `MemoryUtil` off-heap allocators) for GPU memory.
