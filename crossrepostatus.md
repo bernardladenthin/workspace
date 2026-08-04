@@ -506,14 +506,46 @@ fix into repos that don't need it. Root cause of the idiom: `attach-javadocs` li
 javadoc — and BAF's module-aware javadoc (`<source>21</source>` + `module-info.java` in
 `src/main/java9`) can trip JPMS module mode there. The three Java-8 siblings are immune
 (`<source>8>` → classpath mode regardless); their javadoc was verified to build clean.
-Resolution: deleted **8** of the 9 flags. **Exactly one survives — BAF `publish.yml` `build`
-job** — because that job runs plain `mvn package` and would trip the module trap; it is now
-annotated inline and in BAF's CLAUDE.md as the single intentional "skip for a reason," to be
+Resolution: deleted **8** of the 9 flags. **Exactly one survived at the time — BAF `publish.yml`
+`build` job** — because that job runs plain `mvn package` and would trip the module trap; it is
+now annotated inline and in BAF's CLAUDE.md as the single intentional "skip for a reason," to be
 removed only after a full `mvn package` proves BAF's javadoc clean (a standalone `mvn
 javadoc:jar` cannot — always classpath mode, hides the trap). streambuffer and llamacpp-ai-index
 now let javadoc build during their `verify` test job, so javadoc is gated in **PR CI** there
 (the "future hardening" above); BAF and java-llama.cpp still validate javadoc only at publish.
-Worked out on branch `claude/sweet-lamport-ugvqea`.
+Worked out on branch `claude/sweet-lamport-ugvqea`. **No longer "exactly one" — see the
+2026-08-02 entry below, which adds two more BAF-only flags for a second, distinct trigger of the
+same trap.**
+
+**Javadoc JPMS module-mode failure, second trigger — BAF publish-snapshot fat-jar step
+(root-caused + fixed, 2026-08-02).** A recurrence of the June 7 trap above via a *different*
+mechanism, surfaced when CI run 30768800950 (`workflow_dispatch`, `main`) reached
+`publish-snapshot` for what turned out to be the first time since the fat-jar-attach feature
+was added: `Deploy snapshot` (`mvn -P release deploy`) succeeded, but the following step "Build
+& sign fat jar" (`mvn -P release,assembly verify`, added by commit `6b0d37a`, 2026-07-24, in the
+same job with **no `mvn clean` between the two invocations**) failed at `attach-javadocs`:
+`error: No source files for package net.ladenthin.bitcoinaddressfinder.io` (exit 2) — same
+error shape as June 7, but the June fix (javadoc's execution ordered before
+`module-info-compile` *within one invocation*) does not protect against a *second* invocation
+inheriting `target/classes/module-info.class` left behind by the *first* invocation's own
+`module-info-compile`. Confirmed by local reproduction against BAF's actual `pom.xml`
+(two-invocation sequence, no `clean`) and by CI run history: `publish-release` has never
+executed with this step at all (no `v*` tag dispatched since `6b0d37a`), and `publish-snapshot`
+had one prior opportunity that was manually cancelled — so the step had never completed
+successfully before this incident, and the next tagged release would have hit it deterministically.
+Also checked all three sibling repos: java-llama.cpp and streambuffer are structurally immune
+(no equivalent second-invocation shape / classpath-mode javadoc regardless); srcmorph has the
+same double-invocation shape in its per-classifier fat-jar loop but already carries
+`-Dmaven.javadoc.skip=true` there (independently immune too, since its javadoc `<source>`
+resolves to 8, but a useful precedent). **Fix (BAF, `.github/workflows/publish.yml`):** added
+`-Dmaven.javadoc.skip=true` to the "Build & sign fat jar" step in both `publish-snapshot` and
+`publish-release` — verified locally that the fat jar still builds/attaches correctly and the
+already-signed javadoc jar from the `deploy` step survives untouched (byte-identical, correctly
+signed, picked up by the same `Collect` step). Full write-up of the mechanism (with the exact
+`@options`/`@packages` evidence javadoc staged) now lives in
+[`policies/jpms-module-descriptor.md`](policies/jpms-module-descriptor.md) "A second trigger:
+multiple Maven invocations sharing `target/`" — read that before adding a second Maven
+invocation to any publish job in any of these repos.
 
 **Maven Central publish gating — `publish_to_central` manual flag + `-SNAPSHOT` guard (all 4
 repos, 2026-06-18, branch `claude/stoic-franklin-67klln`).** Same *publish-only-step-escapes-

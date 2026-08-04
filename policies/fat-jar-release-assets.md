@@ -58,6 +58,18 @@ attached). Symptom of forgetting: a tag release with `assets: []`.
 | **BAF** (`BitcoinAddressFinder`) | **Single** fat jar (LWJGL ships one `natives-*` classifier jar per platform, but they may all sit on one classpath — LWJGL picks the match at runtime — so there is still no classifier split) | The Central `deploy` runs `-P release` **without** `assembly`; the fat jar is built by a **second** invocation that stops at `verify` (never reaching `deploy`), so `central-publishing`'s deploy-bound publish goal never runs | `mvn -P release,assembly verify` in the `publish-{release,snapshot}` jobs; `maven-gpg-plugin` (bound to `verify`) signs the attached fat jar → `.asc`. |
 | **sb** (`streambuffer`) | ➖ N/A — a pure library with no runnable entry point, so no fat jar is produced or shipped | — | — |
 
+**BAF-only gotcha: the second invocation must skip javadoc.** BAF's "second invocation that
+stops at `verify`" shares `target/` with the preceding `deploy` invocation in the same job step
+sequence, with no `mvn clean` between them — the shape any future repo would reach for if it
+adopts this "second Maven invocation for a fat jar" convention on a Java ≥ 9 / JPMS-aware-javadoc
+repo. That second invocation must pass `-Dmaven.javadoc.skip=true` (BAF's `publish.yml` does),
+or it inherits `target/classes/module-info.class` from the first invocation and trips the JPMS
+javadoc module-mode trap — see
+[`jpms-module-descriptor.md`](jpms-module-descriptor.md) "A second trigger" for the full
+mechanism (incident: 2026-08-02). Not applicable to srcmorph/jllama's classifier-loop shape as
+written (javadoc `<source>` resolves to 8 there), but worth checking again if either ever raises
+its Java baseline.
+
 ## Keep-in-sync notes
 
 - **jllama / srcmorph classifier lists.** The set of GPU classifiers is defined by
