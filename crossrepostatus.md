@@ -32,7 +32,8 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4: Checker 4.2.1, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.3.0, spotless 3.9.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.4.2, junit-jupiter 6.1.2, hamcrest 3.0, pitest-maven 1.25.8 (pitest-junit5-plugin 1.2.3). **All on latest stable** — this row is the **canonical cross-repo tool-version matrix** (the policy files point here rather than re-pinning). Verified 2026-07-29 against the poms + Maven Central; see "Dependency / plugin freshness" below. |
+| Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.3.0, spotless 3.9.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.25.8 (pitest-junit5-plugin 1.2.3). **All on latest stable** — this row is the **canonical cross-repo tool-version matrix** (the policy files point here rather than re-pinning). Verified 2026-08-07 against the poms + Maven Central; see "Dependency / plugin freshness" below. |
+| `dependencyConvergence` pinning convention | All 4 Maven repos (+ srcmorph's 3 reactor modules) enable maven-enforcer's `<dependencyConvergence/>`. Convention for resolving a direct-vs-transitive version mismatch (pin in `dependencyManagement`, comment naming the competing upstream artifact) + the `excludedScopes=[test,provided]` default gotcha + merge-discipline finding documented in [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
 | PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate. Scope expanded 2026-06-07 from the original single-class staging: **sb** whole-package (179 mutations) · **jllama** `value.*`+`exception.*`+`args.*`+`json.TimingsLogger`+`json.RerankResponseParser`+`json.ChatResponseParser`+`json.CompletionResponseParser` (243 mutations as of 2026-06-25; **not fully hermetic — see "Deliberate non-parity" below**) · **srcmorph** (reactor core module) explicit 47-class list · **BAF** explicit 16-class list (65 mutations). All previously pointed at one class; jllama's/BAF's were silently matching nothing after the package restructure (`llama.Pair`→`value.Pair`, `bitcoinaddressfinder.BitHelper`→`util.BitHelper`) — fixed. Canonical command + the `@{argLine}`/jacoco invocation rule live in [`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md). |
@@ -343,7 +344,27 @@ local gates (spotless, spotbugs, pitest). Per-repo scope:
   documented in [`policies/lombok-config.md`](policies/lombok-config.md) so Sonar ignores
   synthetic getters/`equals`/`toString`.
 
-### Dependency / plugin freshness (verified 2026-06-07, re-verified 2026-07-08, re-verified 2026-07-29)
+### Dependency / plugin freshness (verified 2026-06-07, re-verified 2026-07-08, re-verified 2026-07-29, re-verified 2026-08-07)
+
+**2026-08-07 dependencyConvergence audit (branch `claude/cross-repo-dependency-convergence-5tsyle`):**
+triggered by a live BitcoinAddressFinder break — Dependabot PR #331 bumped `jspecify` 1.0.0→1.0.1
+directly while `guava` still transitively requests 1.0.0, tripping `DependencyConvergence` at
+`validate`. The PR's own `Build` CI check was already red; it was merged anyway. The same exact
+shape was found **already merged and currently red on srcmorph's `main`** too (Dependabot PR #169,
+also merged despite a red `Build` check) — not merely latent. Fixed both by pinning `jspecify` in
+`dependencyManagement`. Also found — by bytecode-inspecting `enforcer-rules:3.6.3` and reproducing
+empirically — that `DependencyConvergence` excludes `test`/`provided` scope by default, which was
+masking two more real (but harmless-until-a-scope-changes) mismatches: jspecify + logback-classic
+in java-llama.cpp, jspecify + hamcrest in streambuffer (the latter had **no**
+`dependencyManagement` at all — first one added). All four pinned defensively; full writeup in
+[`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md).
+Folded into the same pass: `checker-qual` 4.2.1→4.2.2, `junit-jupiter` 6.1.2→6.1.3, and
+`archunit-junit5` 1.4.2→1.5.0 (BAF was already on 1.5.0; the other three were behind) across all
+four repos, restoring the tool-version matrix row above to identical + latest. Every change
+verified per-repo with `mvn validate` (DependencyConvergence passes) + `mvn clean compile` + that
+repo's `*ArchitectureTest` suite (BAF 17/17, jllama 12/12, srcmorph 13/13+7/7+12/12, sb 10/10),
+committed and pushed to each repo's branch. BroomCabinet checked and confirmed out of scope (no
+`maven-enforcer-plugin` anywhere in its ~15 standalone poms).
 
 All four repos are on the **newest stable** versions of every dependency and build plugin
 (checked with `versions:display-dependency-updates` + `display-plugin-updates` against
