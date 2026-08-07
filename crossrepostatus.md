@@ -506,14 +506,72 @@ fix into repos that don't need it. Root cause of the idiom: `attach-javadocs` li
 javadoc — and BAF's module-aware javadoc (`<source>21</source>` + `module-info.java` in
 `src/main/java9`) can trip JPMS module mode there. The three Java-8 siblings are immune
 (`<source>8>` → classpath mode regardless); their javadoc was verified to build clean.
-Resolution: deleted **8** of the 9 flags. **Exactly one survives — BAF `publish.yml` `build`
-job** — because that job runs plain `mvn package` and would trip the module trap; it is now
-annotated inline and in BAF's CLAUDE.md as the single intentional "skip for a reason," to be
+Resolution: deleted **8** of the 9 flags. **Exactly one survived at the time — BAF `publish.yml`
+`build` job** — because that job runs plain `mvn package` and would trip the module trap; it is
+now annotated inline and in BAF's CLAUDE.md as the single intentional "skip for a reason," to be
 removed only after a full `mvn package` proves BAF's javadoc clean (a standalone `mvn
 javadoc:jar` cannot — always classpath mode, hides the trap). streambuffer and llamacpp-ai-index
 now let javadoc build during their `verify` test job, so javadoc is gated in **PR CI** there
 (the "future hardening" above); BAF and java-llama.cpp still validate javadoc only at publish.
-Worked out on branch `claude/sweet-lamport-ugvqea`.
+Worked out on branch `claude/sweet-lamport-ugvqea`. **No longer "exactly one" — see the
+2026-08-02 entry below, which adds two more BAF-only flags for a second, distinct trigger of the
+same trap.**
+
+**Javadoc JPMS module-mode failure, second trigger — BAF publish-snapshot fat-jar step
+(root-caused + fixed in code, 2026-08-02; pending a live dispatch to verify — see "Fat-jar
+signing verification status" below).** A recurrence of the June 7 trap above via a *different*
+mechanism, surfaced when CI run 30768800950 (`workflow_dispatch`, `main`) reached
+`publish-snapshot` for what turned out to be the first time since the fat-jar-attach feature
+was added: `Deploy snapshot` (`mvn -P release deploy`) succeeded, but the following step "Build
+& sign fat jar" (`mvn -P release,assembly verify`, added by commit `6b0d37a`, 2026-07-24, in the
+same job with **no `mvn clean` between the two invocations**) failed at `attach-javadocs`:
+`error: No source files for package net.ladenthin.bitcoinaddressfinder.io` (exit 2) — same
+error shape as June 7, but the June fix (javadoc's execution ordered before
+`module-info-compile` *within one invocation*) does not protect against a *second* invocation
+inheriting `target/classes/module-info.class` left behind by the *first* invocation's own
+`module-info-compile`. Confirmed by local reproduction against BAF's actual `pom.xml`
+(two-invocation sequence, no `clean`) and by CI run history: `publish-release` has never
+executed with this step at all (no `v*` tag dispatched since `6b0d37a`), and `publish-snapshot`
+had one prior opportunity that was manually cancelled — so the step had never completed
+successfully before this incident, and the next tagged release would have hit it deterministically.
+Also checked all three sibling repos: java-llama.cpp and streambuffer are structurally immune
+(no equivalent second-invocation shape / classpath-mode javadoc regardless); srcmorph has the
+same double-invocation shape in its per-classifier fat-jar loop but already carries
+`-Dmaven.javadoc.skip=true` there (independently immune too, since its javadoc `<source>`
+resolves to 8, but a useful precedent). **Fix (BAF, `.github/workflows/publish.yml`):** added
+`-Dmaven.javadoc.skip=true` to the "Build & sign fat jar" step in both `publish-snapshot` and
+`publish-release` — verified locally that the fat jar still builds/attaches correctly and the
+already-signed javadoc jar from the `deploy` step survives untouched (byte-identical, correctly
+signed, picked up by the same `Collect` step). Full write-up of the mechanism (with the exact
+`@options`/`@packages` evidence javadoc staged) now lives in
+[`policies/jpms-module-descriptor.md`](policies/jpms-module-descriptor.md) "A second trigger:
+multiple Maven invocations sharing `target/`" — read that before adding a second Maven
+invocation to any publish job in any of these repos.
+
+**Fat-jar signing verification status across all 3 fat-jar-shipping repos (checked 2026-08-04,
+via GitHub Release contents + CI run history, not just reading the workflow YAML).** ❌ **open**
+until BAF and srcmorph are each confirmed by one real `workflow_dispatch publish_to_central=true`
+run:
+- **jllama** — ✅ confirmed working. `snapshot` GitHub Release last updated 2026-08-01
+  (`5.0.7-SNAPSHOT`); every fat jar (default CPU + all four `all-<os>-<arch>` multi-backend
+  jars) has a matching `.jar` + `.asc` + `.sha256`. Nothing to do here.
+- **BAF** — fix applied (this entry) and verified **locally** against the real `pom.xml` +
+  workflow command, but **not yet exercised by a live CI publish run**: the fix sits on branch
+  `claude/jpms-javadoc-release-audit-n0d06x` (unmerged), and no `workflow_dispatch` with
+  `publish_to_central=true` has run since it landed.
+- **srcmorph** — ⚠️ **wired up but never once exercised in CI, success or failure.** The
+  classifier fat-jar build+sign step was added 2026-07-24 (commits `b426b8f`/`6337c89`, same day
+  as BAF's and jllama's fat-jar-signing work) — but the last real release (`v1.1.1`, 2026-07-15)
+  predates it (confirmed by reading that run's job list: no fat-jar step existed yet), and the
+  one `main` dispatch since 07-24 (`30297331297`, 2026-07-27) had `publish_to_central` unset, so
+  "Publish Snapshot to Central" — and the fat-jar loop nested inside it — was **skipped**, not
+  run. Consequence: srcmorph's `snapshot` GitHub Release is stale since **2026-06-26** and still
+  shows the *pre-rename* single-module artifact (`llamacpp-ai-index-maven-plugin-1.0.1-SNAPSHOT`,
+  no fat jar, no `.asc` at all) — the reactor split/rename has never been reflected in a
+  published snapshot at all, fat jars aside. The wiring mirrors jllama's proven-working
+  `sign-fatjars.sh` pattern, so there's no specific reason to expect it's broken — but "wired up"
+  and "verified" aren't the same claim, and this file should not say "working" for srcmorph until
+  a real dispatch confirms it.
 
 **Maven Central publish gating — `publish_to_central` manual flag + `-SNAPSHOT` guard (all 4
 repos, 2026-06-18, branch `claude/stoic-franklin-67klln`).** Same *publish-only-step-escapes-
