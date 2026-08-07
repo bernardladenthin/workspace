@@ -1,6 +1,6 @@
 # Cross-Repo Status Table
 
-This file tracks **only items that span ≥ 2 of the four sibling repos**. Single-repo open work has been moved into each repo's own `TODO.md`:
+This file is the status index for **every repository tracked in this workspace**. Items that span ≥ 2 repos live here; single-repo open work has been moved into each repo's own `TODO.md`:
 
 - [`../BitcoinAddressFinder/TODO.md`](../BitcoinAddressFinder/TODO.md)
 - [`../java-llama.cpp/TODO.md`](../java-llama.cpp/TODO.md)
@@ -10,13 +10,22 @@ This file tracks **only items that span ≥ 2 of the four sibling repos**. Singl
 Recurring per-repo audits (mostly cross-repo by nature but living per-repo today) are documented in [`policies/code-quality-todos.md`](policies/code-quality-todos.md).
 
 Repos:
+
+**Java tier** — these four share `guides/`, `policies/` and the `java-tdd-guide` skill, and are the ones compared in the parity tables below:
 - **BAF** = `/home/user/BitcoinAddressFinder`
 - **jllama** = `/home/user/java-llama.cpp`
 - **plugin** = `/home/user/srcmorph` (repo renamed `llamacpp-ai-index-maven-plugin` → **srcmorph**, now a 3-module reactor; the `plugin` shorthand is kept here for continuity with the historical rows below)
 - **sb** = `/home/user/streambuffer`
 
-> **Scope note:** the parity/history tables below track the **four sibling library repos**
-> (BAF, jllama, srcmorph, sb). The **do-not-bump registry** under "Dependency / plugin
+**Other tracked repos** — no shared Java toolchain, each with its own conventions and its own folder in this workspace:
+- **VeraCrypt** (C/C++) — [`VeraCrypt/`](VeraCrypt/): build and coverage tooling, submitted PRs, local-only findings
+- **llama.cpp** (C/C++) — [`llama.cpp/`](llama.cpp/): upstream contributions, logo assets
+- **subprocess.h** (C) — [`subprocess.h/`](subprocess.h/): upstream contributions
+
+> **Scope note:** the **parity and history tables** below compare Maven, PIT, SpotBugs and
+> release plumbing, so they apply to the **Java tier only** — a C/C++ repo has no rows there,
+> and a blank is a non-applicability rather than a gap. Non-Java repos are tracked through
+> their own folder, linked above. The **do-not-bump registry** under "Dependency / plugin
 > freshness" additionally covers **BroomCabinet** pins, because a cross-repo dependency audit
 > needs one reference for every deliberate pin regardless of which repo owns it.
 

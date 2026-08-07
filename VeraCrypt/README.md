@@ -4,10 +4,11 @@ Knowledge base for work on [VeraCrypt](https://github.com/veracrypt/VeraCrypt)
 via the fork [`bernardladenthin/VeraCrypt`](https://github.com/bernardladenthin/VeraCrypt),
 checked out at [`../VeraCrypt`](../VeraCrypt).
 
-> **Scope note.** VeraCrypt is a **C/C++** project and is *not* one of the four Java
-> sibling repos this workspace was originally built for. Nothing here feeds into
-> `crossrepostatus.md`, and none of the Java guides or policies apply. The folder exists
-> so that hard-won, non-obvious findings survive between sessions.
+> **Scope note.** VeraCrypt is a **C/C++** project and belongs to the non-Java tier of this
+> workspace — it is listed in [`../crossrepostatus.md`](../crossrepostatus.md), but the
+> parity and history tables there compare Maven, PIT and SpotBugs and therefore have no rows
+> for it. None of the Java guides or policies apply. This folder is where its hard-won,
+> non-obvious findings survive between sessions.
 
 ## Contents
 
