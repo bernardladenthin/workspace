@@ -1,6 +1,7 @@
 # Cross-Repo Status Table
 
-This file tracks the **current state** of items that span ≥ 2 of the four sibling repos. It is a
+This file is the status index for **every repository tracked in this workspace**, covering the
+**current state** of items that span ≥ 2 repos. It is a
 status snapshot, not a history log — dated incident narratives, commit-hash trails, and closed
 audits have been pruned; that detail lives in each repo's own `git log` if it's ever needed again.
 What stays here: what's true today, and — where the reasoning isn't obvious from the code — why.
@@ -14,16 +15,23 @@ Single-repo open work lives in each repo's own `TODO.md`:
 
 Recurring per-repo audits (mostly cross-repo by nature but living per-repo today) are documented in [`policies/code-quality-todos.md`](policies/code-quality-todos.md).
 
-Repos:
+Repos — **Java tier** (shared Maven/JUnit toolchain, governed by the guides and policies here):
 - **BAF** = `/home/user/BitcoinAddressFinder`
 - **jllama** = `/home/user/java-llama.cpp`
 - **srcmorph** = `/home/user/srcmorph` (a 3-module reactor: `srcmorph` core + `srcmorph-cli` + `srcmorph-maven-plugin`; formerly `llamacpp-ai-index-maven-plugin`)
 - **sb** = `/home/user/streambuffer`
 
-> **Scope note:** the parity table below tracks the **four sibling library repos** (BAF, jllama,
-> srcmorph, sb). The **do-not-bump registry** under "Dependency / plugin freshness" additionally
-> covers **BroomCabinet** pins, because a cross-repo dependency audit needs one reference for
-> every deliberate pin regardless of which repo owns it.
+**Other tracked repos** — no shared Java toolchain, each with its own conventions and its own
+knowledge folder here:
+- **VeraCrypt** (C/C++) = `/home/user/VeraCrypt` — see [`VeraCrypt/`](VeraCrypt/): build and coverage tooling, submitted PRs, local-only findings
+- **llama.cpp** (C/C++) = `/home/user/llama.cpp` — see [`llama.cpp/`](llama.cpp/)
+- **subprocess.h** (C) = `/home/user/subprocess.h` — see [`subprocess.h/`](subprocess.h/)
+
+> **Scope note:** the **parity table** below compares Maven, PIT, SpotBugs and release plumbing, so
+> it applies to the **Java tier only** (BAF, jllama, srcmorph, sb) — a C/C++ repo has no rows there,
+> and a blank is a non-applicability rather than a gap. The **do-not-bump registry** under
+> "Dependency / plugin freshness" additionally covers **BroomCabinet** pins, because a cross-repo
+> dependency audit needs one reference for every deliberate pin regardless of which repo owns it.
 
 Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing policy
 

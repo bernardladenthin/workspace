@@ -4,13 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`workspace` is the **cross-repo shared layer** for Bernard Ladenthin's
-four Java projects:
+`workspace` is the **cross-repo shared layer** for every repository
+Bernard Ladenthin tracks. It has two tiers.
+
+**Java tier** — these four share the canonical guides, policies and the
+`java-tdd-guide` skill described below:
 
 - [BitcoinAddressFinder](https://github.com/bernardladenthin/BitcoinAddressFinder) — Bitcoin/altcoin private-key scanner (`net.ladenthin:bitcoinaddressfinder`)
 - [java-llama.cpp](https://github.com/bernardladenthin/java-llama.cpp) — JNI bindings to llama.cpp (`net.ladenthin:llama`)
 - [srcmorph](https://github.com/bernardladenthin/srcmorph) — prompt-driven source-tree transformer / AI-index generator, a 3-module reactor (`net.ladenthin:srcmorph` core + `srcmorph-cli` + `srcmorph-maven-plugin`; formerly `llamacpp-ai-index-maven-plugin`)
 - [streambuffer](https://github.com/bernardladenthin/streambuffer) — `OutputStream`/`InputStream` bridge over a dynamic FIFO (`net.ladenthin:streambuffer`)
+
+**Other tracked repos** — no shared Java toolchain, each with its own
+conventions and its own folder here:
+
+- [VeraCrypt](https://github.com/veracrypt/VeraCrypt) (C/C++) — see [`VeraCrypt/`](VeraCrypt/)
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) (C/C++) — see [`llama.cpp/`](llama.cpp/)
+- [subprocess.h](https://github.com/sheredom/subprocess.h) (C) — see [`subprocess.h/`](subprocess.h/)
+
+**Everything below — the guides, the policies, the Java version tier,
+the `java-tdd-guide` skill — applies to the Java tier only.** The other
+repos are tracked for cross-repo status and knowledge, not governed by
+these conventions.
 
 This repo carries **no production code and no build system** of its
 own. It is read by AI assistants and human contributors as the single
