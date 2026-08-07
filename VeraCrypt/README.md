@@ -14,6 +14,7 @@ checked out at [`../VeraCrypt`](../VeraCrypt).
 
 | File | Topic |
 |---|---|
+| [`TODO.md`](TODO.md) | **Start here** — what is open, what is blocked on a decision, what is waiting on upstream |
 | [`upstream-sync.md`](upstream-sync.md) | The fork drifts silently — verify before analysing anything |
 | [`build-verification.md`](build-verification.md) | Building and compile-checking on Linux (Docker) and Windows (native MSVC) |
 | [`coverage-measurement.md`](coverage-measurement.md) | Measuring coverage, why `lcov`/`gcovr` lie here, real figures, and which test attempts paid off |

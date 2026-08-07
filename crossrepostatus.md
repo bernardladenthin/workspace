@@ -12,6 +12,8 @@ Single-repo open work lives in each repo's own `TODO.md`:
 - [`../java-llama.cpp/TODO.md`](../java-llama.cpp/TODO.md)
 - [`../srcmorph/TODO.md`](../srcmorph/TODO.md)
 - [`../streambuffer/TODO.md`](../streambuffer/TODO.md)
+- [`VeraCrypt/TODO.md`](VeraCrypt/TODO.md) — **kept here, not in the repo**: the fork is used to
+  prepare upstream PRs, and these items are a local record that must not reach upstream.
 
 Recurring per-repo audits (mostly cross-repo by nature but living per-repo today) are documented in [`policies/code-quality-todos.md`](policies/code-quality-todos.md).
 
@@ -23,7 +25,8 @@ Repos — **Java tier** (shared Maven/JUnit toolchain, governed by the guides an
 
 **Other tracked repos** — no shared Java toolchain, each with its own conventions and its own
 knowledge folder here:
-- **VeraCrypt** (C/C++) = `/home/user/VeraCrypt` — see [`VeraCrypt/`](VeraCrypt/): build and coverage tooling, submitted PRs, local-only findings
+- **VeraCrypt** (C/C++) = `/home/user/VeraCrypt` — see [`VeraCrypt/`](VeraCrypt/): build and coverage tooling, submitted PRs, local-only findings.
+  Status: 4 PRs pending upstream, and **one reproduced defect (RNG check-then-lock race) that is deliberately unfixed and unreported** — fix designed, see [`VeraCrypt/TODO.md`](VeraCrypt/TODO.md)
 - **llama.cpp** (C/C++) = `/home/user/llama.cpp` — see [`llama.cpp/`](llama.cpp/)
 - **subprocess.h** (C) = `/home/user/subprocess.h` — see [`subprocess.h/`](subprocess.h/)
 
