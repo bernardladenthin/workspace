@@ -518,7 +518,8 @@ Worked out on branch `claude/sweet-lamport-ugvqea`. **No longer "exactly one" �
 same trap.**
 
 **Javadoc JPMS module-mode failure, second trigger — BAF publish-snapshot fat-jar step
-(root-caused + fixed, 2026-08-02).** A recurrence of the June 7 trap above via a *different*
+(root-caused + fixed in code, 2026-08-02; pending a live dispatch to verify — see "Fat-jar
+signing verification status" below).** A recurrence of the June 7 trap above via a *different*
 mechanism, surfaced when CI run 30768800950 (`workflow_dispatch`, `main`) reached
 `publish-snapshot` for what turned out to be the first time since the fat-jar-attach feature
 was added: `Deploy snapshot` (`mvn -P release deploy`) succeeded, but the following step "Build
@@ -546,6 +547,31 @@ signed, picked up by the same `Collect` step). Full write-up of the mechanism (w
 [`policies/jpms-module-descriptor.md`](policies/jpms-module-descriptor.md) "A second trigger:
 multiple Maven invocations sharing `target/`" — read that before adding a second Maven
 invocation to any publish job in any of these repos.
+
+**Fat-jar signing verification status across all 3 fat-jar-shipping repos (checked 2026-08-04,
+via GitHub Release contents + CI run history, not just reading the workflow YAML).** ❌ **open**
+until BAF and srcmorph are each confirmed by one real `workflow_dispatch publish_to_central=true`
+run:
+- **jllama** — ✅ confirmed working. `snapshot` GitHub Release last updated 2026-08-01
+  (`5.0.7-SNAPSHOT`); every fat jar (default CPU + all four `all-<os>-<arch>` multi-backend
+  jars) has a matching `.jar` + `.asc` + `.sha256`. Nothing to do here.
+- **BAF** — fix applied (this entry) and verified **locally** against the real `pom.xml` +
+  workflow command, but **not yet exercised by a live CI publish run**: the fix sits on branch
+  `claude/jpms-javadoc-release-audit-n0d06x` (unmerged), and no `workflow_dispatch` with
+  `publish_to_central=true` has run since it landed.
+- **srcmorph** — ⚠️ **wired up but never once exercised in CI, success or failure.** The
+  classifier fat-jar build+sign step was added 2026-07-24 (commits `b426b8f`/`6337c89`, same day
+  as BAF's and jllama's fat-jar-signing work) — but the last real release (`v1.1.1`, 2026-07-15)
+  predates it (confirmed by reading that run's job list: no fat-jar step existed yet), and the
+  one `main` dispatch since 07-24 (`30297331297`, 2026-07-27) had `publish_to_central` unset, so
+  "Publish Snapshot to Central" — and the fat-jar loop nested inside it — was **skipped**, not
+  run. Consequence: srcmorph's `snapshot` GitHub Release is stale since **2026-06-26** and still
+  shows the *pre-rename* single-module artifact (`llamacpp-ai-index-maven-plugin-1.0.1-SNAPSHOT`,
+  no fat jar, no `.asc` at all) — the reactor split/rename has never been reflected in a
+  published snapshot at all, fat jars aside. The wiring mirrors jllama's proven-working
+  `sign-fatjars.sh` pattern, so there's no specific reason to expect it's broken — but "wired up"
+  and "verified" aren't the same claim, and this file should not say "working" for srcmorph until
+  a real dispatch confirms it.
 
 **Maven Central publish gating — `publish_to_central` manual flag + `-SNAPSHOT` guard (all 4
 repos, 2026-06-18, branch `claude/stoic-franklin-67klln`).** Same *publish-only-step-escapes-
