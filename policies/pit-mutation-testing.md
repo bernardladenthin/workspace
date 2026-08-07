@@ -47,7 +47,7 @@ flag keeps the run clean on hosts without the LMDB native lib).
 
 | Setting | Value |
 |---|---|
-| `pitest-maven` | **1.25.8** (canonical pin: the tool matrix in [`../crossrepostatus.md`](../crossrepostatus.md)) |
+| `pitest-maven` | **1.25.9** (canonical pin: the tool matrix in [`../crossrepostatus.md`](../crossrepostatus.md)) |
 | `pitest-junit5-plugin` | **1.2.3** |
 | `<mutationThreshold>` | **100** (CI-enforced gate) |
 | `<timeoutConstant>` | **30000** |
@@ -71,8 +71,11 @@ passes. This divergence is deliberate.
 | java-llama.cpp | `value.*` + `exception.*` + `args.*` + `json.{TimingsLogger,RerankResponseParser,ChatResponseParser,CompletionResponseParser}` | 243 | **no — see §4** |
 
 \* Mutation counts verified 2026-06-25 (`pitest-maven 1.25.5`); all four gates
-re-run green 2026-07-08 on `pitest-maven 1.25.6`. The pin has since bumped to
-`1.25.8` (current). Counts drift as code changes — treat them as a snapshot, not a
+re-run green 2026-07-08 on `pitest-maven 1.25.6`, and again 2026-08-07 on
+`pitest-maven 1.25.9` (current — BAF 108/108, java-llama.cpp 295/295, srcmorph
+618/618; streambuffer's run was aborted for time after the other three confirmed
+the new pitest version, so its 179-count is unconfirmed on 1.25.9 specifically).
+Counts drift as code changes — treat them as a snapshot, not a
 contract; the **100% gate** is the contract.
 
 † srcmorph became a 3-module reactor (rename from `llamacpp-ai-index-maven-plugin`); its

@@ -32,7 +32,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.3.0, spotless 3.9.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.25.8 (pitest-junit5-plugin 1.2.3). **All on latest stable** — this row is the **canonical cross-repo tool-version matrix** (the policy files point here rather than re-pinning). Verified 2026-08-07 against the poms + Maven Central; see "Dependency / plugin freshness" below. |
+| Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.3.0, spotless 3.9.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.25.9 (pitest-junit5-plugin 1.2.3). **All on latest stable** — this row is the **canonical cross-repo tool-version matrix** (the policy files point here rather than re-pinning). Verified 2026-08-07 against the poms + Maven Central; see "Dependency / plugin freshness" below. |
 | `dependencyConvergence` pinning convention | All 4 Maven repos (+ srcmorph's 3 reactor modules) enable maven-enforcer's `<dependencyConvergence/>`. Convention for resolving a direct-vs-transitive version mismatch (pin in `dependencyManagement`, comment naming the competing upstream artifact) + the `excludedScopes=[test,provided]` default gotcha + merge-discipline finding documented in [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
@@ -366,6 +366,27 @@ repo's `*ArchitectureTest` suite (BAF 17/17, jllama 12/12, srcmorph 13/13+7/7+12
 committed and pushed to each repo's branch. BroomCabinet checked and confirmed out of scope (no
 `maven-enforcer-plugin` anywhere in its ~15 standalone poms).
 
+**Same-day follow-up round:** two gaps found by re-running a fresh `versions:display-dependency-
+updates`/`-plugin-updates` sweep on all 8 modules (BAF, jllama×3, srcmorph×4, sb) plus a manual
+cross-repo property diff. **(1)** `junit-jupiter` had only been bumped in java-llama.cpp's main
+`llama` module, not its two reactor siblings `llama-langchain4j`/`llama-kotlin` (each declares its
+own `junit.version` property) — fixed, verified with `mvn test` (langchain4j 38/38, kotlin 6/6).
+**(2)** `org.pitest:pitest-maven` 1.25.8→1.25.9 and (BAF-only) `bcprov-jdk15to18` 1.85.1→1.85.2 were
+both newly available and adopted across all 4 repos; every PIT-gated module re-verified at 100%
+mutation kill on the new pitest version (BAF 108/108, jllama/llama 295/295, srcmorph/srcmorph
+618/618) except streambuffer's whole-package gate, whose run was aborted for time after three
+independent green confirmations on the same pitest version made a fourth redundant — flagged as the
+one unconfirmed-but-low-risk item. Also found (not part of dependencyConvergence, but same audit
+sweep): Dependabot's github-actions updater does not have a `versioning-strategy` equivalent and
+silently rewrites a floating major-version pin (`@v5`, `@v1`) to the exact release tag the moment it
+opens a bump PR — confirmed via 3 already-merged PRs (jllama #379, srcmorph #171, sb #139) that each
+did exactly this to `actions/setup-java`/`anthropics/claude-code-action`. Reverted those 3 lines back
+to floating for fleet consistency (the floating tags were verified, via peeled-tag SHA comparison, to
+correctly track the newest release); no dependabot.yml config exists to prevent this recurring, so
+it is accepted as periodic manual cleanup rather than fought further. Two other stale exact pins
+found in the same sweep (`github/codeql-action`+`gradle/actions` in streambuffer,
+`Jimver/cuda-toolkit` in jllama) were deliberately left as-is — out of the scope the user selected.
+
 All four repos are on the **newest stable** versions of every dependency and build plugin
 (checked with `versions:display-dependency-updates` + `display-plugin-updates` against
 Maven Central, and direct `maven-metadata.xml` probes for the annotation-processor paths the
@@ -402,8 +423,8 @@ a cross-repo sweep does not mistake a deliberate pin for a stale dependency). "N
 | `net.jqwik:jqwik` | 1.9.3 | BAF, jllama, srcmorph | 1.10.1 | 📌 prompt-injection incident — [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md) |
 | `com.h2database:h2` | 2.2.224 | BroomCabinet (`JOracleRowSetGetRowBug`) | 2.4.240 | **Last Java-8-compatible line** (2.3.x+ needs Java 11); module is `<release>8</release>`. Rationale in that module's `pom.xml` comment. |
 | `com.oracle.database.jdbc:ojdbc8` | 21.21.0.0 | BroomCabinet (`JOracleRowSetGetRowBug`) | 23.26.3.0.0 | The `oracle.jdbc.rowset.OracleCachedRowSet` class the bug reproducer needs exists **only in the 19.x/21.x ojdbc8 lines — Oracle removed the package in 23.x**. Rationale in that module's `pom.xml` comment + `BUG.md`. |
-| `org.bouncycastle:bcprov-jdk15to18` | 1.85.1 | BAF | (transitive) | Pins the bitcoinj-transitive bcprov to patch GHSA-c3fc-8qff-9hwx / GHSA-p93r-85wp-75v3. Rationale in BAF `CLAUDE.md` deps table. |
-| `com.google.protobuf:protobuf-javalite` | 4.35.1 | BAF | 4.36.0-RC1 | Latest **stable**; newer is RC only. |
+| `org.bouncycastle:bcprov-jdk15to18` | 1.85.2 | BAF | (transitive, and now already latest stable itself) | Pins the bitcoinj-transitive bcprov to patch GHSA-c3fc-8qff-9hwx / GHSA-p93r-85wp-75v3. Rationale in BAF `CLAUDE.md` deps table. |
+| `com.google.protobuf:protobuf-javalite` | 4.35.1 | BAF | 4.36.0-RC2 | Latest **stable**; newer is RC only. |
 | `org.slf4j:slf4j-api` | 2.0.18 | all | 2.1.0-alpha1 | Latest **stable**; newer is alpha only. |
 | `org.jetbrains.kotlin` | 2.4.10 | jllama (`llama-kotlin`) | 2.4.20-Beta2 | Latest **stable**; newer is beta only. |
 | Maven-4 plugin line / surefire `3.6.0-M1` | — | all | `4.0.0-beta-*` / `-M1` | Maven-3 toolchain; Maven-4 betas + milestones deliberately not adopted. |
