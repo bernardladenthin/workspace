@@ -32,6 +32,31 @@ templates/CLAUDE.md.template             Standard per-repo CLAUDE.md
 crossrepostatus.md                       Live cross-repo status table
 ```
 
+## Topic folders
+
+Separate from the Java layer above, and not covered by any of its guides or
+policies. These hold platform and upstream-contribution knowledge; none is a
+tracked repository and none appears in `crossrepostatus.md`.
+
+```
+AIX/            Running AIX under QEMU, and what it takes to build there
+qemu/           Defects found in QEMU itself, with patches
+Linux/          Linux platform notes
+subprocess.h/   Upstream contributions to sheredom/subprocess.h
+utest.h/        Upstream contributions to sheredom/utest.h
+llama.cpp/      llama.cpp notes
+VeraCrypt/      VeraCrypt notes
+```
+
+`subprocess.h/` and `utest.h/` belong together: subprocess.h vendors utest.h, and
+every utest.h defect recorded there surfaced while porting subprocess.h to AIX.
+
+`AIX/` and `qemu/` split the same way. Trying to boot AIX 5.3 on
+`qemu-system-ppc64` turned up four defects in QEMU's PowerPC emulation, one of
+which — `mfsr` reading back zero on any 64-bit CPU model — has nothing to do
+with AIX and breaks any 32-bit PowerPC guest. That belongs in `qemu/`, with the
+patches; the AIX-specific walls stay in `AIX/5.3L/`.
+
 ## Versioned guide chain
 
 Inside `guides/src/` and `guides/test/`, files are named
