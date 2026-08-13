@@ -115,6 +115,21 @@ Differences below are intentional design decisions, not gaps to close.
   output (C/C++/CUDA) and jllama is the only sibling with a native (C++/JNI) build; the three
   pure-Maven siblings already cache Maven deps via `setup-java`'s `cache: maven` instead. The
   `DEPOT_TOKEN` org secret exists in all repos but is inert outside jllama.
+- **Multi-artifact native-library merge (`pattern: "*-libraries"` + collision guard) —
+  java-llama.cpp only.** jllama is the only sibling whose release JAR is assembled from ~20 native
+  build artifacts produced on different runners, so it is the only one that globs artifacts into one
+  resource tree. The three pure-Maven siblings each build their single jar in one job and download
+  artifacts only by explicit name — nothing to port, and no sibling workflow uses `merge-multiple` or
+  a `pattern:` glob at all (verified). The failure mode that made the guard necessary is worth
+  knowing cross-repo even though the code isn't: **an artifact name says nothing about which path the
+  job wrote**, so a glob merge can drop two artifacts onto one file and yield a byte-level hybrid of
+  both. That shipped a macOS `libjllama.dylib` whose ad-hoc signature no longer matched its own
+  `__TEXT` pages — macOS SIGKILLed every process that loaded it — through 5.0.6 and several 5.0.7
+  snapshots with a fully green pipeline. jllama now downloads the glob unmerged and merges via
+  `.github/merge-native-artifacts.sh`, which fails loud on any path claimed by two artifacts. Note
+  the check *must* run before the merge: afterwards the collision leaves exactly one (corrupt) file,
+  so a "one library per `{OS}/{ARCH}`" assertion on the merged tree cannot detect it. Details in
+  jllama's `CLAUDE.md`, "macOS arm64: three build jobs, one shipped dylib".
 - **`jar-with-dependencies` (fat/uber JAR) = GitHub-Release asset only, never Central, signed
   `.asc` — BAF + jllama + srcmorph (not sb).** Convention + per-repo shapes live in
   [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). sb ships no fat
