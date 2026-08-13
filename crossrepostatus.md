@@ -148,6 +148,35 @@ Differences below are intentional design decisions, not gaps to close.
 
 ## Open cross-repo items
 
+- **srcmorph ships the corrupt macOS dylib downstream — bump after jllama 5.0.7** (❌ open,
+  **blocked on a jllama release**). `srcmorph/pom.xml` pins `<llama.version>5.0.6</llama.version>`,
+  and 5.0.6 is one of the releases explicitly verified to carry the hybrid
+  `Mac/aarch64/libjllama.dylib` (see the macOS entry under "Deliberate non-parity"). So every
+  srcmorph fat-jar release asset built against it embeds a dylib that macOS SIGKILLs on load —
+  srcmorph inherits the defect without having done anything wrong. Only srcmorph is affected: BAF
+  and sb do not depend on `net.ladenthin:llama`. Blast radius inside srcmorph is the
+  `LlamaCppJniAiGenerationProvider` path only (the `mock` provider never loads the native library),
+  so `Plan`/mock runs and the whole test suite are unaffected — but a real macOS-arm64 model run is
+  dead. **Not fixable yet:** jllama is at `5.0.7-SNAPSHOT` and has had no release since the fix
+  landed, so the bump has to wait for 5.0.7 (or a snapshot known to postdate it). Action when 5.0.7
+  ships: bump `llama.version`, then actually run the srcmorph CLI once on macOS arm64 — the bump is
+  the fix, the run is the proof.
+- **Release-asset fat jars are built, signed, published — and never executed** (❌ open, BAF +
+  srcmorph; partially jllama). All three attach a runnable `jar-with-dependencies` to the GitHub
+  Release ([`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md)), but only
+  jllama ever launches one in CI (`smoke-fatjar-linux` / `smoke-fatjar-windows`, real `java -jar`
+  against the packaged artifact). BAF and srcmorph build the asset in their publish jobs' "Build &
+  sign fat jar" step and go straight to signing — nothing has ever run them. This is the same defect
+  class as the macOS dylib: *signed and shipped without once being executed*. Both have a
+  zero-dependency smoke available today — srcmorph `examples/config_Plan.json` (mock provider, no
+  model, no GPU), BAF `examples/config_AddressFilesToLMDB.json` (bundled sample addresses into a
+  fresh temp LMDB, which also exercises the lmdbjava natives) — so the cost is one `java -jar` and an
+  exit-code check per publish job, inserted right after the jar is signed, gating the exact artifact
+  that gets attached. jllama's gap is macOS specifically (no `smoke-fatjar-macos`; there is no
+  `all-macos-*` fat jar either, so it must target the default fat jar) — tracked in
+  [`../java-llama.cpp/TODO.md`](../java-llama.cpp/TODO.md). Keep the *job shape* synchronized rather
+  than the script: the assertions differ per CLI (server-health vs process-exit), the convention
+  "no release asset is attached that CI has not run" does not.
 - **Test-JVM diagnostics + memory standard** ([`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md)):
   🚧 in progress across BAF/jllama/srcmorph/sb — the `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload
   standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
