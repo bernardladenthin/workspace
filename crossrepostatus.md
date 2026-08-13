@@ -69,6 +69,7 @@ Files kept **byte-identical across repos** (sync any edit to every copy AND the 
 | `.github/signing-selftest/build.gradle.kts` | `ab45f5c102b47dd16c325d4d9c283d158ba90c05f484eac45b2767885c4462f9` | all 4 repos |
 | `.github/signing-selftest/settings.gradle.kts` | `9b2ea5b5ff8d48607e26e4e211ad6d496f7660e71c84e42caaa82b84f7001710` | all 4 repos |
 | `.github/sign-fatjars.sh` | `3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36` | jllama + srcmorph (see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md)) |
+| `.github/smoke-fatjar-cli.sh` | `4d1cc65cbd84a38f0d2015f55c0b2ba9027c72794b2c2ed578693a58d702efd2` | BAF + srcmorph (the two CLI fat jars; jllama's server/native smokes are repo-specific — see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md) "No release asset is attached that CI has not run") |
 | `lombok.config` (jllama: `llama/lombok.config`) | `42f1842270af691bdfe561355bee4eb9ae326383f1852db19763abb888d6b90e` | the 3 Lombok repos: jllama + BAF + srcmorph (sb has no Lombok). Canonical content in [`policies/lombok-config.md`](policies/lombok-config.md) |
 | `.github/ISSUE_TEMPLATE/bug_report.md` | `7232b092d3ba49b97bee7b539aaf6ee4c698e86bd3d4dd256e8ae2f85f653ee9` | all 4 repos |
 | `.github/ISSUE_TEMPLATE/feature_request.md` | `0f08122e597f93dbbdc9c80e88984b4bf4738951d5902813df3d4640cdb11bac` | all 4 repos |
@@ -82,6 +83,7 @@ Verify from the `workspace` repo root (siblings checked out alongside):
 sha256sum ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/build.gradle.kts \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/settings.gradle.kts \
           ../{java-llama.cpp,srcmorph}/.github/sign-fatjars.sh \
+          ../{BitcoinAddressFinder,srcmorph}/.github/smoke-fatjar-cli.sh \
           ../java-llama.cpp/llama/lombok.config ../{BitcoinAddressFinder,srcmorph}/lombok.config \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/bug_report.md \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/feature_request.md \
@@ -161,22 +163,18 @@ Differences below are intentional design decisions, not gaps to close.
   landed, so the bump has to wait for 5.0.7 (or a snapshot known to postdate it). Action when 5.0.7
   ships: bump `llama.version`, then actually run the srcmorph CLI once on macOS arm64 — the bump is
   the fix, the run is the proof.
-- **Release-asset fat jars are built, signed, published — and never executed** (❌ open, BAF +
-  srcmorph; partially jllama). All three attach a runnable `jar-with-dependencies` to the GitHub
-  Release ([`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md)), but only
-  jllama ever launches one in CI (`smoke-fatjar-linux` / `smoke-fatjar-windows`, real `java -jar`
-  against the packaged artifact). BAF and srcmorph build the asset in their publish jobs' "Build &
-  sign fat jar" step and go straight to signing — nothing has ever run them. This is the same defect
-  class as the macOS dylib: *signed and shipped without once being executed*. Both have a
-  zero-dependency smoke available today — srcmorph `examples/config_Plan.json` (mock provider, no
-  model, no GPU), BAF `examples/config_AddressFilesToLMDB.json` (bundled sample addresses into a
-  fresh temp LMDB, which also exercises the lmdbjava natives) — so the cost is one `java -jar` and an
-  exit-code check per publish job, inserted right after the jar is signed, gating the exact artifact
-  that gets attached. jllama's gap is macOS specifically (no `smoke-fatjar-macos`; there is no
-  `all-macos-*` fat jar either, so it must target the default fat jar) — tracked in
-  [`../java-llama.cpp/TODO.md`](../java-llama.cpp/TODO.md). Keep the *job shape* synchronized rather
-  than the script: the assertions differ per CLI (server-health vs process-exit), the convention
-  "no release asset is attached that CI has not run" does not.
+- **No release asset is attached that CI has not run** (✅ landed in all three fat-jar repos).
+  Every repo that attaches a fat jar now launches it in a `smoke-fatjar*` job that gates both
+  publish jobs: BAF (`config_AddressFilesToLMDB.json`, also exercises the lmdbjava natives),
+  srcmorph (`config_Plan.json`, mock provider), jllama (`smoke-fatjar-linux`/`-windows` server
+  smokes, plus the new `smoke-fatjar-macos` closing the gap that let a corrupt dylib ship). BAF and
+  srcmorph share a byte-identical `.github/smoke-fatjar-cli.sh` (in the checksum table above);
+  jllama keeps its own scripts because its Main-Class is a server that never exits and the macOS
+  assertion is native loadability, not a CLI exit code. Rule, rationale and the per-repo assertion
+  table live in [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). Each
+  smoke is model-free, GPU-free and network-free by design (~1 min): an expensive smoke gets made
+  non-gating and then the gap reopens. **Not yet observed green in CI** — all three landed in one
+  change set and have run only locally so far.
 - **Test-JVM diagnostics + memory standard** ([`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md)):
   🚧 in progress across BAF/jllama/srcmorph/sb — the `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload
   standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
