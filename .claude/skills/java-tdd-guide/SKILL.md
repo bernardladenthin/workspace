@@ -10,12 +10,13 @@ description: Bernard Ladenthin's personal Java Test-Driven Development skill —
 
 This is the canonical Java TDD skill for the four sibling repos
 (`BitcoinAddressFinder`, `streambuffer`, `java-llama.cpp`,
-`llamacpp-ai-index-maven-plugin`). It describes the workflow and
+`srcmorph`, formerly `llamacpp-ai-index-maven-plugin`). It describes the workflow and
 conventions that are **actually in use** across the codebases — verified
 by reading the test sources, not invented.
 
-**Baseline assumed by this skill:** Java 8 + JUnit Jupiter 6.1.0 +
-Hamcrest 3.0. Java 21 idioms (records, switch expressions, text blocks)
+**Baseline assumed by this skill:** Java 8 + JUnit Jupiter 6.1.x +
+Hamcrest 3.0 (exact versions live in the canonical tool-version matrix in
+`workspace/crossrepostatus.md`; they are deliberately not re-pinned here). Java 21 idioms (records, switch expressions, text blocks)
 are documented separately in
 [`../../../guides/src/CODE_WRITING_GUIDE-21.md`](../../../guides/src/CODE_WRITING_GUIDE-21.md);
 only `BitcoinAddressFinder` targets Java 21 today.
@@ -52,7 +53,7 @@ Repeat for each behaviour increment.
 
 | Concern | Choice | Evidence |
 |---|---|---|
-| Runner | **JUnit Jupiter** 6.1.0 (`org.junit.jupiter.api.*`) | `pom.xml` in all four repos |
+| Runner | **JUnit Jupiter** 6.1.x (`org.junit.jupiter.api.*`) | `pom.xml` in all four repos; exact version in `crossrepostatus.md` |
 | Assertions | **Hamcrest 3.0** (`assertThat(actual, is(equalTo(expected)))`) | universally adopted; `assertThrows` is the one Jupiter assertion that's always allowed |
 | Parameterized | `@ParameterizedTest` + `@MethodSource(SourceClass.CONSTANT_NAME)` | `BitHelperTest.java:21,33`; `StreamBufferTest.java:42-47` |
 | Mocking | **Mockito** (`mock()`, `when()`, `verify()`, `ArgumentCaptor`) | BAF + plugin; not used by sb/jllama |

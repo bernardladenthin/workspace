@@ -12,7 +12,7 @@ PR workflow.
 
 - [BitcoinAddressFinder](https://github.com/bernardladenthin/BitcoinAddressFinder)
 - [java-llama.cpp](https://github.com/bernardladenthin/java-llama.cpp)
-- [llamacpp-ai-index-maven-plugin](https://github.com/bernardladenthin/llamacpp-ai-index-maven-plugin)
+- [srcmorph](https://github.com/bernardladenthin/srcmorph) (formerly `llamacpp-ai-index-maven-plugin`)
 - [streambuffer](https://github.com/bernardladenthin/streambuffer)
 
 ## Layout
@@ -52,10 +52,11 @@ VeraCrypt/      VeraCrypt notes
 every utest.h defect recorded there surfaced while porting subprocess.h to AIX.
 
 `AIX/` and `qemu/` split the same way. Trying to boot AIX 5.3 on
-`qemu-system-ppc64` turned up four defects in QEMU's PowerPC emulation, one of
-which — `mfsr` reading back zero on any 64-bit CPU model — has nothing to do
-with AIX and breaks any 32-bit PowerPC guest. That belongs in `qemu/`, with the
-patches; the AIX-specific walls stay in `AIX/5.3L/`.
+`qemu-system-ppc64` turned up eight defects in QEMU's PowerPC emulation. Two
+have nothing to do with AIX: `mfsr` reading back zero on any 64-bit CPU model
+breaks any 32-bit PowerPC guest, and `spapr_vscsi` wrapping a 16-bit descriptor
+offset silently corrupts guest data on any transfer above 128 KiB. Those belong
+in `qemu/`, with the patches; the AIX-specific walls stay in `AIX/5.3L/`.
 
 ## Versioned guide chain
 
@@ -68,7 +69,7 @@ applicable version up to the highest one your repo's `pom.xml`
 The baseline `-8.md` files apply to every sibling repo.
 `BitcoinAddressFinder` is on Java 21 and additionally follows the
 `-21.md` supplements. The other three repos (`streambuffer`,
-`java-llama.cpp`, `llamacpp-ai-index-maven-plugin`) target Java 8 and
+`java-llama.cpp`, `srcmorph`) target Java 8 and
 must not use Java 21 idioms.
 
 ## Style ground truth

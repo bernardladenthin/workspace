@@ -58,7 +58,9 @@ crossrepostatus.md                       Live cross-repo status table
 
 ## Java version tier — important
 
-The canonical guides assume **Java 8 + JUnit Jupiter 6.1.2 + Hamcrest 3.0**
+The canonical guides assume **Java 8 + JUnit Jupiter 6.1.x + Hamcrest 3.0**
+(exact versions: the tool-version matrix row in
+[`crossrepostatus.md`](crossrepostatus.md) is canonical — do not re-pin them here)
 because that is the lowest common denominator across the four sibling
 repos:
 

@@ -1,3 +1,7 @@
 # Python bytecode caches from the logo/app-icon generators
 __pycache__/
 *.pyc
+
+# Instance-specific infrastructure notes (addresses, IDs, account numbers).
+# This repository is public; these stay local.
+*.local.md
