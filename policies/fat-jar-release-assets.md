@@ -49,6 +49,52 @@ plain `git push` of a `v*` tag does **not** attach any assets. To ship the fat j
 the publish workflow manually with that input set (the same way the thin jars have always been
 attached). Symptom of forgetting: a tag release with `assets: []`.
 
+## No release asset is attached that CI has not run
+
+**Every repo that attaches a fat jar runs it in CI first, in a `smoke-fatjar*` job that gates both
+publish jobs.** This is a standing rule, not a per-repo nicety.
+
+The reason it needs stating: **nothing else in a Maven build ever touches the assembled artifact.**
+Unit tests, PIT, SpotBugs and ArchUnit all run off `target/classes`; `mvn package` only asserts that
+the assembly plugin wrote a file. So an uber jar can be built and GPG-signed perfectly while being
+unrunnable — a missing `Main-Class`, a shade-mangled or duplicated resource, an absent SLF4J
+binding, a native library that will not load. Signing an artifact proves *who built it*, not that it
+works. java-llama.cpp learned this the expensive way: a `libjllama.dylib` merged from three CI
+artifacts into a byte-level hybrid — macOS SIGKILLs any process that loads it — was signed,
+attached and shipped through 5.0.6 and several 5.0.7 snapshots with an all-green pipeline, because
+no job had ever loaded the packaged copy.
+
+**Job shape (synchronized).** One job named `smoke-fatjar*`, `needs:` whatever job produced the jar,
+downloads that artifact, launches it, and is listed in the `needs:` of `publish-snapshot` **and**
+`publish-release`. Two assertions minimum: the process must succeed, **and** a marker from its own
+output must be present — exit code 0 alone is satisfied by a JVM that starts and does nothing.
+The `<jar-glob>` must match **exactly one** jar; an ambiguous match is an error, not a "pick the
+first", because that is precisely how the wrong artifact gets tested.
+
+**Assertions are repo-specific — the job shape is not.** Force-fitting one script onto all three
+would be worse than the duplication it saves:
+
+| Repo | Job | What it launches | Assertion |
+|---|---|---|---|
+| BAF | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_AddressFilesToLMDB.json` | exit 0 + `Main#run end.`; also exercises the **lmdbjava natives** out of the jar |
+| srcmorph | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_Plan.json` | exit 0 + `Main#run end.`; `mock` provider, so no GGUF/GPU/network |
+| jllama | `smoke-fatjar-linux` / `-windows` | `smoke-test-fatjar.{sh,ps1}` → real `java -jar` server | `/health` 200 + a `/v1/chat/completions` choice + the backend-selection log line |
+| jllama | `smoke-fatjar-macos` | `smoke-native-macos.sh` → `codesign` + `NativeLoadSmoke.java` | signature matches its own pages + the JVM loads the dylib and crosses JNI |
+
+BAF and srcmorph share a **byte-identical `.github/smoke-fatjar-cli.sh`** (`<jar-dir> <jar-glob>
+<work-dir> <success-marker> [args…]`, plain `java -jar`, no extra JVM flags — the contract under
+test is that the published artifact runs as-is). Both CLIs derive from the same `cli.Main` pattern
+and log `Main#run end.`, which is what lets the marker be identical too. **Sync any edit to both
+copies and to the checksum table in [`../crossrepostatus.md`](../crossrepostatus.md).** jllama needs
+its own scripts: its Main-Class is a server that never exits, so "exit 0" is not a contract it can
+satisfy, and on macOS the assertion that matters is native loadability rather than any CLI
+behaviour.
+
+**Cheap beats thorough here.** Each of these runs in about a minute with no model, no GPU and no
+network. That is deliberate: a smoke that is expensive gets skipped, made non-gating, or quietly
+deleted, and then the gap reopens. Add depth only where a cheap check genuinely cannot reach the
+failure class.
+
 ## Per-repo shapes
 
 | Repo | Fat jar(s) | Kept off Central by | Built + signed by |

@@ -69,6 +69,7 @@ Files kept **byte-identical across repos** (sync any edit to every copy AND the 
 | `.github/signing-selftest/build.gradle.kts` | `ab45f5c102b47dd16c325d4d9c283d158ba90c05f484eac45b2767885c4462f9` | all 4 repos |
 | `.github/signing-selftest/settings.gradle.kts` | `9b2ea5b5ff8d48607e26e4e211ad6d496f7660e71c84e42caaa82b84f7001710` | all 4 repos |
 | `.github/sign-fatjars.sh` | `3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36` | jllama + srcmorph (see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md)) |
+| `.github/smoke-fatjar-cli.sh` | `4d1cc65cbd84a38f0d2015f55c0b2ba9027c72794b2c2ed578693a58d702efd2` | BAF + srcmorph (the two CLI fat jars; jllama's server/native smokes are repo-specific — see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md) "No release asset is attached that CI has not run") |
 | `lombok.config` (jllama: `llama/lombok.config`) | `42f1842270af691bdfe561355bee4eb9ae326383f1852db19763abb888d6b90e` | the 3 Lombok repos: jllama + BAF + srcmorph (sb has no Lombok). Canonical content in [`policies/lombok-config.md`](policies/lombok-config.md) |
 | `.github/ISSUE_TEMPLATE/bug_report.md` | `7232b092d3ba49b97bee7b539aaf6ee4c698e86bd3d4dd256e8ae2f85f653ee9` | all 4 repos |
 | `.github/ISSUE_TEMPLATE/feature_request.md` | `0f08122e597f93dbbdc9c80e88984b4bf4738951d5902813df3d4640cdb11bac` | all 4 repos |
@@ -82,6 +83,7 @@ Verify from the `workspace` repo root (siblings checked out alongside):
 sha256sum ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/build.gradle.kts \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/settings.gradle.kts \
           ../{java-llama.cpp,srcmorph}/.github/sign-fatjars.sh \
+          ../{BitcoinAddressFinder,srcmorph}/.github/smoke-fatjar-cli.sh \
           ../java-llama.cpp/llama/lombok.config ../{BitcoinAddressFinder,srcmorph}/lombok.config \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/bug_report.md \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/feature_request.md \
@@ -115,6 +117,21 @@ Differences below are intentional design decisions, not gaps to close.
   output (C/C++/CUDA) and jllama is the only sibling with a native (C++/JNI) build; the three
   pure-Maven siblings already cache Maven deps via `setup-java`'s `cache: maven` instead. The
   `DEPOT_TOKEN` org secret exists in all repos but is inert outside jllama.
+- **Multi-artifact native-library merge (`pattern: "*-libraries"` + collision guard) —
+  java-llama.cpp only.** jllama is the only sibling whose release JAR is assembled from ~20 native
+  build artifacts produced on different runners, so it is the only one that globs artifacts into one
+  resource tree. The three pure-Maven siblings each build their single jar in one job and download
+  artifacts only by explicit name — nothing to port, and no sibling workflow uses `merge-multiple` or
+  a `pattern:` glob at all (verified). The failure mode that made the guard necessary is worth
+  knowing cross-repo even though the code isn't: **an artifact name says nothing about which path the
+  job wrote**, so a glob merge can drop two artifacts onto one file and yield a byte-level hybrid of
+  both. That shipped a macOS `libjllama.dylib` whose ad-hoc signature no longer matched its own
+  `__TEXT` pages — macOS SIGKILLed every process that loaded it — through 5.0.6 and several 5.0.7
+  snapshots with a fully green pipeline. jllama now downloads the glob unmerged and merges via
+  `.github/merge-native-artifacts.sh`, which fails loud on any path claimed by two artifacts. Note
+  the check *must* run before the merge: afterwards the collision leaves exactly one (corrupt) file,
+  so a "one library per `{OS}/{ARCH}`" assertion on the merged tree cannot detect it. Details in
+  jllama's `CLAUDE.md`, "macOS arm64: three build jobs, one shipped dylib".
 - **`jar-with-dependencies` (fat/uber JAR) = GitHub-Release asset only, never Central, signed
   `.asc` — BAF + jllama + srcmorph (not sb).** Convention + per-repo shapes live in
   [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). sb ships no fat
@@ -133,6 +150,31 @@ Differences below are intentional design decisions, not gaps to close.
 
 ## Open cross-repo items
 
+- **srcmorph ships the corrupt macOS dylib downstream — bump after jllama 5.0.7** (❌ open,
+  **blocked on a jllama release**). `srcmorph/pom.xml` pins `<llama.version>5.0.6</llama.version>`,
+  and 5.0.6 is one of the releases explicitly verified to carry the hybrid
+  `Mac/aarch64/libjllama.dylib` (see the macOS entry under "Deliberate non-parity"). So every
+  srcmorph fat-jar release asset built against it embeds a dylib that macOS SIGKILLs on load —
+  srcmorph inherits the defect without having done anything wrong. Only srcmorph is affected: BAF
+  and sb do not depend on `net.ladenthin:llama`. Blast radius inside srcmorph is the
+  `LlamaCppJniAiGenerationProvider` path only (the `mock` provider never loads the native library),
+  so `Plan`/mock runs and the whole test suite are unaffected — but a real macOS-arm64 model run is
+  dead. **Not fixable yet:** jllama is at `5.0.7-SNAPSHOT` and has had no release since the fix
+  landed, so the bump has to wait for 5.0.7 (or a snapshot known to postdate it). Action when 5.0.7
+  ships: bump `llama.version`, then actually run the srcmorph CLI once on macOS arm64 — the bump is
+  the fix, the run is the proof.
+- **No release asset is attached that CI has not run** (✅ landed in all three fat-jar repos).
+  Every repo that attaches a fat jar now launches it in a `smoke-fatjar*` job that gates both
+  publish jobs: BAF (`config_AddressFilesToLMDB.json`, also exercises the lmdbjava natives),
+  srcmorph (`config_Plan.json`, mock provider), jllama (`smoke-fatjar-linux`/`-windows` server
+  smokes, plus the new `smoke-fatjar-macos` closing the gap that let a corrupt dylib ship). BAF and
+  srcmorph share a byte-identical `.github/smoke-fatjar-cli.sh` (in the checksum table above);
+  jllama keeps its own scripts because its Main-Class is a server that never exits and the macOS
+  assertion is native loadability, not a CLI exit code. Rule, rationale and the per-repo assertion
+  table live in [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). Each
+  smoke is model-free, GPU-free and network-free by design (~1 min): an expensive smoke gets made
+  non-gating and then the gap reopens. **Not yet observed green in CI** — all three landed in one
+  change set and have run only locally so far.
 - **Test-JVM diagnostics + memory standard** ([`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md)):
   🚧 in progress across BAF/jllama/srcmorph/sb — the `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload
   standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
