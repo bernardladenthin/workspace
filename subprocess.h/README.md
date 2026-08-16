@@ -17,7 +17,7 @@ checked out at [`../../subprocess.h`](../../subprocess.h).
 | [`contributions.md`](contributions.md) | **Start here** — what is merged, what is open, what is waiting on whom |
 | [`platform-boundaries.md`](platform-boundaries.md) | The version boundaries the library must respect, each with primary-source evidence |
 | [`verification-playbook.md`](verification-playbook.md) | How to test a platform you do not own — Docker matrices, Apple SDKs, osxcross, forced code paths |
-| [`../utest.h/`](../utest.h/) | The vendored test framework. Four defects found through this work, two of them blocking AIX and 32-bit outright |
+| [`../utest.h/`](../utest.h/) | The vendored test framework. Six defects found through this work — two blocked AIX and 32-bit outright, one silently skips tests a `--filter` should have run |
 
 ## The one structural fact worth knowing first
 
@@ -45,10 +45,26 @@ gets "feature unavailable" rather than a link error. See
 
 ## Repository facts that keep mattering
 
-- **No CI runs on fork PRs** without the maintainer approving the workflow. Every PR here
-  has sat at `mergeable_state: unstable` with zero check runs, including
-  [#104](https://github.com/sheredom/subprocess.h/pull/104) at the moment it was merged.
-  It is not a signal about the change.
+- **CI on fork PRs differs between the two repositories, and it changed here.** Through
+  #104 no PR in subprocess.h got check runs at all — including
+  [#104](https://github.com/sheredom/subprocess.h/pull/104) at the moment it was merged, so
+  a green or absent result was not a signal about the change. As of 2026-08-15 fork PRs in
+  subprocess.h **do** run automatically (#113 and #117 both did). `sheredom/utest.h` still
+  gates them: runs land on `conclusion: action_required` and wait for the maintainer, which
+  is where #188, #189 and #190 sit. Check which regime applies before reading anything into
+  a missing run.
+- **Green CI is not evidence.** Twice in one session a real defect sat behind a fully green
+  matrix: the fd-0 case in #112 (442/442 with the bug present) and the 32-bit Windows break
+  from #116 (`cmake.yml` builds x64 only). Both are written up in
+  [`contributions.md`](contributions.md). Ask what dimension a matrix *cannot* reach before
+  trusting it.
+- **…and red CI sometimes is the only instrument.** The same session's third defect — the
+  posix_spawn half of the `FD_CLOEXEC` problem — cannot be reproduced on Linux at all,
+  because glibc clears the flag on a self-duplication where Apple does not. No local
+  measurement could have found it or confirmed its fix. A pull request **inside the fork**
+  runs the whole matrix, macOS included, for free and without touching upstream; see
+  [`verification-playbook.md`](verification-playbook.md). Use it before pushing a guess to a
+  real PR.
 - **The maintainer squash-merges.** Local branches are therefore never ancestors of `main`
   afterwards; `git branch -d` refuses and `-D` is correct — but verify content equality
   first (`git diff <branch> <upstream-main>` must be empty).

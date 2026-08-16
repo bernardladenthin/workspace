@@ -9,6 +9,112 @@ are ones that produced a wrong answer first.
 until you have watched it report red for a case you deliberately broke. Two runs in this
 project passed for the wrong reason before a control exposed them — see "Traps" below.
 
+Three refinements, each learned by getting it wrong first:
+
+**A control can pass for the wrong reason too.** A path typo made the test binary
+unreachable, so the run exited 127 — and the check "exit status is non-zero" went green
+while nothing had executed. Assert on what the run *said*, not only on how it ended.
+
+**Verify the control's premise before trusting its verdict.** A control built on
+`-DSUBPROCESS_HAVE_CWD=0` expected the test count to drop, and reported a false red when it
+did not. The suite substitutes `subprocess_cwd_not_supported` through an `#else`
+(`test_shared.h:1176`), so the count is deliberately invariant and only the test *names*
+move. The trap the playbook already recorded — 423 instead of 432 — came from an older
+header where that `#else` did not exist.
+
+**Test the merge, not the branch.** A `pull_request` run builds `refs/pull/N/merge`, and
+`mergeable: MERGEABLE` only means git found no textual conflict. Two upstream commits landed
+under #112 mid-review and produced a defect that neither side had alone, through a clean
+merge, with the suite green. Build the merge locally in a scratch clone — the working tree
+stays untouched and the result is the thing CI will actually compile.
+
+## Proving a change touched only comments
+
+Reviewers ask for comment trimming often enough that this is worth automating.
+**Grepping the patch does not work**: the continuation lines of a block comment
+are plain indented text, and no pattern separates them from code. A first
+attempt reported "non-comment changes" for a diff that was pure prose.
+
+Ask the compiler instead — strip comments from both revisions and diff the
+result:
+
+```sh
+gcc -fpreprocessed -dD -E -P -x c old.h | sed '/^$/d' > old.stripped
+gcc -fpreprocessed -dD -E -P -x c new.h | sed '/^$/d' > new.stripped
+diff -q old.stripped new.stripped
+```
+
+`-fpreprocessed` keeps directives and macros intact but drops comments. **`-P`
+is not optional**: without it the output carries `# 129 "file"` linemarkers,
+which differ on the filename alone and on every line number the edit shifted,
+so the diff is never empty.
+
+Used on the #112 comment trimming: 1563 lines of code identical either side.
+The same tool doubles as a precise diff viewer when a change *is* meant to
+touch code — it showed the `SUBPROCESS_EXEC_FAILURE_STATUS` removal as exactly
+two changes and nothing else.
+
+## Getting sources onto a Unix box from Windows
+
+Two traps, both about line endings, and the second one hides the first.
+
+**`git archive` applies the `core.autocrlf` filter.** A tarball built on Windows
+left with 2151 CR bytes in `subprocess.h` even though git stores LF. Reaching for
+`git archive` specifically to avoid the working tree does not help.
+
+**Git Bash cannot verify it.** MSYS translates in text mode, so `grep -c $'\r'`
+reported ~1900 CRs in files that had none — and reported the same count after
+`tr -d '\r'` had run over them. Both the stripping and the check belong in a
+Linux container, counting CR *bytes*:
+
+```sh
+tr -cd '\r' < file | wc -c
+```
+
+The headers in that episode were clean the whole time; only the archive was not.
+Time spent "fixing" the wrong artefact is the cost of trusting the checker.
+
+## Compiler defaults decide more than the platform does
+
+Two probes in one week selected the wrong branch because the *language dialect*,
+not the operating system, drove the condition:
+
+- **AIX.** GCC defaults to 32-bit there, so a probe keyed on word size was
+  expected to take the ILP32 path. It did not: GCC 13 also defaults to
+  `-std=gnu17`, so `__STDC_VERSION__` is modern and the C99-and-newer arm wins.
+- **MSVC.** Windows is LLP64, so `unsigned long` is 32 bits even on x64, and MSVC
+  reports `__cplusplus` as `199711L` unless `/Zc:__cplusplus` is passed. A
+  condition written in terms of word size and language version misses it twice
+  over and silently selects the wrong arm on every Windows build.
+
+Ask a probe which branch it took, on the machine, rather than deriving it. When
+the branches differ in a string literal, `strcmp` at runtime answers it in one
+line; when they do not, `cl /EP` or `gcc -E` shows the expansion without needing
+to compile or link anything.
+
+## 32-bit Windows, locally
+
+Nothing exotic is needed and it is the only way to see a whole class of defect:
+`cmake.yml` builds Windows x64 only, so anything that is wrong on Win32 alone
+is invisible to it.
+
+```
+cmake -S test -B build -A Win32
+cmake --build build --config RelWithDebInfo
+cmake --build build --config RelWithDebInfo --target RUN_TESTS
+```
+
+VS Build Tools ship their own cmake, found via `vswhere`; no full Visual Studio
+install is required. This reproduced #116's break exactly — same four
+diagnostics, same lines as the CI log — before anything was changed, and
+confirmed the fix afterwards on both `-A Win32` and `-A x64`.
+
+**Trap: `unsigned long` and `unsigned int` are distinct types of the same
+width.** On Win32 `SIZE_T` is `ULONG_PTR` (`unsigned long`) while `size_t` is
+`unsigned int`. In C++ that is enough to reject a redeclaration outright, so
+the failure appears at the *declaration*, not at the call. On Win64 the two
+coincide and everything compiles.
+
 ## Linux, glibc and musl
 
 Plain Docker, one container per libc. Pin the sanitizer probes off, or numbers are not
@@ -52,6 +158,41 @@ in with `/FI`:
 
 **Trap: get the fake versions right.** Generating `__GLIBC_MINOR__ 223` while meaning glibc
 2.23 tests glibc 2.223 — which passes the boundary check for the wrong reason.
+
+## Reaching a macOS runner without owning a Mac
+
+The section below cross-compiles for macOS. That settles header and link
+questions and nothing else — **runtime behaviour needs a real Mac**, and some
+defects live only there. The cheapest one available is the fork's own CI:
+
+1. Push a branch to your fork. On its own this runs nothing: `cmake.yml`
+   triggers on `pull_request: branches: [main]`, not on arbitrary pushes.
+2. Open a PR **inside your fork**, base `main`, head your branch. The full
+   matrix runs, macOS included, in your repository. Public repos have unmetered
+   Actions minutes, so iteration is free and invisible to upstream.
+3. Close it when answered.
+
+Give such branches a `test-` prefix and say in the commit message that they are
+not for upstream — they will collect combinations that no single PR should
+contain.
+
+**That is the point: one branch can carry what five PRs carry separately.** The
+run that confirmed the `FD_CLOEXEC` fix combined subprocess.h #112, the low-fd
+fix, both regression tests, and a `test/utest.h` vendored from three utest.h
+PRs at once. Nothing upstream has that shape, and the interaction only appears
+when all of it is present.
+
+Paid alternatives exist — Scaleway rents Apple silicon by the hour, MacinCloud
+and MacStadium rent whole machines, AWS EC2 Mac needs a dedicated host with a
+24-hour minimum — but for *a CI answer* rather than an interactive session,
+none of them beats a pull request against your own fork.
+
+**Trap: a monitor that cannot report failure.** The poll loop watching that run
+used standalone `jq`, which is absent here — `gh --jq` works only because gh
+embeds it. Forty iterations produced no output and exited 0, which is
+indistinguishable from "still running". Whatever watches a job must be able to
+emit on every terminal state, and is worth testing against a known-failing case
+before being trusted.
 
 ## macOS without a Mac
 
@@ -180,6 +321,12 @@ media is the only route from a cold start.
 ## Coverage actually achieved
 
 Everything below was run or compiled for the reworked AIX port, not inferred.
+
+> **Counts are from the 441-test era.** The suite has since grown — 442 after
+> upstream #115, 443 with the fd-0 regression test — and the branch has moved on
+> to `eadfac5`. The rows still say what was covered; for current numbers see
+> [`contributions.md`](contributions.md) and [`../AIX/7.3/`](../AIX/7.3/), where
+> the 2026-08-16 round records 443/443 on real POWER10 at both word sizes.
 
 **Full suite, executed:**
 
