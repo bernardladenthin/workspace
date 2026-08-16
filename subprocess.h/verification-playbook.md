@@ -177,9 +177,9 @@ not for upstream — they will collect combinations that no single PR should
 contain.
 
 **That is the point: one branch can carry what five PRs carry separately.** The
-run that confirmed the `FD_CLOEXEC` fix combined subprocess.h #112, the low-fd
-fix, both regression tests, and a `test/utest.h` vendored from three utest.h
-PRs at once. Nothing upstream has that shape, and the interaction only appears
+run that confirmed the `FD_CLOEXEC` fix — branch `test-macos-lowfd`, fork PR #1
+— combined subprocess.h #112, the low-fd fix, both regression tests, and a
+`test/utest.h` vendored from three utest.h PRs at once. Nothing upstream has that shape, and the interaction only appears
 when all of it is present.
 
 Paid alternatives exist — Scaleway rents Apple silicon by the hour, MacinCloud

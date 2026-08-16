@@ -13,7 +13,7 @@ entirely — but none of it is specific to that work.
 
 | PR | Title | Size |
 |---|---|---|
-| [#188](https://github.com/sheredom/utest.h/pull/188) | Fix 32-bit builds under `-Wpedantic` | +22/-18 |
+| [#188](https://github.com/sheredom/utest.h/pull/188) | Fix 32-bit builds under `-Wpedantic` | +45/-17 |
 | [#189](https://github.com/sheredom/utest.h/pull/189) | Support AIX in `utest_ns()` | +7 |
 | [#190](https://github.com/sheredom/utest.h/pull/190) | Fix the test filter dropping tests it should run | +68/-46 |
 
@@ -24,6 +24,12 @@ in the fork, each off `main` at `ebb62ed`, independent of one another.
 on `conclusion: action_required` and wait for the maintainer to approve the
 workflow. All three currently sit there, so an absent run says nothing about
 the change.
+
+**#188 is waiting on us, not on him.** His fallback suggestion of 2026-08-15 is
+implemented and pushed (`6663b21`, 2026-08-16), but **no reply was posted** —
+from the thread alone it still reads as an unanswered review. #113 moved only
+after an explicit *"I've improved, please check again."*; this one needs the
+same.
 
 ## This repository's CI cannot see its own 32-bit defect
 
@@ -117,6 +123,16 @@ fallback, so there is still one call site per message.
 header documents. Checked that it draws no `-Wreserved-macro-identifier` under
 clang, since it is a reserved identifier.
 
+Re-measured 2026-08-16, clang 18, `-std=gnu++98`: clean under
+`-Wreserved-id-macro`, `-Wreserved-macro-identifier` **and** `-Weverything
+-Werror` — for the branch and for upstream alike. The negative control is what
+makes that worth anything: `#define __MY_RESERVED 1` in the same translation
+unit *does* fail, so the flag was live; clang simply whitelists
+`__STDC_FORMAT_MACROS`. Upstream wraps its own define in
+`#pragma clang diagnostic ignored "-Wreserved-id-macro"`, which is therefore
+belt-and-braces — **#188 needs no equivalent**, and the question was worth
+settling because #188's CI is gated and has not run since the rework.
+
 ### Which branch is live, measured rather than assumed
 
 A fallback that triggers everywhere also builds everywhere, so "it compiles" is
@@ -171,8 +187,16 @@ or the standard is C++11 or later. utest.h includes `<inttypes.h>` without
 either, so `test98.cpp` at `-std=gnu++98` loses them. glibc and libc++ stopped
 enforcing this years ago, which is why it never showed up on the usual runners.
 
-`#188` fixes it as a side effect: printing through `double` removes the
-dependency on `PRIu64` entirely.
+The header **already defines `__STDC_FORMAT_MACROS`** — and it still fails,
+which is the part worth understanding. Upstream's define sits at line 274,
+**65 lines after** the file's single `#include <inttypes.h>` at line 209, and
+is wrapped in `#if defined(__linux__)`. Two independent reasons it cannot help:
+it arrives after the include it would have to precede, and NetBSD never reaches
+it. `#188` defines it *before* the include and without the Linux guard.
+
+The reworked `#188` therefore fixes NetBSD **directly**, not as a side effect —
+the earlier claim that printing through `double` removed the `PRIu64`
+dependency described the *first* version of the PR, which the review replaced.
 
 ## Verification
 

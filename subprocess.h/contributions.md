@@ -14,7 +14,7 @@ Status as of **2026-08-16**. Three PRs merged, **four open**, plus three in
 | [#112](https://github.com/sheredom/subprocess.h/pull/112) | `eadfac5` | AIX support. Continues @mehendarkarprajwal's [#109](https://github.com/sheredom/subprocess.h/pull/109), whose commit `e6cec1b` is included unchanged. Adds `SUBPROCESS_ADDCHDIR_IS_POSIX` and extends `SUBPROCESS_SPAWN_VIA_FORK` to OpenBSD and NetBSD < 10, plus the PowerPC/RISC-V guard for `subprocess_fail_divzero`. All four review comments addressed, merged with current `main`. 9 commits, +254/-10 | 2 macOS jobs red **until #118 lands** |
 | [#113](https://github.com/sheredom/subprocess.h/pull/113) | `fc73817` | `portability.yml` beside `cmake.yml`: capability paths, 32-bit, musl, four foreign architectures, four BSD VMs, three macOS deployment targets. Review comment addressed. +137 | **red on purpose**, 8 jobs |
 | [#117](https://github.com/sheredom/subprocess.h/pull/117) | `cf1ec55` | Fixes the 32-bit Windows build that [#116](https://github.com/sheredom/subprocess.h/pull/116) broke. +12/-4 | 24/24 green |
-| [#118](https://github.com/sheredom/subprocess.h/pull/118) | `dc19c0d` | Keeps pipe ends off 0, 1 and 2, fixing the posix_spawn half of the `FD_CLOEXEC` problem #115 introduced. +97/-2 | green — and cannot prove itself, see below |
+| [#118](https://github.com/sheredom/subprocess.h/pull/118) | `dc19c0d` | Keeps pipe ends off 0, 1 and 2, fixing the posix_spawn half of the `FD_CLOEXEC` problem #115 introduced. +97/-2 | 24/24 green — and cannot prove itself, see below |
 
 **Neither #117's nor #118's own CI can validate what it fixes.** #117's defect
 is Win32-only and `cmake.yml` builds Windows x64; #118's is macOS-only and no
@@ -33,6 +33,42 @@ all ten commits on the first carry his name and the second is his own
 A follow-up comment on #109 reports the AIX results and answers both of
 @sheredom's questions there; #112 is offered explicitly as a continuation rather
 than a replacement.
+
+### Open items that are not a pull request
+
+**The OpenBSD branch has no version gate, and one day it will need one.**
+`catap` raised this on #113 (2026-08-15), pointing at the
+[openbsd-tech thread](https://marc.info/?l=openbsd-tech&m=178601904627458&w=2)
+where `posix_spawn_file_actions_addchdir` is proposed — **not committed there
+yet**, possibly in release 8.0. Verified at the source on 2026-08-16 rather than
+taken on trust: OpenBSD `master` has it in neither `include/spawn.h` nor
+`lib/libc/gen/posix_spawn.c`. Answered on the PR the same day.
+
+The gate itself is already researched, so it is a one-liner when the time comes.
+`<sys/param.h>` carries **both** forms:
+
+```c
+#define OpenBSD	202610		/* OpenBSD version (year & month). */
+#define OpenBSD8_0 1		/* OpenBSD 8.0 */
+```
+
+The numeric `OpenBSD` (YYYYMM) is the one to compare against, mirroring
+`__NetBSD_Version__`. Note that `OpenBSD8_0` is defined on **-current**, before
+8.0 ships — it means "8.0-current or later", not "8.0 released", so it is the
+weaker of the two for a capability gate. Today
+`SUBPROCESS_SPAWN_VIA_FORK` claims *every* OpenBSD, which is correct but heavier
+than necessary once the function exists — the fix would mirror the NetBSD gate
+(`__NetBSD_Version__ >= 1000000000`) using `OpenBSD` from `<sys/param.h>`. **Not
+actionable until a release actually carries it**; gating against a version that
+does not exist yet is a guess. A short reply to catap is still owed.
+
+**Cleanup once #118 is merged**, in one pass:
+
+| Item | Where | Note |
+|---|---|---|
+| the now-redundant `fcntl` block | #112 | see the macOS section above — **only after** the merge |
+| branch `test-macos-lowfd` + fork PR #1 | our fork | the combined branch that reached a macOS runner; not for upstream |
+| branch `tmp-both` | local `utest.h` only | never pushed, reproducible from #188 + #190 |
 
 ### #113 is red, and that is the point
 
@@ -215,7 +251,9 @@ fix. The evidence is the local `-A Win32` measurement, nothing else.
 
 ## Merged
 
-Upstream `main` is at `9ce0d70`. Everything below was squash-merged, so local branches were
+Upstream `main` is at `0d76f78` — it moved on 2026-08-14 with #115 (`ab7fb8b`) and #116
+(`0d76f78`); the three PRs below landed while it was still `9ce0d70`. Everything below was
+squash-merged, so local branches were
 never ancestors of `main` — `git branch -d` refuses and `-D` is correct, after verifying the
 content arrived.
 
