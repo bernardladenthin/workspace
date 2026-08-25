@@ -48,7 +48,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.3.0, spotless 3.9.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.25.9 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. |
+| Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.4.0, spotless 3.10.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.25.9 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. |
 | `dependencyConvergence` pinning convention | All 4 Maven repos (+ srcmorph's 3 reactor modules) enable maven-enforcer's `<dependencyConvergence/>`. Convention, the `excludedScopes=[test,provided]` default gotcha, and merge-discipline guidance are in [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
@@ -213,8 +213,8 @@ All four repos are on the **newest stable** version of every dependency and buil
 checked with `versions:display-dependency-updates` + `display-plugin-updates` against Maven
 Central plus direct `maven-metadata.xml` probes for paths the versions plugin doesn't scan
 (Error Prone, NullAway, Checker). The only version updates ever on offer are pre-releases
-(Maven 4 betas/RCs, `slf4j-api` 2.1.0-alpha1, `protobuf-javalite` RC, `kotlin` beta,
-`maven-surefire-plugin` milestone) or `jqwik` past the banned 1.9.3 — none adopted. See
+(Maven 4 betas/RCs, `slf4j-api` 2.1.0-alpha1, `kotlin` 2.4.20-RC, `maven-surefire-plugin`
+milestone) or `jqwik` past the banned 1.9.3 — none adopted. See
 [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md) for
 the pinning convention and the `DependencyConvergence` `excludedScopes` gotcha this surfaced.
 
@@ -231,14 +231,38 @@ a cross-repo sweep does not mistake a deliberate pin for a stale dependency). "N
 | `com.h2database:h2` | 2.2.224 | BroomCabinet (`JOracleRowSetGetRowBug`) | 2.4.240 | **Last Java-8-compatible line** (2.3.x+ needs Java 11); module is `<release>8</release>`. Rationale in that module's `pom.xml` comment. |
 | `com.oracle.database.jdbc:ojdbc8` | 21.21.0.0 | BroomCabinet (`JOracleRowSetGetRowBug`) | 23.26.3.0.0 | The `oracle.jdbc.rowset.OracleCachedRowSet` class the bug reproducer needs exists **only in the 19.x/21.x ojdbc8 lines — Oracle removed the package in 23.x**. Rationale in that module's `pom.xml` comment + `BUG.md`. |
 | `org.bouncycastle:bcprov-jdk15to18` | 1.85.2 | BAF | — (already latest stable) | Pins the bitcoinj-transitive bcprov to patch GHSA-c3fc-8qff-9hwx / GHSA-p93r-85wp-75v3. Rationale in BAF `CLAUDE.md` deps table. |
-| `com.google.protobuf:protobuf-javalite` | 4.35.1 | BAF | 4.36.0-RC2 | Latest **stable**; newer is RC only. |
 | `org.slf4j:slf4j-api` | 2.0.18 | all | 2.1.0-alpha1 | Latest **stable**; newer is alpha only. |
-| `org.jetbrains.kotlin` | 2.4.10 | jllama (`llama-kotlin`) | 2.4.20-Beta2 | Latest **stable**; newer is beta only. |
+| `org.jetbrains.kotlin` | 2.4.10 | jllama (`llama-kotlin`) | 2.4.20-RC | Latest **stable**; newer is an RC only. |
 | Maven-4 plugin line / surefire `3.6.0-M1` | — | all | `4.0.0-beta-*` / `-M1` | Maven-3 toolchain; Maven-4 betas + milestones deliberately not adopted. |
 
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
 
 **Standing policy:** run `mvn spotless:apply` before every commit that touches `.java` — 📌 active in all 4 repos ([`policies/spotless-formatting.md`](policies/spotless-formatting.md); `spotless:check` gates an early CI job in all 4, not just publish).
+
+#### GitHub Actions freshness
+
+All four repos are on the newest release of every action they use. Two **pin styles** coexist and
+both are current — the difference is cosmetic, not drift:
+
+| Action | sb | BAF | jllama | srcmorph |
+|---|---|---|---|---|
+| `github/codeql-action/*` | `v4.37.8` (exact) | `v4.37.8` (exact) | `v4` (floating) | `v4` (floating) |
+| `gradle/actions/setup-gradle` | `v6.3.0` (exact) | `v6` (floating) | `v6` (floating) | `v6` (floating) |
+| `google/osv-scanner-action` reusable | `v2.5.1` | `v2.5.1` | `v2.5.1` | `v2.5.1` |
+| everything else (`actions/*`, `codecov`, `coveralls`, `reuse`, `scorecard`, `gh-release`, …) | floating major, all on the newest major | ↑ | ↑ | ↑ |
+
+`actions/setup-java` is on **`v6`** in all four (bumped from `v5`). v6 is an ESM rewrite that drops
+only the legacy **`adopt`** distributions and renames `jdkFile` → `jdk-file` (deprecated alias kept);
+every job here uses `temurin` (or `zulu` in `sonarqube.yml`), both still supported, so the major bump
+is a no-op for these pipelines.
+
+Exact-pinned actions verified as already-latest at the last sweep: `ossf/scorecard-action@v2.4.4`,
+`Jimver/cuda-toolkit@v0.2.36`, `jakoch/install-vulkan-sdk-action@v1.6.0` (the last two jllama-only).
+
+**Not GitHub Actions but checked in the same sweep** (jllama's Gradle side): AGP **9.3.0** is the
+newest stable, and CI's `gradle-version: "9.6.1"` already exceeds AGP 9.3.0's minimum/default Gradle
+of 9.5.0. Gradle 9.7.1 exists but is **deliberately not adopted** — it is untested against AGP 9.3.0
+and buys nothing; see jllama `CLAUDE.md` for the AGP/Gradle pin history.
 
 **Dependabot note:** the `github-actions` ecosystem has no `versioning-strategy` config knob —
 when it opens a bump PR against a floating major-version pin (`@v5`), it rewrites the reference
