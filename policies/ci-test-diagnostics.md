@@ -85,6 +85,27 @@ Two equivalent shapes are in use (both correct):
 - name: Memory after tests
   if: always()                     # (+ '&& runner.os == Linux' in mixed matrices)
   run: free -h
+- name: Print crash logs (on failure)   # § 3.1 — MUST precede the upload
+  if: failure()
+  shell: bash
+  run: |
+    shopt -s nullglob
+    found=0
+    for f in <repo's hs_err glob>; do
+      found=1
+      echo "===== $f (first 200 lines; full file in the uploaded artifact) ====="
+      sed -n '1,200p' "$f"
+    done
+    for f in <repo's *.dumpstream and *.dump globs>; do
+      found=1
+      echo "===== $f ====="
+      cat "$f"
+    done
+    if [ "$found" = 0 ]; then
+      echo "No hs_err_pid*.log and no surefire dump/dumpstream was written."
+      echo "The fork died without the JVM writing a crash log - the abort bypassed"
+      echo "the JVM error handler (native exit()/terminate) rather than raising a signal."
+    fi
 - name: Upload crash & surefire dumps
   if: failure()
   uses: actions/upload-artifact@v7
@@ -104,6 +125,45 @@ The artifact **name** must be unique within a run (suffix with `matrix.os` /
 `matrix.java-version` / `github.job`); the **path set, trigger, and step
 placement** are identical everywhere. `free -h` is Linux-only — guard it on any
 job whose matrix includes Windows/macOS.
+
+### § 3.1 Echo the crash log into the job log, don't only upload it
+
+**An uploaded artifact is not a readable diagnostic.** GitHub serves artifact
+bytes only from Azure Blob Storage (`*.blob.core.windows.net`) via a signed
+redirect — the API never proxies them. So a crash log that exists *only* in an
+artifact is out of reach for anyone who cannot fetch from that host: a phone, a
+restricted corporate network, and any agent sandbox whose egress policy denies
+it. Diagnosing then depends on someone downloading and unzipping ~8 MB to read
+40 lines.
+
+This is not hypothetical — it blocked a real investigation: `TtsIntegrationTest`
+aborts the forked JVM on all six of jllama's Java test platforms, and the
+aborting frame was unreachable for exactly this reason while every other avenue
+(local reproduction) was also closed.
+
+The step above therefore **precedes** the upload and echoes the same files. It
+is `shell: bash` on every platform including Windows (GitHub's Windows runners
+ship Git Bash), so one snippet covers the whole matrix. Two deliberate details:
+
+- **hs_err is truncated to 200 lines, the dumps are not.** An hs_err's
+  diagnostic core (fatal-error line, signal, problematic frame, Java frames,
+  registers) is at the top; the tail is thread dumps and the memory map, which
+  for a JNI project loading a multi-MB native library runs to thousands of
+  lines and would bury the job log. The untruncated file stays in the artifact.
+  Surefire dumps are small — print them whole.
+- **The `found = 0` branch is load-bearing, not politeness.** `if-no-files-found`
+  is `warn`/`ignore`, so an upload succeeds with an empty glob and the artifact
+  looks the same either way. Only this line distinguishes *"the JVM crashed and
+  here is the frame"* from *"the fork died without writing a crash log at all"* —
+  which is itself a strong signal (a native `exit()`/`terminate` rather than a
+  signal). Without it, an absent hs_err is indistinguishable from one you failed
+  to find.
+
+**Prior art:** BAF's `test-opencl` job already did this (`Dump native crash logs
+(on failure)`), for the pocl SIGSEGV, with the same rationale in its comment. It
+was never promoted to this policy or mirrored, so the other jobs and the three
+sibling repos kept the upload-only shape. This section generalises it; BAF's
+Linux-only `free -m` / `ps -eL` preamble stays in that job as a local extra.
 
 ## 4. Deliberate divergences (NOT drift)
 
