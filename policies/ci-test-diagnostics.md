@@ -103,8 +103,15 @@ Two equivalent shapes are in use (both correct):
     done
     if [ "$found" = 0 ]; then
       echo "No hs_err_pid*.log and no surefire dump/dumpstream was written."
-      echo "The fork died without the JVM writing a crash log - the abort bypassed"
-      echo "the JVM error handler (native exit()/terminate) rather than raising a signal."
+      echo
+      echo "For an ordinary test failure that is EXPECTED, not a finding: this step runs on"
+      echo "any job failure, and an assertion failure, a timeout or a compile error writes no"
+      echo "crash log. Read the surefire output above for the real cause."
+      echo
+      echo "It points at a JVM-level abort only if the log ALSO shows a fork ending abnormally"
+      echo "- 'The forked VM terminated without properly saying goodbye', or an exit with no"
+      echo "test results. In that case the abort bypassed the JVM error handler (a native"
+      echo "exit()/terminate() rather than a raised signal), which is why no file was written."
     fi
 - name: Upload crash & surefire dumps
   if: failure()
@@ -120,6 +127,14 @@ Two equivalent shapes are in use (both correct):
       ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
     if-no-files-found: ignore
 ```
+
+> **Why the no-file branch is worded so defensively.** The step is `if: failure()`, so it fires on
+> *every* job failure — and the overwhelming majority of those are ordinary assertion failures, which
+> never write a crash log. An earlier version asserted "The fork died without the JVM writing a crash
+> log" unconditionally, so a plain red test printed a confident claim that the JVM had aborted, under
+> a heading that also echoed perfectly healthy server logs. That cost real debugging time. State the
+> observation, then name the one signature that would actually justify the conclusion; never assert
+> the conclusion from the absence of a file alone.
 
 The artifact **name** must be unique within a run (suffix with `matrix.os` /
 `matrix.java-version` / `github.job`); the **path set, trigger, and step
