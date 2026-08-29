@@ -52,3 +52,77 @@ Commit and open a PR.
 | `{PREV}`         | *(previous release, e.g. `1.2.0`)*          |
 | `{NEXT_VERSION}` | *(next snapshot base, e.g. `1.3.1`)*        |
 ```
+
+---
+
+## What actually gets missed (derived from real releases, 2026-08-29)
+
+The steps above are the procedure; this section is the **audit of two shipped releases**
+(BitcoinAddressFinder `v1.7.0`, java-llama.cpp `v5.0.6`) plus a pre-check of streambuffer and
+srcmorph. Everything here is a gap that survived a release, so treat it as the checklist that
+matters rather than a restatement of Step 1.
+
+### Step 4 (the CHANGELOG footer) is the most-missed step
+
+It is invisible: nothing builds, tests or renders the compare-link footer, so an omission ships and
+then compounds.
+
+- **BAF `v1.7.0` skipped it entirely** — the `## [1.7.0]` heading was written, but no
+  `[1.7.0]: …/compare/v1.6.1...v1.7.0` link was ever added and `[Unreleased]` still pointed at
+  `v1.6.1`. Found and repaired during the 1.8.0 prep, one release later.
+- **srcmorph is worse: `v1.1.0` is tagged and released but has no CHANGELOG section at all** — the
+  chain jumps `1.0.2 → 1.1.1`, so a shipped version is undocumented. Not repaired here (srcmorph is
+  not releasing); recorded in `crossrepostatus.md`.
+
+**Mechanical post-check — run it before opening the release PR.** Released headings, footer links
+and tags must be the same set:
+
+```bash
+echo "headings: $(grep -oE '^## \[[0-9.]+\]' CHANGELOG.md | tr -d '#[] ' | tr '\n' ' ')"
+echo "links   : $(grep -oE '^\[[0-9.]+\]'   CHANGELOG.md | tr -d '[]'   | tr '\n' ' ')"
+echo "tags    : $(git tag -l 'v*' | sort -V | tr '\n' ' ')"
+```
+
+A version present in one line and absent from another is the defect. (A rolling `snapshot`
+pre-release tag is expected and is not a version.)
+
+### The version lives in more places than `pom.xml` and `README.md`
+
+Step 1.3 says "some repos have more than one README". In practice the drift is wider, and it is
+**per-repo** — each repo's supplement must list its own sites. Observed:
+
+| Repo | Sites beyond the pom(s) |
+|---|---|
+| java-llama.cpp | 4 poms in lockstep, `README.md` (7 occurrences), `llama-langchain4j/README.md`, `llama-android/README.md`, `llama-kotlin/README.md` |
+| BitcoinAddressFinder | `pom.xml`, `CLAUDE.md` (2), `README.md`, `docs/tuning-your-gpu.md` (2), **24 `examples/run_*.{sh,bat}` launcher scripts** |
+| streambuffer | `pom.xml`, `README.md` (2) |
+| srcmorph | 4 poms in lockstep, `README.md`, `srcmorph-maven-plugin/README.md` |
+
+BAF's 24 launcher scripts are the instructive case: `v1.7.0` shipped them correctly at `1.7.0`, so
+they *are* release-tracking, and a bump that forgets them leaves every documented run command
+pointing at a jar that does not exist.
+
+### Prefer a guard over a checklist item
+
+Two repos have already solved the launcher-script class of drift, in opposite ways, and both beat
+remembering:
+
+- **BAF has a test.** `ExampleRunScriptJarVersionTest` reads the first `<version>` from `pom.xml` and
+  asserts every `…-<version>-jar-with-dependencies.jar` reference under `examples/` and `docs/`
+  matches. Bumping the pom **reds the build** until the scripts follow — the checklist is enforced,
+  not documented. This is the model to copy.
+- **srcmorph needs no guard.** Its `examples/run_*.sh` resolve the jar with a glob
+  (`srcmorph-cli-*-jar-with-dependencies.jar`), so the name cannot go stale; the version in the
+  surrounding comment is illustrative only. Structural immunity beats a test.
+
+A repo that hardcodes jar names and has **neither** is the one to fix.
+
+### Version jumps that are not a plain `-SNAPSHOT` strip
+
+Step 1.2 assumes `{VERSION}-SNAPSHOT → {VERSION}`. When the release skips the snapshot base — e.g.
+java-llama.cpp went `5.0.7-SNAPSHOT → 5.1.0` because the range added API — Step 1.3's "verify the
+snapshot example stays `{VERSION}-SNAPSHOT`" no longer parses. The README's snapshot snippet then
+names a version that will never be published. Leave it for Step 3 (which sets it to
+`{NEXT_VERSION}-SNAPSHOT`), but **say so in the release PR**, or a reader will read it as an
+oversight.
+
