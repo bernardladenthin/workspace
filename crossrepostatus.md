@@ -48,7 +48,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.4.0, spotless 3.10.0, palantir 2.96.0, errorprone 2.50.0, nullaway 0.13.8, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.25.9 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. |
+| Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.4.0, spotless 3.10.1, palantir 2.97.0, errorprone 2.50.0, nullaway 0.14.0, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.30.0 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. **Four of these were stale when audited on 2026-08-29** — spotless 3.10.0, palantir 2.96.0, pitest-maven 1.25.9 and nullaway 0.13.8 — while the row still claimed "all latest stable". nullaway is the one worth remembering: streambuffer had already merged a Dependabot bump to 0.14.0 (its PR #149), so the four repos were **not** identical and this row asserted a value no longer true of any of them uniformly. A per-repo Dependabot bump silently breaks the "identical across all 4" claim; when one lands, propagate it to the other three in the same pass and update this row, or the matrix drifts from reality without anything failing. |
 | `dependencyConvergence` pinning convention | All 4 Maven repos (+ srcmorph's 3 reactor modules) enable maven-enforcer's `<dependencyConvergence/>`. Convention, the `excludedScopes=[test,provided]` default gotcha, and merge-discipline guidance are in [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
@@ -305,7 +305,29 @@ defensively, so it does not get "simplified" back.
 pipeline while the superseded ones kept draining — four were live at once in one session, which
 makes "what is CI saying right now" genuinely ambiguous and wastes runner time on results nobody
 reads. `cancel-in-progress` is scoped to `pull_request` **only**: a push to `main` or a `v*` tag is
-a release path, and cancelling one midway could leave a partially published artifact set, so those
-always run to completion.
+a release path, and cancelling one midway could leave a partially published artifact set.
 
-Verified: all four workflow files parse (`yaml.safe_load`) with the expected `concurrency` mapping.
+**`cancel-in-progress: false` does not, on its own, protect a release run** — the first version of
+this sweep assumed it did, and that assumption was wrong. GitHub cancels a *pending* run whenever a
+newer run joins the same group behind an in-progress one, and that rule is **independent of**
+`cancel-in-progress`. With a plain `${{ github.workflow }}-${{ github.ref }}` group, a queued
+`publish_to_central` dispatch on `main` could therefore be dropped silently by a later push to
+`main`, both sharing `Publish-refs/heads/main`. The group expression now appends the unique
+`github.run_id` for every non-PR run:
+
+```yaml
+group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.run_id }}
+```
+
+so a release run is never queued behind a sibling and can never be cancelled, while PR runs still
+share a group per ref and supersede each other as intended.
+
+Changing the expression has a **one-time** effect worth expecting rather than debugging: GitHub reads
+`concurrency` from the workflow file at each run's *own* ref, so a run started before the change sits
+in the old group and one started after it sits in the new one. They are different groups, so the new
+push does not supersede the in-flight old run — exactly once, on the commit that lands it. It
+self-heals from the next push on.
+
+Verified: all four workflow files parse (`yaml.safe_load`) with the expected `concurrency` mapping,
+and the corrected expression was confirmed empirically in java-llama.cpp — the next push cancelled
+all 62 jobs of the previous PR run.
