@@ -305,7 +305,29 @@ defensively, so it does not get "simplified" back.
 pipeline while the superseded ones kept draining — four were live at once in one session, which
 makes "what is CI saying right now" genuinely ambiguous and wastes runner time on results nobody
 reads. `cancel-in-progress` is scoped to `pull_request` **only**: a push to `main` or a `v*` tag is
-a release path, and cancelling one midway could leave a partially published artifact set, so those
-always run to completion.
+a release path, and cancelling one midway could leave a partially published artifact set.
 
-Verified: all four workflow files parse (`yaml.safe_load`) with the expected `concurrency` mapping.
+**`cancel-in-progress: false` does not, on its own, protect a release run** — the first version of
+this sweep assumed it did, and that assumption was wrong. GitHub cancels a *pending* run whenever a
+newer run joins the same group behind an in-progress one, and that rule is **independent of**
+`cancel-in-progress`. With a plain `${{ github.workflow }}-${{ github.ref }}` group, a queued
+`publish_to_central` dispatch on `main` could therefore be dropped silently by a later push to
+`main`, both sharing `Publish-refs/heads/main`. The group expression now appends the unique
+`github.run_id` for every non-PR run:
+
+```yaml
+group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.run_id }}
+```
+
+so a release run is never queued behind a sibling and can never be cancelled, while PR runs still
+share a group per ref and supersede each other as intended.
+
+Changing the expression has a **one-time** effect worth expecting rather than debugging: GitHub reads
+`concurrency` from the workflow file at each run's *own* ref, so a run started before the change sits
+in the old group and one started after it sits in the new one. They are different groups, so the new
+push does not supersede the in-flight old run — exactly once, on the commit that lands it. It
+self-heals from the next push on.
+
+Verified: all four workflow files parse (`yaml.safe_load`) with the expected `concurrency` mapping,
+and the corrected expression was confirmed empirically in java-llama.cpp — the next push cancelled
+all 62 jobs of the previous PR run.
