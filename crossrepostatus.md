@@ -179,6 +179,19 @@ Differences below are intentional design decisions, not gaps to close.
   🚧 in progress across BAF/jllama/srcmorph/sb — the `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload
   standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
   `reuseForks`/`forkCount` tuning, the pocl job's memory steps).
+  **§ 3.1 (echo the crash log into the job log, not only upload it) added 2026-08-26** and
+  mirrored into all 4 `publish.yml` — jllama 6 sites, BAF 2 new + its pre-existing `test-opencl`
+  step aligned, sb 1, srcmorph 1. It generalises what BAF's `test-opencl` job already did for the
+  pocl SIGSEGV. Trigger: an artifact-only crash log is unreachable wherever Azure Blob egress is
+  denied, which blocked the jllama `TtsIntegrationTest` investigation outright. The step also
+  states explicitly when *no* crash log was written — `if-no-files-found` makes an empty upload
+  indistinguishable from a populated one otherwise.
+  **Out of scope, deliberately:** BAF's `issue50-lmdb-crash-repro.yml` (built never to fail on a
+  reproduced crash, so a `failure()`-gated step could not fire) and **BroomCabinet's
+  `java-ci.yml`** — that repo is not on this standard at all (no `-Xmx2g`, no `-XX:ErrorFile` in
+  any of its ~15 project poms, and its upload takes only `surefire-reports/`), so a print step
+  there would only ever emit the "nothing was written" line. Bringing BroomCabinet in means doing
+  the pom side first; tracked as open, not silently half-done.
 - **PIT mutation coverage → 100% on ALL classes** (📌 all-time goal, ❌ open, never-finished
   quality ratchet). End state is the streambuffer model: `targetClasses` covering the *whole*
   production package, not a curated subset. Today only sb is whole-package; the other three gate
@@ -271,3 +284,28 @@ to the exact release tag it's bumping to, and there is no way to configure it to
 floating alias. Decide per-repo whether to standardize on exact pins (matches Dependabot's
 default) or keep re-floating drifted lines manually; no config change prevents the drift from
 recurring either way.
+
+## 2026-08-27 — CI hygiene sweep across all four Java repos
+
+Two changes applied identically to `java-llama.cpp`, `BitcoinAddressFinder`, `streambuffer` and
+`srcmorph`, plus the canonical policy they derive from.
+
+**1. The "fork died" crash diagnostic no longer asserts a conclusion it cannot support** (10 call
+sites: 6 in jllama, 2 in BAF, 1 each in sb and srcmorph, and
+[`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md) §3.1). The step is
+`if: failure()`, so it fires on *every* red job — and an ordinary assertion failure never writes a
+crash log. It nonetheless printed "The fork died without the JVM writing a crash log", under a
+heading that also echoed perfectly healthy server logs. It now states the observation, says plainly
+that no file is the expected case for a normal test failure, and names the one signature ("The
+forked VM terminated without properly saying goodbye", or an exit with no test results) that would
+actually justify the JVM-abort conclusion. The policy carries a note explaining why it is worded
+defensively, so it does not get "simplified" back.
+
+**2. `publish.yml` gained a `concurrency:` group.** Every push previously started a full parallel
+pipeline while the superseded ones kept draining — four were live at once in one session, which
+makes "what is CI saying right now" genuinely ambiguous and wastes runner time on results nobody
+reads. `cancel-in-progress` is scoped to `pull_request` **only**: a push to `main` or a `v*` tag is
+a release path, and cancelling one midway could leave a partially published artifact set, so those
+always run to completion.
+
+Verified: all four workflow files parse (`yaml.safe_load`) with the expected `concurrency` mapping.
