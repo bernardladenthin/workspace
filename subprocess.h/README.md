@@ -14,7 +14,7 @@ checked out at [`../../subprocess.h`](../../subprocess.h).
 
 | File | Topic |
 |---|---|
-| [`contributions.md`](contributions.md) | **Start here** — what is merged, what is open, what is waiting on whom |
+| [`contributions.md`](contributions.md) | **Start here** — all twelve PRs, how each landed, and what was learned on the way |
 | [`platform-boundaries.md`](platform-boundaries.md) | The version boundaries the library must respect, each with primary-source evidence |
 | [`verification-playbook.md`](verification-playbook.md) | How to test a platform you do not own — Docker matrices, Apple SDKs, osxcross, forced code paths |
 | [`../utest.h/`](../utest.h/) | The vendored test framework. Six defects found through this work — two blocked AIX and 32-bit outright, one silently skips tests a `--filter` should have run |

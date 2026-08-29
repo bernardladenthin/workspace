@@ -9,27 +9,130 @@ entirely — but none of it is specific to that work.
 > **Scope note.** utest.h is a **topic** folder like [`../AIX/`](../AIX/), not a
 > tracked repository. No entry in [`../crossrepostatus.md`](../crossrepostatus.md).
 
-## Open pull requests
+## Pull requests
 
-| PR | Title | Size |
-|---|---|---|
-| [#188](https://github.com/sheredom/utest.h/pull/188) | Fix 32-bit builds under `-Wpedantic` | +45/-17 |
-| [#189](https://github.com/sheredom/utest.h/pull/189) | Support AIX in `utest_ns()` | +7 |
-| [#190](https://github.com/sheredom/utest.h/pull/190) | Fix the test filter dropping tests it should run | +68/-46 |
+| PR | Title | Size | State |
+|---|---|---|---|
+| [#188](https://github.com/sheredom/utest.h/pull/188) | Fix 32-bit builds under `-Wpedantic` | +45/-17 | **merged 2026-08-17**, `3097e2c` |
+| [#190](https://github.com/sheredom/utest.h/pull/190) | Fix the test filter dropping tests it should run | +68/-46 | **merged 2026-08-18**, `8db1cbd` |
+| [#189](https://github.com/sheredom/utest.h/pull/189) | Support AIX in `utest_ns()` | +7 | **merged 2026-08-18**, `b6230bc` |
+| [#191](https://github.com/sheredom/utest.h/pull/191) | Do not assume the `PRI` macros are still available | +62/-5 | **merged 2026-08-19**, `59f3f13` |
+| [#192](https://github.com/sheredom/utest.h/pull/192) | Add a portability workflow beside the existing matrix | +569/-35 | **merged 2026-08-21**, `de17c92` |
 
-Branches `fix-32bit-builds`, `aix-support` and `fix-filter-trailing-wildcard`
-in the fork, each off `main` at `ebb62ed`, independent of one another.
+**All five are merged. Nothing is open here.** #189 went in at 19:44:57 on
+2026-08-18, three minutes after subprocess.h#117 and #118 — the maintainer
+cleared the queue in one sitting after eight days of silence. Every one landed
+**verbatim**, patch-id identical in each case.
+
+That check was not ceremonial for #190 and #189: both still sat on `ebb62ed`,
+from before #188, so `git diff <head> <main>` is *not* empty for either and a
+tree diff would have suggested edits that never happened. The patch-id is what
+answers the question.
+
+**#192 is the first one whose CI actually ran before the merge.** The fork gate
+that had held every earlier PR on `conclusion: action_required` lifted once #191
+was merged — GitHub stops gating once a contributor has something in. So #188
+through #191 were all merged without a single CI run on the head that landed,
+and #192 arrived with Portability and CMake both green.
+
+Since #192, **this repository runs the portability matrix on `main`**, and it is
+green there.
+
+The fork branches `fix-32bit-builds`, `fix-filter-trailing-wildcard`,
+`aix-support`, `harden-format-macros`, `portability-matrix` and
+`test-portability` have all served their purpose.
+
+**#190 was merged verbatim too, and checking that took one step more than it
+looks.** `git diff ec68e74 8db1cbd` is *not* empty — 45+/17- separate them —
+because the PR still sat on `ebb62ed`, from before #188. The comparison that
+answers the question is the patch itself, and both sides give patch-id
+`1a6b7a13`: the rewrite landed unchanged and rebased cleanly onto #188. A plain
+tree diff would have suggested an edit that never happened.
+
+**And this one drew a reply**, three seconds before the merge:
+
+> Great find!
+
+The first substantive word from the maintainer in the whole series. Worth
+recording next to the two silent merges rather than reading anything into
+either — #188 got no comment and was equally accepted.
 
 **CI here is gated.** Unlike subprocess.h, fork PRs in `sheredom/utest.h` land
 on `conclusion: action_required` and wait for the maintainer to approve the
-workflow. All three currently sit there, so an absent run says nothing about
-the change.
+workflow. **All three went in without their CI ever having run** on the merged
+head — the gate was never opened for any of them. Whatever convinced the
+maintainer here, it was not this repository's CI.
 
-**#188 is waiting on us, not on him.** His fallback suggestion of 2026-08-15 is
-implemented and pushed (`6663b21`, 2026-08-16), but **no reply was posted** —
-from the thread alone it still reads as an unanswered review. #113 moved only
-after an explicit *"I've improved, please check again."*; this one needs the
-same.
+**#188 was merged verbatim, and how it was merged is the part worth keeping.**
+Rebase-merged, so all three commits survive on `main` — `d213ceb`, `a0180d1`,
+`3097e2c` — and `git diff 6663b21 3097e2c` is empty: nothing was changed on the
+way in. No approving review, no comment; the merge is the entire answer.
+
+What moved it was the reply, not the code. The code had been pushed on
+2026-08-16 (`6663b21`) and then sat untouched; the thread still read as an
+unanswered review until a short *"Done — `PRId64`/`PRIu64` stay the normal
+path…"* was posted. #113 had behaved the same way. **With this maintainer a
+reworked PR stays invisible until you say so in one paragraph** — now observed
+twice, not once.
+
+## 5. The `PRI` macros can be gone before this header is read — `#191`
+
+`__STDC_FORMAT_MACROS` only works if nothing has reached `<inttypes.h>` first.
+On NetBSD the macros come from `<sys/inttypes.h>`, which gates them and sits
+behind a one-shot include guard, so whichever header arrives first decides for
+the whole translation unit. A consumer including its own headers before this one
+is enough — and subprocess.h#112 became exactly that consumer, by adding
+`<sys/param.h>`, which pulls that file in.
+
+The fix is a **capability test instead of a proxy**: require `PRId64` and
+`PRIu64` to actually be defined before using them, and take the existing
+`double` fallback otherwise. Include order then stops mattering.
+`test/inttypes_include.cpp` covers it the way `stdint_include.c` covers the
+`stdint` case.
+
+Verified against a stub `<inttypes.h>` exposing no `PRI` macros: this branch
+compiles, `main` gives `error: expected ')' before 'PRIu64'`. **The first
+attempt at that control was worthless** — a text substitution matched nothing,
+so "it compiles without the hardening" came from an unmodified header. Redone
+via `git show b6230bc:utest.h`, where it bit.
+
+The PR carried a second, unrelated commit: `test20.cpp` was compiled with
+`-std=c++20` unconditionally, which GCC 8 and clang 9 reject in favour of
+`-std=c++2a` and GCC 7 rejects outright. It was offered for splitting off; the
+maintainer kept it.
+
+## The portability matrix — `#192`
+
+Mirrors subprocess.h's, added beside `cmake.yml`. Measured on a fork before
+opening: **14 of 14 green**, including the four emulated architectures running
+the **full** suite. subprocess.h needs `--filter=*divzero` there because
+qemu-user does not propagate the errno a failed `posix_spawn` reports; utest.h
+only spawns on the success path, so it is unaffected — checked rather than
+assumed, since that was the expected failure.
+
+`netbsd 9.4` passing is the row worth keeping: GCC 7.5.0, the exact combination
+that had broken subprocess.h twice. It works only because #191 had landed.
+
+**Two fixes it needed first.** `main` did not build against modern glibc: the
+vendored `subprocess.h` calls `pipe2` and
+`posix_spawn_file_actions_addchdir_np`, which glibc declares only under
+`_GNU_SOURCE`, and most units here compile at strict `-std=`. `cmake.yml` never
+saw it because it pins gcc-10 and clang and excludes the default compiler on
+Ubuntu. And the vendored copy was `subprocess.h@8671cee`, twelve commits behind;
+it is a pristine snapshot again now.
+
+**The one review comment in the whole series worth quoting**, on the first form
+of that `_GNU_SOURCE` fix:
+
+> Hm not sure about this. This means we aren't ever testing with `_GNU_SOURCE`
+> not defined on Linux. Seems sketchy 🤔
+
+He was right, and the asymmetry is the point: in subprocess.h a directory-wide
+define is harmless because subprocess.h *is* the library under test. Here it is
+a test helper, and defining it globally would have meant utest.h itself was
+never compiled without it. Narrowed to `main.c`, the only unit that includes
+subprocess.h — confirmed in the generated `flags.make`, where the define appears
+once, on `main.c.o`, and nowhere else.
 
 ## This repository's CI cannot see its own 32-bit defect
 
@@ -75,11 +178,12 @@ The constants `0x7fffffffffffffffu` and `0x7ff0000000000000u` need the wider
 type; `UTEST_PRIu64` expands to `PRIu64`, which is `"lu"` on LP64 but `"llu"` on
 ILP32.
 
-Fixed by building the constants in the target type and printing through `double`
-with `"%.0f"`. Integers below 2^53 print exactly — 104 days in nanoseconds — so
-nothing this framework reports can be truncated, and the MSVC `"I64d"` special
-case falls away too. **Each fix alone still blocks the build**, which is why they
-are one PR.
+**The first version** fixed this by building the constants in the target type
+and printing *everything* through `double` with `"%.0f"`: integers below 2^53
+print exactly — 104 days in nanoseconds — so nothing this framework reports can
+be truncated, and the MSVC `"I64d"` special case fell away too. The review
+rejected that reach; what shipped is below. **Each fix alone still blocks the
+build**, which is why they are one PR.
 
 Alternatives rejected: a `#pragma GCC diagnostic` is compiler-specific;
 `"lu"`/`"ld"` with a cast truncates, since 2^32 ns is 4.3 s.
@@ -236,6 +340,20 @@ with subprocess.h at `eadfac5` rather than `27fe772`:
 443 rather than 441 because subprocess.h has grown two tests since, one of them
 the fd-0 regression test — and AIX takes the fork path natively, so this is the
 only place it runs unforced. Details in [`../AIX/7.3/`](../AIX/7.3/).
+
+**The merge of #188 on 2026-08-17 turned both matrices into history**, and that
+is worth being explicit about rather than quietly leaving them to be misread.
+Every row above was measured against a `main` that did not yet contain #188, so
+"#189 alone" meant *#189 without the 32-bit fixes*. On current `main` it no
+longer can: #188 is the base now, and #189 alone should therefore reach 443 /
+443 at **both** word sizes.
+
+**Should — not does.** That has not been measured, and the whole point of the
+one-variant-at-a-time matrix was to stop inferring AIX results from reasoning.
+It is a fresh run on the POWER10 instance, not a deduction. Until it exists,
+#189's own text must not claim a 32-bit AIX result it no longer has evidence
+for; the honest form is that #189 is now the *only* remaining blocker on AIX,
+which is a weaker and true statement.
 
 Where nothing was broken to begin with, nothing changed:
 
