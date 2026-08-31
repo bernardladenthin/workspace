@@ -136,7 +136,10 @@ Differences below are intentional design decisions, not gaps to close.
 - **`jar-with-dependencies` (fat/uber JAR) = GitHub-Release asset only, never Central, signed
   `.asc` — BAF + jllama + srcmorph (not sb).** Convention + per-repo shapes live in
   [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). sb ships no fat
-  jar (single-class `Closeable` library, no runnable entry point).
+  jar (single-class `Closeable` library, no runnable entry point). Note what does **not** follow
+  from that: the *release-asset* rules — the pre-release smoke and the unsigned-asset guard — are
+  about the attached artifact, not about the fat-jar shape, and both are landed in sb as well (see
+  "Open cross-repo items"). Only the fat jar itself is sb-exempt.
 - **Actual Gradle-based *publishing* (the `llama-android` AAR) — java-llama.cpp only.** The
   signing-key preflight harness is byte-identical in all 4 (kept as a "prepared for Gradle"
   canary), but only jllama has a real Gradle-published artifact today.
@@ -166,20 +169,40 @@ Differences below are intentional design decisions, not gaps to close.
   jllama's own gate rather than on srcmorph's artifact. Blast radius if it were still broken is
   unchanged: the `LlamaCppJniAiGenerationProvider` path only (the `mock` provider never loads the
   native library), so `Plan`/mock runs and the whole test suite say nothing either way.
-- **No release asset is attached that CI has not run** (✅ landed in all three fat-jar repos).
-  Every repo that attaches a fat jar now launches it in a `smoke-fatjar*` job that gates both
+- **No release asset is attached that CI has not run** (✅ landed in **all four** repos).
+  Every repo that attaches a release asset now launches it in a `smoke-*` job that gates both
   publish jobs: BAF (`config_AddressFilesToLMDB.json`, also exercises the lmdbjava natives),
   srcmorph (`config_Plan.json`, mock provider), jllama (`smoke-fatjar-linux`/`-windows` server
-  smokes, plus the new `smoke-fatjar-macos` closing the gap that let a corrupt dylib ship). BAF and
-  srcmorph share a byte-identical `.github/smoke-fatjar-cli.sh` (in the checksum table above);
-  jllama keeps its own scripts because its Main-Class is a server that never exits and the macOS
-  assertion is native loadability, not a CLI exit code. Rule, rationale and the per-repo assertion
-  table live in [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). Each
-  smoke is model-free, GPU-free and network-free by design (~1 min): an expensive smoke gets made
+  smokes, plus `smoke-fatjar-macos` closing the gap that let a corrupt dylib ship), and — since
+  2026-09-01 — **sb (`smoke-jar`)**. BAF and srcmorph share a byte-identical
+  `.github/smoke-fatjar-cli.sh` (in the checksum table above); jllama keeps its own scripts because
+  its Main-Class is a server that never exits and the macOS assertion is native loadability, not a
+  CLI exit code. Rule, rationale and the per-repo assertion table live in
+  [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). Each smoke is
+  model-free, GPU-free and network-free by design (~1 min): an expensive smoke gets made
   non-gating and then the gap reopens. **First green CI observation: srcmorph, 2026-08-31** — the
   `Smoke test fat jar` job passed on `main` (`ec3cf5e`, Publish run 33410263937), so the shared
   `smoke-fatjar-cli.sh` path is proven in CI, not only locally. BAF runs the byte-identical script
   and jllama's own smokes are still unobserved green; treat those two as pending.
+  **sb was the last gap, and it was a gap in the rule's wording, not an exemption:** the rule was
+  written around fat jars, sb ships none, so it read as N/A — while sb still attached and deployed
+  a jar nothing in its pipeline had ever loaded (everything runs off `target/classes`). Its
+  `smoke-jar` job puts the packaged jar on a classpath and does a real write/read/EOF round-trip
+  through the API via the JDK single-file source launcher, and additionally asserts the jar carries
+  `module-info.class` (compiled in a separate `release 9` execution, so it can be dropped without
+  failing anything else). Repo-specific script (`.github/smoke-jar.sh`), not a shared one: there is
+  no second no-Main-Class repo to share it with.
+- **Unsigned-asset guard on the attach jobs** (✅ landed in **all four** repos, 2026-09-01). The
+  attach jobs collect `target/*.jar.asc` with `|| true`, so a signing step that produced nothing
+  yielded an attach that looked complete and was not. The guard cannot simply refuse to attach:
+  both attach jobs deliberately run when the publish job *failed*, because when Central is
+  unreachable the GitHub assets are the only way to get the build output at all. So it reports
+  before the upload (non-blocking, one `::error::` per unsigned jar, count to `$GITHUB_OUTPUT`),
+  uploads unconditionally, and fails the job afterwards — assets always land, an unsigned release
+  is loudly red instead of quietly wrong. The two steps are byte-identical in all four repos
+  (only the asset directory name differs); sync any edit everywhere. Rationale in
+  [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md), "Attach first, then
+  go red".
 - **Test-JVM diagnostics + memory standard** ([`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md)):
   🚧 in progress across BAF/jllama/srcmorph/sb — the `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload
   standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
