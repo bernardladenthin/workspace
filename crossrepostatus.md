@@ -49,11 +49,11 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
 | Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.4.0, spotless 3.10.1, palantir 2.97.0, errorprone 2.50.0, nullaway 0.14.0, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.30.0 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. **Four of these were stale when audited on 2026-08-29** — spotless 3.10.0, palantir 2.96.0, pitest-maven 1.25.9 and nullaway 0.13.8 — while the row still claimed "all latest stable". nullaway is the one worth remembering: streambuffer had already merged a Dependabot bump to 0.14.0 (its PR #149), so the four repos were **not** identical and this row asserted a value no longer true of any of them uniformly. A per-repo Dependabot bump silently breaks the "identical across all 4" claim; when one lands, propagate it to the other three in the same pass and update this row, or the matrix drifts from reality without anything failing. |
-| Release hygiene (CHANGELOG footer + version sites) | Audited 2026-08-29 while preparing java-llama.cpp 5.1.0 and BAF 1.8.0. **jllama ✅ / streambuffer ✅** — released headings, footer compare-links and `v*` tags are the same set in both. **BAF ➖ → fixed**: `v1.7.0` shipped with no `[1.7.0]` compare-link at all and `[Unreleased]` still pointing at `v1.6.1`; both repaired in the 1.8.0 prep. **srcmorph ❌ open**: `v1.1.0` is tagged and released but has **no CHANGELOG section and no link** — the chain jumps `1.0.2 → 1.1.1`, so a shipped version is undocumented. Fix it in srcmorph's next release prep (reconstruct the section from `git log v1.0.2..v1.1.0`, add the link, and re-point `[1.1.1]` to compare from `v1.1.0`). The footer is the most-missed step because nothing builds or renders it — the mechanical headings/links/tags check and the per-repo table of version sites now live in [`workflows/release-process.md`](workflows/release-process.md) under "What actually gets missed". Related: BAF enforces its 24 launcher-script jar names with `ExampleRunScriptJarVersionTest` (a pom bump reds the build until they follow) and srcmorph is structurally immune via a glob — a repo that hardcodes jar names with neither guard is the gap to close. |
+| Release hygiene (CHANGELOG footer + version sites) | Audited 2026-08-29 while preparing java-llama.cpp 5.1.0 and BAF 1.8.0. **jllama ✅ / streambuffer ✅** — released headings, footer compare-links and `v*` tags are the same set in both. **BAF ➖ → fixed**: `v1.7.0` shipped with no `[1.7.0]` compare-link at all and `[Unreleased]` still pointing at `v1.6.1`; both repaired in the 1.8.0 prep. **srcmorph ➖ → fixed**: `v1.1.0` was tagged and released with **no CHANGELOG section and no link** — the chain jumped `1.0.2 → 1.1.1`, so a shipped version was undocumented. Repaired in the 1.2.0 prep (`ff68cfc`): the section was reconstructed, the compare-link added, and `[1.1.1]` re-pointed to compare from `v1.1.0`. Re-verified 2026-08-31 on srcmorph `main` — release headings and footer links are now the same set (`1.0.0`…`1.2.0`), with `[Unreleased]` kept as the anchor for the next cycle. The footer is the most-missed step because nothing builds or renders it — the mechanical headings/links/tags check and the per-repo table of version sites now live in [`workflows/release-process.md`](workflows/release-process.md) under "What actually gets missed". Related: BAF enforces its 24 launcher-script jar names with `ExampleRunScriptJarVersionTest` (a pom bump reds the build until they follow) and srcmorph is structurally immune via a glob — a repo that hardcodes jar names with neither guard is the gap to close. |
 | `dependencyConvergence` pinning convention | All 4 Maven repos (+ srcmorph's 3 reactor modules) enable maven-enforcer's `<dependencyConvergence/>`. Convention, the `excludedScopes=[test,provided]` default gotcha, and merge-discipline guidance are in [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
 | `<parameters>true</parameters>` javac arg | All 4 ✅ |
-| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate: **sb** whole-package · **jllama** an explicit class list (`value.*`/`exception.*`/`args.*`/`json.*` parsers) — **not fully hermetic, see "Deliberate non-parity"** · **srcmorph** (reactor core module) an explicit class list · **BAF** an explicit class list. Scope grows incrementally toward whole-package per repo (the sb model is the end state — see "Standing goals" below). Exact mutation counts drift with the code; treat any number as a snapshot, never a contract — the 100% gate is the contract. Canonical command + invocation rule live in [`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md). |
+| PIT `<mutationThreshold>100</mutationThreshold>` | All 4 wired at a 100% gate: **sb** whole-package · **jllama** an explicit class list (`value.*`/`exception.*`/`args.*`/`json.*` parsers) — **not fully hermetic, see "Deliberate non-parity"** · **srcmorph** an explicit class list in **all three** reactor modules (core + `srcmorph-cli` + `srcmorph-maven-plugin`, gated reactor-wide since 2026-08-31) · **BAF** an explicit class list. Scope grows incrementally toward whole-package per repo (the sb model is the end state — see "Standing goals" below). Exact mutation counts drift with the code; treat any number as a snapshot, never a contract — the 100% gate is the contract. Canonical command + invocation rule live in [`policies/pit-mutation-testing.md`](policies/pit-mutation-testing.md). |
 | Checker Framework as 2nd nullness pass | All 4 ✅ |
 | JPMS `module-info.java` present | All 4 ✅. The module-mode-javadoc trap this creates (and how each repo avoids or resolved it) is documented once in [`policies/jpms-module-descriptor.md`](policies/jpms-module-descriptor.md) — read that before touching javadoc binding/phase order or raising a Java-8 repo's javadoc `<source>` to ≥ 9. |
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
@@ -151,19 +151,21 @@ Differences below are intentional design decisions, not gaps to close.
 
 ## Open cross-repo items
 
-- **srcmorph ships the corrupt macOS dylib downstream — bump after jllama 5.0.7** (❌ open,
-  **blocked on a jllama release**). `srcmorph/pom.xml` pins `<llama.version>5.0.6</llama.version>`,
-  and 5.0.6 is one of the releases explicitly verified to carry the hybrid
-  `Mac/aarch64/libjllama.dylib` (see the macOS entry under "Deliberate non-parity"). So every
-  srcmorph fat-jar release asset built against it embeds a dylib that macOS SIGKILLs on load —
-  srcmorph inherits the defect without having done anything wrong. Only srcmorph is affected: BAF
-  and sb do not depend on `net.ladenthin:llama`. Blast radius inside srcmorph is the
-  `LlamaCppJniAiGenerationProvider` path only (the `mock` provider never loads the native library),
-  so `Plan`/mock runs and the whole test suite are unaffected — but a real macOS-arm64 model run is
-  dead. **Not fixable yet:** jllama is at `5.0.7-SNAPSHOT` and has had no release since the fix
-  landed, so the bump has to wait for 5.0.7 (or a snapshot known to postdate it). Action when 5.0.7
-  ships: bump `llama.version`, then actually run the srcmorph CLI once on macOS arm64 — the bump is
-  the fix, the run is the proof.
+- **srcmorph's corrupt-macOS-dylib exposure — bump landed, the proof run has not** (➖ mostly
+  closed). srcmorph used to pin `<llama.version>5.0.6</llama.version>`, and 5.0.6 is one of the
+  releases explicitly verified to carry the hybrid `Mac/aarch64/libjllama.dylib` (see the macOS
+  entry under "Deliberate non-parity"), so every srcmorph fat-jar release asset built against it
+  embedded a dylib that macOS SIGKILLs on load — srcmorph inherited the defect without having done
+  anything wrong. Only srcmorph was affected: BAF and sb do not depend on `net.ladenthin:llama`.
+  **Resolved by the bump:** jllama never released a `5.0.7` — 5.1.0 superseded it and carries the
+  fix (its CHANGELOG documents the `merge-native-artifacts.sh` collision guard and the new
+  `smoke-fatjar-macos` `codesign --verify --strict` + JVM-load gate, #390). srcmorph moved to
+  `5.1.0` in `fcfc9cb` and `srcmorph/pom.xml:41` reads `5.1.0` as of 2026-08-31. **What is still
+  open is only the proof:** nobody has yet run the srcmorph CLI against a real model on macOS
+  arm64. The bump is the fix, that run is the evidence — and until it happens the claim rests on
+  jllama's own gate rather than on srcmorph's artifact. Blast radius if it were still broken is
+  unchanged: the `LlamaCppJniAiGenerationProvider` path only (the `mock` provider never loads the
+  native library), so `Plan`/mock runs and the whole test suite say nothing either way.
 - **No release asset is attached that CI has not run** (✅ landed in all three fat-jar repos).
   Every repo that attaches a fat jar now launches it in a `smoke-fatjar*` job that gates both
   publish jobs: BAF (`config_AddressFilesToLMDB.json`, also exercises the lmdbjava natives),
@@ -174,8 +176,10 @@ Differences below are intentional design decisions, not gaps to close.
   assertion is native loadability, not a CLI exit code. Rule, rationale and the per-repo assertion
   table live in [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). Each
   smoke is model-free, GPU-free and network-free by design (~1 min): an expensive smoke gets made
-  non-gating and then the gap reopens. **Not yet observed green in CI** — all three landed in one
-  change set and have run only locally so far.
+  non-gating and then the gap reopens. **First green CI observation: srcmorph, 2026-08-31** — the
+  `Smoke test fat jar` job passed on `main` (`ec3cf5e`, Publish run 33410263937), so the shared
+  `smoke-fatjar-cli.sh` path is proven in CI, not only locally. BAF runs the byte-identical script
+  and jllama's own smokes are still unobserved green; treat those two as pending.
 - **Test-JVM diagnostics + memory standard** ([`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md)):
   🚧 in progress across BAF/jllama/srcmorph/sb — the `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload
   standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
