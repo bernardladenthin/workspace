@@ -49,6 +49,44 @@ plain `git push` of a `v*` tag does **not** attach any assets. To ship the fat j
 the publish workflow manually with that input set (the same way the thin jars have always been
 attached). Symptom of forgetting: a tag release with `assets: []`.
 
+## Attach first, then go red — never withhold assets over a missing signature
+
+All three fat-jar repos run their attach job (`github-release`, `github-snapshot`,
+jllama's `github-release-signed`) even when the publish job **failed**:
+
+```yaml
+if: ${{ !cancelled() && (needs.publish-release.result == 'success'
+                         || needs.publish-release.result == 'failure') }}
+```
+
+That is deliberate and load-bearing. A Central publish-poll timeout reds the publish job *after* the
+artifacts were already uploaded, and if Central is unreachable the GitHub assets are the **only** way
+to get the build output at all. Withholding them because something else went wrong is the worst
+outcome available.
+
+**So a signature check must not gate the upload.** Nothing upstream asserts that every attached jar
+has its detached `.asc`: the collection steps skip a missing signature with `[ -e "$f" ] || continue`,
+so a failed signing step yields an attach that looks complete and is not. The obvious fix — verify,
+and refuse to attach if anything is unsigned — reintroduces exactly the failure mode the `if:`
+condition exists to prevent.
+
+The ordering that satisfies both:
+
+1. **Report** (before the upload, `id: signatures`, never exits non-zero): emit one `::error::`
+   annotation per unsigned jar, and one for the case where *no* jars were collected at all; write the
+   count to `$GITHUB_OUTPUT`.
+2. **Upload** — unconditionally, exactly as before.
+3. **Assert** (after the upload, `if: always() && steps.signatures.outputs.missing != '0'`): fail the
+   job, naming the count.
+
+Assets always land. An unsigned release is still loudly red rather than quietly wrong. Use `-1` for
+"nothing was collected", so an empty asset directory is distinguishable from a signing failure.
+
+**Status:** landed in **srcmorph**. **jllama and BAF have the identical job shape and neither has the
+check yet** — verified by reading all three `publish.yml` files, not inferred. Porting it is a
+mechanical copy of the two steps; the only per-repo edit is the asset directory name
+(`release-assets` / `snapshot-assets` / jllama's own).
+
 ## No release asset is attached that CI has not run
 
 **Every repo that attaches a fat jar runs it in CI first, in a `smoke-fatjar*` job that gates both
