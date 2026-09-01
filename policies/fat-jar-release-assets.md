@@ -49,10 +49,55 @@ plain `git push` of a `v*` tag does **not** attach any assets. To ship the fat j
 the publish workflow manually with that input set (the same way the thin jars have always been
 attached). Symptom of forgetting: a tag release with `assets: []`.
 
+## Attach first, then go red — never withhold assets over a missing signature
+
+All three fat-jar repos run their attach job (`github-release`, `github-snapshot`,
+jllama's `github-release-signed`) even when the publish job **failed**:
+
+```yaml
+if: ${{ !cancelled() && (needs.publish-release.result == 'success'
+                         || needs.publish-release.result == 'failure') }}
+```
+
+That is deliberate and load-bearing. A Central publish-poll timeout reds the publish job *after* the
+artifacts were already uploaded, and if Central is unreachable the GitHub assets are the **only** way
+to get the build output at all. Withholding them because something else went wrong is the worst
+outcome available.
+
+**So a signature check must not gate the upload.** Nothing upstream asserts that every attached jar
+has its detached `.asc`: the collection steps skip a missing signature with `[ -e "$f" ] || continue`,
+so a failed signing step yields an attach that looks complete and is not. The obvious fix — verify,
+and refuse to attach if anything is unsigned — reintroduces exactly the failure mode the `if:`
+condition exists to prevent.
+
+The ordering that satisfies both:
+
+1. **Report** (before the upload, `id: signatures`, never exits non-zero): emit one `::error::`
+   annotation per unsigned jar, and one for the case where *no* jars were collected at all; write the
+   count to `$GITHUB_OUTPUT`.
+2. **Upload** — unconditionally, exactly as before.
+3. **Assert** (after the upload, `if: always() && steps.signatures.outputs.missing != '0'`): fail the
+   job, naming the count.
+
+Assets always land. An unsigned release is still loudly red rather than quietly wrong. Use `-1` for
+"nothing was collected", so an empty asset directory is distinguishable from a signing failure.
+
+**Status:** landed in **all four repos** — srcmorph, jllama, BAF **and streambuffer**. The two steps
+are byte-identical everywhere (the only per-repo difference is the asset directory name,
+`snapshot-assets` / `release-assets`), so a change to one must be synced to all four. Note the scope:
+this guard is about **release assets**, not about fat jars, so it applies to streambuffer too even
+though streambuffer ships no fat jar — it attaches signed thin jars like everyone else.
+
 ## No release asset is attached that CI has not run
 
-**Every repo that attaches a fat jar runs it in CI first, in a `smoke-fatjar*` job that gates both
+**Every repo that attaches a release asset runs it in CI first, in a `smoke-*` job that gates both
 publish jobs.** This is a standing rule, not a per-repo nicety.
+
+It was originally written for fat jars, and streambuffer was read as exempt because it ships none.
+That reading was wrong: the artifact it attaches (and deploys) is still one nothing in the pipeline
+had ever loaded. **The rule is about the attached artifact, not about the fat-jar shape** — a repo
+without a `Main-Class` cannot satisfy `java -jar`, so it asserts what a real consumer does instead
+(put the jar on a classpath, call the API). Same job shape, repo-appropriate assertion.
 
 The reason it needs stating: **nothing else in a Maven build ever touches the assembled artifact.**
 Unit tests, PIT, SpotBugs and ArchUnit all run off `target/classes`; `mvn package` only asserts that
@@ -80,6 +125,7 @@ would be worse than the duplication it saves:
 | srcmorph | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_Plan.json` | exit 0 + `Main#run end.`; `mock` provider, so no GGUF/GPU/network |
 | jllama | `smoke-fatjar-linux` / `-windows` | `smoke-test-fatjar.{sh,ps1}` → real `java -jar` server | `/health` 200 + a `/v1/chat/completions` choice + the backend-selection log line |
 | jllama | `smoke-fatjar-macos` | `smoke-native-macos.sh` → `codesign` + `NativeLoadSmoke.java` | signature matches its own pages + the JVM loads the dylib and crosses JNI |
+| sb | `smoke-jar` | `smoke-jar.sh` → `java -cp <jar> StreamBufferSmoke.java` | jar carries `module-info.class` + a real write/read/EOF round-trip through the API, exit 0 + marker |
 
 BAF and srcmorph share a **byte-identical `.github/smoke-fatjar-cli.sh`** (`<jar-dir> <jar-glob>
 <work-dir> <success-marker> [args…]`, plain `java -jar`, no extra JVM flags — the contract under
@@ -102,7 +148,7 @@ failure class.
 | **jllama** (`java-llama.cpp`) | Multi-backend **`all-<os>-<arch>`** jars (default CPU + every GPU backend of that OS/arch in `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` subdirs, runtime-selected by `LlamaLoader` via the `jllama-backends.txt` manifest) + the default CPU fat jar | The Central `deploy` runs **without** the `assembly` profile; the fat jars are assembled by a separate `package-fatjars` job | `.github/package-fatjars.sh` assembles them; `.github/sign-fatjars.sh` GPG-signs each (`.asc`) in the `github-release-signed` / `github-snapshot` attach jobs (which declare `environment: maven-central` + `checkout`). `.sha256` **and** `.asc`. |
 | **srcmorph** (`srcmorph-cli`) | One CLI fat jar **per `net.ladenthin:llama` classifier** (default all-platform CPU + one per GPU classifier: `cuda13-*`, `vulkan-*`, `opencl-*`, `rocm-*`, `sycl-*`, `openvino-*`, `msvc-windows`) named `srcmorph-cli-<v>-jar-with-dependencies[-<classifier>].jar` | `srcmorph-cli/pom.xml` sets `<attach>false</attach>` on the assembly execution → built into `target/` but never installed/deployed | The `publish-{release,snapshot}` jobs loop over the classifier set (`mvn -pl srcmorph-cli -am -Dllama.classifier=<c> package`), rename per classifier (default built **last** = unsuffixed CPU jar), collect them into the asset dir, then sign via `.github/sign-fatjars.sh`. `.asc` only. |
 | **BAF** (`BitcoinAddressFinder`) | **Single** fat jar (LWJGL ships one `natives-*` classifier jar per platform, but they may all sit on one classpath — LWJGL picks the match at runtime — so there is still no classifier split) | The Central `deploy` runs `-P release` **without** `assembly`; the fat jar is built by a **second** invocation that stops at `verify` (never reaching `deploy`), so `central-publishing`'s deploy-bound publish goal never runs | `mvn -P release,assembly verify` in the `publish-{release,snapshot}` jobs; `maven-gpg-plugin` (bound to `verify`) signs the attached fat jar → `.asc`. |
-| **sb** (`streambuffer`) | ➖ N/A — a pure library with no runnable entry point, so no fat jar is produced or shipped | — | — |
+| **sb** (`streambuffer`) | ➖ N/A — a pure library with no runnable entry point, so no fat jar is produced or shipped. Its **thin** jar is still smoke-tested before release (`smoke-jar`, see above) and still carries a `.asc` | — | — |
 
 **BAF-only gotcha: the second invocation must skip javadoc.** BAF's "second invocation that
 stops at `verify`" shares `target/` with the preceding `deploy` invocation in the same job step
