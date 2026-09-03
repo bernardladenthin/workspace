@@ -60,6 +60,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing` | All 4 ✅ |
 | Full `layeredArchitecture()` + per-module banned-imports | BAF/jllama/srcmorph ✅ (flat root package split into layered packages, strict rule enforced per repo — see each repo's own `TODO.md` "Done"); sb ➖ (single package) |
 | GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired byte-identically in `publish.yml`: two standalone jobs (no `needs:`, run in parallel at pipeline start, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata; red-by-design on refs without the secret (fork PRs). The `.github/signing-selftest/` Gradle project used by the second job is byte-identical across all 4 (checksums below). |
+| Class-file floor on the built jars (`verify-bytecode-version.sh`) | All 4 wired in `publish.yml` with the **byte-identical** `.github/verify-bytecode-version.sh` (checksums below). `maven.compiler.release` governs only the code *we* compile; a dependency built for a newer Java lands in the jar untouched and surfaces as `UnsupportedClassVersionError` on a consumer's JVM. It has happened twice: **checker-qual 4.x** (Java 11, `@Retention(RUNTIME)`, so any reflection over an annotated element loads it) and **logback-classic 1.4.0+**, whose `LogbackServiceProvider` SLF4J's `ServiceLoader` loads at startup. `--max-major` is passed from the workflow so the ceiling lives next to the release it belongs to: **52** in jllama/srcmorph/sb, **65** in BAF (Java 21). Placement is per-repo, on whatever job first has the jars: jllama `package` + `smoke-fatjar-linux` (module jars *and* the reassembled all-backends asset), srcmorph/BAF `smoke-fatjar`, sb `smoke-jar` (its deliverable is the plain jar, not a fat jar). `module-info.class` and `META-INF/versions/**` are skipped unconditionally — a classpath JVM never loads either. Exit 2 on an empty scan, so a build that produced no jars cannot read as a pass. |
 
 ### Cross-repo byte-identical files — checksum drift check
 
@@ -70,6 +71,7 @@ Files kept **byte-identical across repos** (sync any edit to every copy AND the 
 | `.github/signing-selftest/build.gradle.kts` | `ab45f5c102b47dd16c325d4d9c283d158ba90c05f484eac45b2767885c4462f9` | all 4 repos |
 | `.github/signing-selftest/settings.gradle.kts` | `9b2ea5b5ff8d48607e26e4e211ad6d496f7660e71c84e42caaa82b84f7001710` | all 4 repos |
 | `.github/sign-fatjars.sh` | `3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36` | jllama + srcmorph (see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md)) |
+| `.github/verify-bytecode-version.sh` | `88555f1ebe2ab52418b5ef628ffc078f132473b8000a3340b5bb73460a0b185d` | all 4 repos (class-file floor on the built jars; `--max-major` comes from the workflow, so the value lives next to the release it belongs to: 52 in the three Java 8 repos, 65 in BAF) |
 | `.github/smoke-fatjar-cli.sh` | `4d1cc65cbd84a38f0d2015f55c0b2ba9027c72794b2c2ed578693a58d702efd2` | BAF + srcmorph (the two CLI fat jars; jllama's server/native smokes are repo-specific — see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md) "No release asset is attached that CI has not run") |
 | `lombok.config` (jllama: `llama/lombok.config`) | `42f1842270af691bdfe561355bee4eb9ae326383f1852db19763abb888d6b90e` | the 3 Lombok repos: jllama + BAF + srcmorph (sb has no Lombok). Canonical content in [`policies/lombok-config.md`](policies/lombok-config.md) |
 | `.github/ISSUE_TEMPLATE/bug_report.md` | `7232b092d3ba49b97bee7b539aaf6ee4c698e86bd3d4dd256e8ae2f85f653ee9` | all 4 repos |
@@ -85,6 +87,7 @@ sha256sum ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/settings.gradle.kts \
           ../{java-llama.cpp,srcmorph}/.github/sign-fatjars.sh \
           ../{BitcoinAddressFinder,srcmorph}/.github/smoke-fatjar-cli.sh \
+          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/verify-bytecode-version.sh \
           ../java-llama.cpp/llama/lombok.config ../{BitcoinAddressFinder,srcmorph}/lombok.config \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/bug_report.md \
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/feature_request.md \
@@ -98,6 +101,26 @@ sha256sum ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github
 Differences below are intentional design decisions, not gaps to close.
 
 - Plugin's NullAway `ExcludedFieldAnnotations` extension — repo-correct (Mojo POJOs).
+- **SLF4J binding: `slf4j-simple` in jllama + srcmorph, logback in BAF, none in sb.** Not drift —
+  the split follows the Java floor. Every logback release from 1.4.0 on is Java 11 bytecode, so
+  `LogbackServiceProvider` cannot load on the Java 8 artifacts: SLF4J's `ServiceLoader` finds it at
+  startup and the JVM throws `UnsupportedClassVersionError` before a line is logged. The Java 8
+  logback line (1.3.x) is EOL with unbackported CVEs, so it is not an option either. BAF is Java 21
+  and keeps logback; sb has no logger at all. **The shipped binding is a fat-jar concern, not a
+  library one** — jllama's and srcmorph-cli's fat jars are applications and may choose a binding;
+  their published library jars impose nothing, and srcmorph excludes the binding
+  `net.ladenthin:llama` brings transitively so the Maven plugin does not end up with two providers
+  alongside Maven's own `maven-slf4j-provider`.
+- **`checker-qual` scope: `provided` in jllama + srcmorph, `compile` in BAF, `optional` in sb.**
+  Same reason. Its annotations are class-file major 55 from 4.0.0 on and `@Retention(RUNTIME)`, so
+  anything reflecting over an annotated element (Jackson) loads them. Pinning the *shipped* copy to
+  the last Java 8 line (3.55.1) looks like the fix and is not: the Nullness Checker resolves its own
+  qualifiers through javac's symbol table — the compile classpath — so a 3.x checker-qual under the
+  4.x processor fails every build with `Could not load type:
+  org.checkerframework.framework.qual.DoesNotUnrefineReceiver`. Processor and qualifiers must share
+  a major version; `provided` keeps 4.2.2 where the checker needs it while shipping none of it
+  (`jar-with-dependencies` filters on scope, so `<optional>true</optional>` alone would not have).
+  BAF is Java 21, so major 55 is simply legal there.
 - BAF's lack of module-level `@NullMarked` — per-package `@NullMarked` covers the same scope
   without requiring `requires JSpecify`. sb keeps per-package `@NullMarked` too, by design.
 - PIT `targetClasses` scope differs (sb whole-package; the other three an explicit list of
