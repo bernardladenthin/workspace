@@ -48,7 +48,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 |---|---|
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4: Checker 4.2.2, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs 4.10.4.0, spotless 3.10.1, palantir 2.97.0, errorprone 2.50.0, nullaway 0.14.0, surefire 3.5.6, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.30.0 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. **Four of these were stale when audited on 2026-08-29** — spotless 3.10.0, palantir 2.96.0, pitest-maven 1.25.9 and nullaway 0.13.8 — while the row still claimed "all latest stable". nullaway is the one worth remembering: streambuffer had already merged a Dependabot bump to 0.14.0 (its PR #149), so the four repos were **not** identical and this row asserted a value no longer true of any of them uniformly. A per-repo Dependabot bump silently breaks the "identical across all 4" claim; when one lands, propagate it to the other three in the same pass and update this row, or the matrix drifts from reality without anything failing. |
+| Tool versions | Identical across all 4 (re-derived from every pom on `origin/main` 2026-09-05, not copied forward): Checker 4.2.3, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs-maven-plugin 4.10.4.1, spotless 3.10.2, palantir 2.97.0, errorprone 2.50.0, nullaway 0.14.1, surefire 3.6.0, archunit 1.5.0, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.30.0 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. **This row has now gone stale twice, the same way both times, and the note added after the first occurrence did not prevent the second — so treat the numbers here as evidence only when the audit date above is recent.** 2026-08-29: spotless 3.10.0, palantir 2.96.0, pitest-maven 1.25.9 and nullaway 0.13.8 were behind while the row claimed "all latest stable". 2026-09-05: Checker 4.2.2, spotbugs 4.10.4.0, spotless 3.10.1, nullaway 0.14.0 and surefire 3.5.6 were behind, again under the same claim. Both times the *identity* half held (all four repos really did carry the same values) and only the recorded numbers lagged. The mechanism is the same each time: a per-repo Dependabot bump lands in one repo, the other three are brought back in step by a follow-up commit, and nothing in that sequence touches this file. **What would actually fix it is a check that derives this row from the poms rather than a reminder to update it by hand** — until that exists, re-derive before citing (the loop under "Dependency / plugin freshness" does it in one command). Every value above was additionally cross-checked against Maven Central's own `maven-metadata.xml` on 2026-09-05 and is the latest **stable** release of its artifact. |
 | Release hygiene (CHANGELOG footer + version sites) | Audited 2026-08-29 while preparing java-llama.cpp 5.1.0 and BAF 1.8.0. **jllama ✅ / streambuffer ✅** — released headings, footer compare-links and `v*` tags are the same set in both. **BAF ➖ → fixed**: `v1.7.0` shipped with no `[1.7.0]` compare-link at all and `[Unreleased]` still pointing at `v1.6.1`; both repaired in the 1.8.0 prep. **srcmorph ➖ → fixed**: `v1.1.0` was tagged and released with **no CHANGELOG section and no link** — the chain jumped `1.0.2 → 1.1.1`, so a shipped version was undocumented. Repaired in the 1.2.0 prep (`ff68cfc`): the section was reconstructed, the compare-link added, and `[1.1.1]` re-pointed to compare from `v1.1.0`. Re-verified 2026-08-31 on srcmorph `main` — release headings and footer links are now the same set (`1.0.0`…`1.2.0`), with `[Unreleased]` kept as the anchor for the next cycle. The footer is the most-missed step because nothing builds or renders it — the mechanical headings/links/tags check and the per-repo table of version sites now live in [`workflows/release-process.md`](workflows/release-process.md) under "What actually gets missed". Related: BAF enforces its 24 launcher-script jar names with `ExampleRunScriptJarVersionTest` (a pom bump reds the build until they follow) and srcmorph is structurally immune via a glob — a repo that hardcodes jar names with neither guard is the gap to close. |
 | `dependencyConvergence` pinning convention | All 4 Maven repos (+ srcmorph's 3 reactor modules) enable maven-enforcer's `<dependencyConvergence/>`. Convention, the `excludedScopes=[test,provided]` default gotcha, and merge-discipline guidance are in [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
@@ -59,7 +59,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
 | `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing` | All 4 ✅ |
 | Full `layeredArchitecture()` + per-module banned-imports | BAF/jllama/srcmorph ✅ (flat root package split into layered packages, strict rule enforced per repo — see each repo's own `TODO.md` "Done"); sb ➖ (single package) |
-| GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired byte-identically in `publish.yml`: two standalone jobs (no `needs:`, run in parallel at pipeline start, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata; red-by-design on refs without the secret (fork PRs). The `.github/signing-selftest/` Gradle project used by the second job is byte-identical across all 4 (checksums below). |
+| GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired byte-identically in `publish.yml`: two standalone jobs (no `needs:`, run in parallel at pipeline start, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata; **red-by-design on every `pull_request` run, not just fork PRs** — the jobs declare `environment: maven-central` and GitHub withholds environment secrets from any PR context, including a branch pushed to the repo itself. Verified on BAF run 33866409744, where both preflight jobs failed within a second on a same-repository Dependabot branch. Green evidence therefore only ever comes from a `push`/dispatch run. The `.github/signing-selftest/` Gradle project used by the second job is byte-identical across all 4 (checksums below). |
 | Class-file floor on the built jars (`verify-bytecode-version.sh`) | All 4 wired in `publish.yml` with the **byte-identical** `.github/verify-bytecode-version.sh` (checksums below). `maven.compiler.release` governs only the code *we* compile; a dependency built for a newer Java lands in the jar untouched and surfaces as `UnsupportedClassVersionError` on a consumer's JVM. It has happened twice: **checker-qual 4.x** (Java 11, `@Retention(RUNTIME)`, so any reflection over an annotated element loads it) and **logback-classic 1.4.0+**, whose `LogbackServiceProvider` SLF4J's `ServiceLoader` loads at startup. `--max-major` is passed from the workflow so the ceiling lives next to the release it belongs to: **52** in jllama/srcmorph/sb, **65** in BAF (Java 21). Placement is per-repo, on whatever job first has the jars: jllama `package` + `smoke-fatjar-linux` (module jars *and* the reassembled all-backends asset), srcmorph/BAF `smoke-fatjar`, sb `smoke-jar` (its deliverable is the plain jar, not a fat jar). `module-info.class` and `META-INF/versions/**` are skipped unconditionally — a classpath JVM never loads either. Exit 2 on an empty scan, so a build that produced no jars cannot read as a pass. |
 
 ### Cross-repo byte-identical files — checksum drift check
@@ -118,7 +118,7 @@ Differences below are intentional design decisions, not gaps to close.
   qualifiers through javac's symbol table — the compile classpath — so a 3.x checker-qual under the
   4.x processor fails every build with `Could not load type:
   org.checkerframework.framework.qual.DoesNotUnrefineReceiver`. Processor and qualifiers must share
-  a major version; `provided` keeps 4.2.2 where the checker needs it while shipping none of it
+  a major version; `provided` keeps 4.2.3 where the checker needs it while shipping none of it
   (`jar-with-dependencies` filters on scope, so `<optional>true</optional>` alone would not have).
   BAF is Java 21, so major 55 is simply legal there.
 - BAF's lack of module-level `@NullMarked` — per-package `@NullMarked` covers the same scope
@@ -186,12 +186,15 @@ Differences below are intentional design decisions, not gaps to close.
   **Resolved by the bump:** jllama never released a `5.0.7` — 5.1.0 superseded it and carries the
   fix (its CHANGELOG documents the `merge-native-artifacts.sh` collision guard and the new
   `smoke-fatjar-macos` `codesign --verify --strict` + JVM-load gate, #390). srcmorph moved to
-  `5.1.0` in `fcfc9cb` and `srcmorph/pom.xml:41` reads `5.1.0` as of 2026-08-31. **What is still
-  open is only the proof:** nobody has yet run the srcmorph CLI against a real model on macOS
-  arm64. The bump is the fix, that run is the evidence — and until it happens the claim rests on
-  jllama's own gate rather than on srcmorph's artifact. Blast radius if it were still broken is
-  unchanged: the `LlamaCppJniAiGenerationProvider` path only (the `mock` provider never loads the
-  native library), so `Plan`/mock runs and the whole test suite say nothing either way.
+  `5.1.0` in `fcfc9cb`, and has since moved past it — `srcmorph/srcmorph/pom.xml` reads
+  `<llama.version>5.2.0</llama.version>` as of 2026-09-05 (see the separate blocking item below;
+  that is a *forward* pin on a version Central does not carry yet, not a regression to a pre-fix
+  release). **What is still open is only the proof:** nobody has yet run the srcmorph CLI against a
+  real model on macOS arm64. The bump is the fix, that run is the evidence — and until it happens
+  the claim rests on jllama's own gate rather than on srcmorph's artifact. Blast radius if it were
+  still broken is unchanged: the `LlamaCppJniAiGenerationProvider` path only (the `mock` provider
+  never loads the native library), so `Plan`/mock runs and the whole test suite say nothing either
+  way.
 - **No release asset is attached that CI has not run** (✅ landed in **all four** repos).
   Every repo that attaches a release asset now launches it in a `smoke-*` job that gates both
   publish jobs: BAF (`config_AddressFilesToLMDB.json`, also exercises the lmdbjava natives),
@@ -203,10 +206,17 @@ Differences below are intentional design decisions, not gaps to close.
   CLI exit code. Rule, rationale and the per-repo assertion table live in
   [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). Each smoke is
   model-free, GPU-free and network-free by design (~1 min): an expensive smoke gets made
-  non-gating and then the gap reopens. **First green CI observation: srcmorph, 2026-08-31** — the
-  `Smoke test fat jar` job passed on `main` (`ec3cf5e`, Publish run 33410263937), so the shared
-  `smoke-fatjar-cli.sh` path is proven in CI, not only locally. BAF runs the byte-identical script
-  and jllama's own smokes are still unobserved green; treat those two as pending.
+  non-gating and then the gap reopens. **Observed green in CI, per repo — nothing is pending any more** (re-checked
+  2026-09-05 by opening each run, not from a doc): **jllama first, 2026-08-29** — the v5.1.0 release
+  dispatch (run 33275073456, conclusion `success`) has `Package JARs` green *including* its
+  `Merge native libraries into the default resource tree (collision-checked)` step, plus
+  `Smoke test packaged natives (macOS)` and `Smoke test all-backends fat jar` on both Linux and
+  Windows. **srcmorph, 2026-08-31** — `Smoke test fat jar` on `main` (`ec3cf5e`, run 33410263937).
+  **BAF, 2026-09-04** — `Smoke test fat jar` green in run 33866409744; note the *run* is red, for
+  unrelated test-job failures, so the evidence is the job, not the run. **sb, 2026-09-05** — `Smoke test packaged jar` green in run
+  33962076725, bytecode-gate step included; that run's only red jobs are the two GPG preflights,
+  which are red by design on any PR (see the parity table). An earlier revision of this entry
+  crowned srcmorph first and called BAF and jllama "pending"; both halves were wrong.
   **sb was the last gap, and it was a gap in the rule's wording, not an exemption:** the rule was
   written around fat jars, sb ships none, so it read as N/A — while sb still attached and deployed
   a jar nothing in its pipeline had ever loaded (everything runs off `target/classes`). Its
@@ -248,18 +258,51 @@ Differences below are intentional design decisions, not gaps to close.
   production package, not a curated subset. Today only sb is whole-package; the other three gate
   a verified-100% subset that should keep growing — add tests for a class, then widen the scope
   to include it, never the other way around. Track per-repo progress in each repo's `TODO.md`.
+- **srcmorph `main` cannot resolve its dependencies, by design, until jllama releases 5.2.0**
+  (❌ open, blocked on another repo — the only such state in the workspace). `srcmorph/srcmorph/pom.xml`
+  pins `<llama.version>5.2.0</llama.version>`; Central's newest `net.ladenthin:llama` release is
+  `5.1.0` and jllama `main` is `5.2.0-SNAPSHOT`, so `mvn -pl srcmorph dependency:resolve` ends in
+  `Could not find artifact net.ladenthin:llama:jar:5.2.0`. **This is deliberate and is documented in
+  a 22-line comment above the property — do not "fix" it.** The provider calls
+  `setFlashAttn(FlashAttn)` and `setLazyMode(LazyMode)`, neither of which exists in 5.1.0, so a
+  downgrade does not compile; and naming `5.2.0-SNAPSHOT` would need a `<repositories>` entry the
+  repo deliberately does not declare **and** would block every future srcmorph release, since
+  Central rejects a release with a `-SNAPSHOT` dependency. The pin goes green with no further edit
+  the moment 5.2.0 is published.
+  **What is *not* covered by that rationale, and is the reason this is an open item rather than a
+  footnote: srcmorph has had no green CI of any kind since it landed.** The pin arrived in `5b4abeb`,
+  merged as **PR #198 on 2026-09-01**; since then **8 PRs (#198–#205) have been merged with a red
+  pipeline**, and it is not only `main` — every one of those *`pull_request`* runs is `failure` too
+  (33491348847 … 33963628772 for CodeQL; 33493864690 … 33962068246 for Publish). Resolution fails
+  before the first test compiles, so for that whole window srcmorph's tests, SpotBugs, spotless,
+  PIT and bytecode gates have been asserting nothing. Each of those PRs was verified locally against
+  a `mvn install`-ed jllama snapshot, which is what makes the arrangement workable at all — but a
+  local build is the developer's evidence, not the repo's. **The single resolving step is a jllama
+  5.2.0 release**; nothing is open on the srcmorph side, and jllama has no open PR blocking one.
+- **"Did CI ever actually run this?" is not answerable from a run's presence in any of these repos**
+  (📌 standing caveat, worth re-reading before citing any run as evidence). Two mechanisms suppress
+  completed runs, and both were mistaken for green at least once: **(1)** a push to `main` is
+  cancelled in the start-gate abort window in all four repos, so a `cancelled` run on `main` says
+  nothing about health; **(2)** merging a PR promptly cancels that PR's own in-flight run. jllama is
+  the live example — **every** run after the one that fixed its PIT gate is `cancelled` (898, 900,
+  901, 902, 903, 904, 905), so the newest **completed** jllama run is 897, a `workflow_dispatch` from
+  2026-09-04 at pin b10797 that failed. Nothing on jllama's current `main` (`ad2e3db`, pin b10819)
+  has been validated by CI at all. The corollary for this file: green evidence comes only from
+  `pull_request` runs that were allowed to finish and from `workflow_dispatch` releases — cite those,
+  by run id, and never a bare "CI is green".
 - **SonarQube local build check — per repo** (❌ open). Add an opt-in, locally-runnable
   `org.sonarsource.scanner.maven:sonar-maven-plugin` analysis (behind a `sonar` profile, off the
   default build) to all four repos, with a JaCoCo XML report so Sonar ingests coverage, and a
   documented local-run recipe (`sonar:sonar -Dsonar.host.url=... -Dsonar.token=...`) in each
   repo's `CLAUDE.md`. Deliberately kept out of CI for now — local/opt-in only.
-- **Fat-jar signing — unverified in production for BAF and srcmorph** (❌ open). jllama's is
-  confirmed working (GitHub Release assets present with matching `.asc`/`.sha256`). BAF's fix is
-  applied and verified locally but not yet exercised by a live `workflow_dispatch
-  publish_to_central=true` run. srcmorph's fat-jar step is wired up (mirrors jllama's proven
-  pattern) but has never once run in CI, success or failure — its last real release predates the
-  step, and the one dispatch since then had `publish_to_central` unset. Don't call either
-  "confirmed working" until a real dispatch proves it.
+- **Fat-jar signing — proven in production in all three fat-jar repos** (✅ closed 2026-09-05).
+  Each was closed by a real release, not by a local check: **jllama** (assets carry matching
+  `.asc` *and* `.sha256`), **BAF `v1.8.0`** (2026-08-29 — `bitcoinaddressfinder-1.8.0-jar-with-dependencies.jar`
+  plus its `.asc`, uploaded by `github-actions[bot]`), and **srcmorph `v1.2.0`** (2026-09-01 — 52
+  assets: the default fat jar plus 16 classifier fat jars, **every one** with a matching `.asc`,
+  same uploader). One shape difference worth knowing rather than closing over: only jllama attaches
+  a `.sha256` alongside; srcmorph's 52 assets contain none, so "`.asc`/`.sha256`" describes jllama,
+  not the convention. sb is ➖ (ships no fat jar).
 - **Central-publish pipeline current mechanism** (informational, not open, but non-obvious):
   publishing to Maven Central requires an explicit `workflow_dispatch` with
   `publish_to_central=true` — nothing publishes from an automatic push or tag anymore, and a
@@ -276,7 +319,12 @@ Differences below are intentional design decisions, not gaps to close.
 All four repos are on the **newest stable** version of every dependency and build plugin,
 checked with `versions:display-dependency-updates` + `display-plugin-updates` against Maven
 Central plus direct `maven-metadata.xml` probes for paths the versions plugin doesn't scan
-(Error Prone, NullAway, Checker). The only version updates ever on offer are pre-releases
+(Error Prone, NullAway, Checker). **One exception as of 2026-09-05:** jllama's
+`llama-langchain4j/pom.xml` pins `<langchain4j.version>1.19.0</langchain4j.version>` while Central's
+release is `1.20.0` — the only dependency in the workspace genuinely behind a stable upstream. It is
+confined to that one module (which is `release 17`; the core stays Java 8), so it affects no other
+artifact, and it is a plain lag rather than a deliberate pin — no rationale comment accompanies it,
+and it does not belong in the do-not-bump registry below. The only version updates ever on offer are pre-releases
 (Maven 4 betas/RCs, `slf4j-api` 2.1.0-alpha1, `kotlin` 2.4.20-RC, `maven-surefire-plugin`
 milestone) or `jqwik` past the banned 1.9.3 — none adopted. See
 [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md) for
@@ -295,8 +343,8 @@ a cross-repo sweep does not mistake a deliberate pin for a stale dependency). "N
 | `com.h2database:h2` | 2.2.224 | BroomCabinet (`JOracleRowSetGetRowBug`) | 2.4.240 | **Last Java-8-compatible line** (2.3.x+ needs Java 11); module is `<release>8</release>`. Rationale in that module's `pom.xml` comment. |
 | `com.oracle.database.jdbc:ojdbc8` | 21.21.0.0 | BroomCabinet (`JOracleRowSetGetRowBug`) | 23.26.3.0.0 | The `oracle.jdbc.rowset.OracleCachedRowSet` class the bug reproducer needs exists **only in the 19.x/21.x ojdbc8 lines — Oracle removed the package in 23.x**. Rationale in that module's `pom.xml` comment + `BUG.md`. |
 | `org.bouncycastle:bcprov-jdk15to18` | 1.85.2 | BAF | — (already latest stable) | Pins the bitcoinj-transitive bcprov to patch GHSA-c3fc-8qff-9hwx / GHSA-p93r-85wp-75v3. Rationale in BAF `CLAUDE.md` deps table. |
-| `org.apache.logging.log4j:log4j-api` + `log4j-to-slf4j` | 2.26.1 | BAF, jllama | — (already latest stable 2.x) | **Security pin, not a hold-back.** Both arrive only as **test-scope** transitives of `io.github.hakky54:logcaptor` 2.12.6, which requests 2.25.3 — affected by CVE-2026-49844 / GHSA-qv9r-c865-cp47 (moderate). Dependabot reported "cannot update to the required version", so a `dependencyManagement` pin is the fix. Pinned **as a pair**: `log4j-to-slf4j` requires a matching `log4j-api`, so bumping one alone skews them. Neither reaches a published artifact. |
-| `org.slf4j:slf4j-api` | 2.0.18 | all | 2.1.0-alpha1 | Latest **stable**; newer is alpha only. |
+| `org.apache.logging.log4j:log4j-api` + `log4j-to-slf4j` | 2.26.1 | BAF, jllama | — (already latest stable 2.x) | **Was a security pin; is now a floor guard — the CVE it was written for is no longer reachable.** Both arrive only as **test-scope** transitives of `io.github.hakky54:logcaptor` (**2.12.7** in both repos). When the pin was added, logcaptor 2.12.6 requested log4j 2.25.3, affected by CVE-2026-49844 / GHSA-qv9r-c865-cp47 (moderate), and Dependabot reported "cannot update to the required version" — so a `dependencyManagement` pin was the fix. **Both repos are now on logcaptor 2.12.7, whose own pom declares `<version.log4j>2.26.1</version.log4j>`**, i.e. exactly what the pin forces; it therefore changes nothing today and only prevents a silent regression if logcaptor ever falls back. **Decision 2026-09-05: keep the pin, reword the comments** — both pom comments claimed "logcaptor … requests 2.25.3", which stopped being true at logcaptor 2.12.7, and both now describe a lower bound instead (BAF `3fbf138`, jllama on `claude/log4j-floor-guard-and-langchain4j`). Dropping the pin was the alternative and was rejected: it costs nothing to keep and stops a logcaptor release that fell back to an affected line from regressing the test classpath silently. Do not re-open this as "stale dependency" in a future sweep. Note also what it is **not**: unrelated to the Java 8 class-file floor (that is slf4j-simple-instead-of-logback plus `checker-qual` at `provided`), which is a separate change from the same week and easy to conflate. Pinned **as a pair** because `log4j-to-slf4j` requires a matching `log4j-api`. Neither reaches a published artifact. |
+| `org.slf4j:slf4j-api` (and `slf4j-simple` where shipped) | 2.0.19 | BAF, jllama, srcmorph (sb has no logger) | 2.1.0-alpha1 | Latest **stable**; newer is alpha only. Central's `<release>` element points at the alpha, so read the `<version>` list, not `<release>`, when re-checking this one. |
 | `org.jetbrains.kotlin` | 2.4.10 | jllama (`llama-kotlin`) | 2.4.20-RC | Latest **stable**; newer is an RC only. |
 | Maven-4 plugin line / surefire `3.6.0-M1` | — | all | `4.0.0-beta-*` / `-M1` | Maven-3 toolchain; Maven-4 betas + milestones deliberately not adopted. |
 
@@ -306,23 +354,29 @@ a cross-repo sweep does not mistake a deliberate pin for a stale dependency). "N
 
 #### GitHub Actions freshness
 
-All four repos are on the newest release of every action they use. Two **pin styles** coexist and
-both are current — the difference is cosmetic, not drift:
+**Pin style is now uniform across all four repos** — the "two pin styles coexist" split this
+section used to describe is gone. sb and BAF unpinned `github/codeql-action/*` from `v4.37.8`, and sb
+unpinned `gradle/actions/setup-gradle` from `v6.3.0`, both on 2026-08-29 (sb `32b6e3c`, BAF `c01a95e`);
+those pins were accidental, not deliberate. Enumerated from every `uses:` in
+`.github/workflows/` on `origin/main`, 2026-09-05:
 
-| Action | sb | BAF | jllama | srcmorph |
-|---|---|---|---|---|
-| `github/codeql-action/*` | `v4.37.8` (exact) | `v4.37.8` (exact) | `v4` (floating) | `v4` (floating) |
-| `gradle/actions/setup-gradle` | `v6.3.0` (exact) | `v6` (floating) | `v6` (floating) | `v6` (floating) |
-| `google/osv-scanner-action` reusable | `v2.5.1` | `v2.5.1` | `v2.5.1` | `v2.5.1` |
-| everything else (`actions/*`, `codecov`, `coveralls`, `reuse`, `scorecard`, `gh-release`, …) | floating major, all on the newest major | ↑ | ↑ | ↑ |
+| Pin style | Actions | Repos |
+|---|---|---|
+| **floating major** | `github/codeql-action/{init,analyze,upload-sarif}@v4`, `gradle/actions/setup-gradle@v6`, `actions/{checkout@v7,setup-java@v6,cache@v6,upload-artifact@v7,download-artifact@v8,setup-python@v7,setup-node@v7}`, `codecov/codecov-action@v7`, `coverallsapp/github-action@v2`, `fsfe/reuse-action@v6`, `softprops/action-gh-release@v3`, `advanced-security/maven-dependency-submission-action@v5`, `anthropics/claude-code-action@v1`, and jllama's `ilammy/msvc-dev-cmd@v1` + `reactivecircus/android-emulator-runner@v2` | all 4 (where used) |
+| **exact** | `google/osv-scanner-action` reusable `@v2.5.1`, `ossf/scorecard-action@v2.4.4` | all 4 |
+| **exact, jllama-only** | `Jimver/cuda-toolkit@v0.2.36`, `jakoch/install-vulkan-sdk-action@v1.6.0` | jllama |
 
 `actions/setup-java` is on **`v6`** in all four (bumped from `v5`). v6 is an ESM rewrite that drops
 only the legacy **`adopt`** distributions and renames `jdkFile` → `jdk-file` (deprecated alias kept);
 every job here uses `temurin` (or `zulu` in `sonarqube.yml`), both still supported, so the major bump
 is a no-op for these pipelines.
 
-Exact-pinned actions verified as already-latest at the last sweep: `ossf/scorecard-action@v2.4.4`,
-`Jimver/cuda-toolkit@v0.2.36`, `jakoch/install-vulkan-sdk-action@v1.6.0` (the last two jllama-only).
+The four exact-pinned actions were verified as already-latest at the 2026-08-29 sweep.
+**They could NOT be re-verified on 2026-09-05** and are therefore unconfirmed since: this workspace's
+egress proxy answers `403` for both `github.com/<owner>/<repo>/releases/latest` and `api.github.com`,
+and the session's GitHub tooling is scoped to `bernardladenthin/*`, so a third-party repo's releases
+are unreachable from here. Re-check them from an unrestricted environment; do not read the
+2026-08-29 date as current.
 
 **Not GitHub Actions but checked in the same sweep** (jllama's Gradle side): AGP **9.3.0** is the
 newest stable, and CI's `gradle-version: "9.6.1"` already exceeds AGP 9.3.0's minimum/default Gradle
