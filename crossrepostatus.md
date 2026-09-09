@@ -61,6 +61,7 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | Full `layeredArchitecture()` + per-module banned-imports | BAF/jllama/srcmorph ✅ (flat root package split into layered packages, strict rule enforced per repo — see each repo's own `TODO.md` "Done"); sb ➖ (single package) |
 | GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired byte-identically in `publish.yml`: two standalone jobs (no `needs:`, run in parallel at pipeline start, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata; **red-by-design on every `pull_request` run, not just fork PRs** — the jobs declare `environment: maven-central` and GitHub withholds environment secrets from any PR context, including a branch pushed to the repo itself. Verified on BAF run 33866409744, where both preflight jobs failed within a second on a same-repository Dependabot branch. Green evidence therefore only ever comes from a `push`/dispatch run. The `.github/signing-selftest/` Gradle project used by the second job is byte-identical across all 4 (checksums below). |
 | Class-file floor on the built jars (`verify-bytecode-version.sh`) | All 4 wired in `publish.yml` with the **byte-identical** `.github/verify-bytecode-version.sh` (checksums below). `maven.compiler.release` governs only the code *we* compile; a dependency built for a newer Java lands in the jar untouched and surfaces as `UnsupportedClassVersionError` on a consumer's JVM. It has happened twice: **checker-qual 4.x** (Java 11, `@Retention(RUNTIME)`, so any reflection over an annotated element loads it) and **logback-classic 1.4.0+**, whose `LogbackServiceProvider` SLF4J's `ServiceLoader` loads at startup. `--max-major` is passed from the workflow so the ceiling lives next to the release it belongs to: **52** in jllama/srcmorph/sb, **65** in BAF (Java 21). Placement is per-repo, on whatever job first has the jars: jllama `package` + `smoke-fatjar-linux` (module jars *and* the reassembled all-backends asset), srcmorph/BAF `smoke-fatjar`, sb `smoke-jar` (its deliverable is the plain jar, not a fat jar). `module-info.class` and `META-INF/versions/**` are skipped unconditionally — a classpath JVM never loads either. Exit 2 on an empty scan, so a build that produced no jars cannot read as a pass. |
+| Informational steps in the `report` job never gate the release | **srcmorph ✅ · jllama / BAF / sb in open PRs as of 2026-09-09 (#424 / #364 / #157) — this row becomes "All 4 ✅" when those merge, and must not be read as parity before then.** Keep in sync; this one is easy to lose and expensive to lose. The rule: a third-party step in `report` that only *reports* (dependency graph, coverage upload) carries `continue-on-error: true`; a step that is a **gate** does not. **Why it is not cosmetic:** the pipelines are deliberately built so the GitHub assets land even when the Central publish fails — `github-snapshot`/`github-release*` run on `(needs.publish-*.result == 'success' \|\| == 'failure')`. That `if:` tolerates **`failure`** but not **`skipped`**, and `report` gates the chain: a failed `report` *skips* `check-snapshot` (its `if:` is a plain event/ref condition with no `always()`/`!cancelled()` escape), which skips `publish-snapshot`, which leaves `publish-snapshot.result == 'skipped'` — matching neither arm, so **`github-snapshot` does not run and the assets are lost**. An unguarded informational action therefore does not merely delay a Central publish; it silently defeats the one guarantee the release path exists to provide. **History — how it drifted:** srcmorph got the guard *in passing* from `ee2ae49` ("ci: report unsigned assets without ever withholding them"), whose actual feature was the unsigned-asset reporting. That feature **was** ported to the other three the same day (jllama `90dd21a`, BAF `2e14f5c`, sb `2ed13ff` — each a clean `68 insertions(+)` change), but the port reproduced the *feature*, not the *commit*, so the unrelated drive-by line never travelled and sat missing for nine days. Being closed by jllama #424, BAF #364, sb #157 — open at the time of writing. **What stays bare, on purpose:** `checkout`/`setup-java` (infrastructure, must work) and streambuffer's PIT steps (gates, meant to block). **Verifiable:** the 5-line block — rationale comment + `uses:` + flag — is byte-identical in all four; see the block-level check below. |
 
 ### Cross-repo byte-identical files — checksum drift check
 
@@ -94,6 +95,27 @@ sha256sum ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github
           ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/PULL_REQUEST_TEMPLATE.md
 # each file's copies must all show the hash in the table above; a mismatch = drift (re-sync) or an
 # intentional edit (update every copy AND this table in the same change set).
+```
+
+**Block-level check — the `report` job's dependency-submission step.** Not a whole file, so it is
+not in the table above, but it is kept byte-identical for the same reason and drifts the same way
+(see the parity row "Informational steps in the `report` job never gate the release"). The 5 lines
+are the three-line rationale comment, the `uses:` line and `continue-on-error: true`:
+
+```bash
+# from the workspace repo root, siblings checked out alongside
+for d in java-llama.cpp BitcoinAddressFinder streambuffer srcmorph; do
+  f=../$d/.github/workflows/publish.yml
+  ln=$(grep -n 'maven-dependency-submission-action@' "$f" | cut -d: -f1)
+  printf '%-22s %s\n' "$d" "$(sed -n "$((ln-3)),$((ln+1))p" "$f" | sha256sum | cut -c1-16)"
+done
+# All four must print the SAME hash. 5cbdaf64e4f4f303 as of 2026-09-09 (action @v6) -- but note
+# that value is only reached on origin/main once #424 / #364 / #157 have merged; until then only
+# srcmorph prints it and the other three differ by the two missing lines. Mind which ref you are
+# checking: run this against checked-out main, not a feature branch, or it will agree for the
+# wrong reason.
+# The hash changes on any action version bump -- that is expected. What must never differ is the
+# hash BETWEEN the four repos on the same ref.
 ```
 
 ## Deliberate non-parity (NOT drift)
