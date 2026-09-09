@@ -319,16 +319,33 @@ Differences below are intentional design decisions, not gaps to close.
 All four repos are on the **newest stable** version of every dependency and build plugin,
 checked with `versions:display-dependency-updates` + `display-plugin-updates` against Maven
 Central plus direct `maven-metadata.xml` probes for paths the versions plugin doesn't scan
-(Error Prone, NullAway, Checker). **One exception as of 2026-09-05:** jllama's
-`llama-langchain4j/pom.xml` pins `<langchain4j.version>1.19.0</langchain4j.version>` while Central's
-release is `1.20.0` — the only dependency in the workspace genuinely behind a stable upstream. It is
-confined to that one module (which is `release 17`; the core stays Java 8), so it affects no other
-artifact, and it is a plain lag rather than a deliberate pin — no rationale comment accompanies it,
-and it does not belong in the do-not-bump registry below. The only version updates ever on offer are pre-releases
-(Maven 4 betas/RCs, `slf4j-api` 2.1.0-alpha1, `kotlin` 2.4.20-RC, `maven-surefire-plugin`
-milestone) or `jqwik` past the banned 1.9.3 — none adopted. See
+(Error Prone, NullAway, Checker). **Re-checked 2026-09-09.** The langchain4j lag this paragraph
+used to record is closed — jllama is on `1.20.0`, which is Central's release. The only version
+updates still on offer are pre-releases (Maven 4 betas/RCs, `slf4j-api` 2.1.0-alpha1, `log4j`
+3.0.0-beta2, `maven-plugin-tools`/`maven-plugin-plugin` 4.0.0-beta-2, `maven-surefire-plugin`
+milestone) or `jqwik` past the banned 1.9.3 — none adopted; streambuffer and BAF report *"All
+plugins with a version specified are using the latest versions."* Two things did move on
+2026-09-09: `kotlin` 2.4.10 → **2.4.20** (this file had rejected it as "an RC only", which expired
+when Central published the plain release — see the retired registry row below), and the
+`advanced-security/maven-dependency-submission-action` v5 → v6 drift recorded under GitHub Actions
+freshness. See
 [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md) for
 the pinning convention and the `DependencyConvergence` `excludedScopes` gotcha this surfaced.
+
+> **⚠️ One repo does not build at all — and it is not a freshness problem, so a freshness sweep
+> will not find it.** srcmorph's `srcmorph/pom.xml` pins `<llama.version>5.2.0</llama.version>`
+> (commit `5b4abeb`, 2026-09-01, *"pin net.ladenthin:llama to the 5.2.0 release, not the
+> snapshot"*) — but **`net.ladenthin:llama` 5.2.0 was never published.** Central's newest is
+> `5.1.0`, `llama-5.2.0.pom` returns HTTP 404, and srcmorph declares no repository besides
+> Central. It resolves only on a machine where an earlier `mvn install` of jllama left 5.2.0 in
+> `~/.m2`, which is exactly why a local `mvn verify` kept passing. **Every srcmorph PR run since
+> 2026-09-01 is red** at the first Maven step (run `33962068246`, job `101297417993`:
+> `Could not find artifact net.ladenthin:llama:jar:5.2.0 in central`, BUILD FAILURE after 3.35 s),
+> and the matching `main` runs were all `cancelled` by the start gate — so no red `main` was ever
+> visible and the failure went unattributed for eight days. A naive revert to `5.1.0` is not
+> obviously right: `229903c` had raised the pin precisely because the newer binding "can express"
+> flashAttn. jllama's `main` is at `5.2.0-SNAPSHOT`, so publishing that release is the likely fix.
+> Tracked in srcmorph's `TODO.md`.
 
 #### Pinned dependencies — do-not-bump registry (cross-repo audit reference)
 
@@ -339,13 +356,13 @@ a cross-repo sweep does not mistake a deliberate pin for a stale dependency). "N
 
 | Pinned dep | Version | Repos | Newer available | Why pinned — authoritative source |
 |---|---|---|---|---|
-| `net.jqwik:jqwik` | 1.9.3 | BAF, jllama, srcmorph | 1.10.1 | 📌 prompt-injection incident — [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md) |
+| `net.jqwik:jqwik` | 1.9.3 | **all 4** (BAF, jllama, srcmorph, sb — verified 2026-09-09; this row used to omit streambuffer while the standing-policy line below already said "all 4") | 1.10.1 | 📌 prompt-injection incident — [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md) |
 | `com.h2database:h2` | 2.2.224 | BroomCabinet (`JOracleRowSetGetRowBug`) | 2.4.240 | **Last Java-8-compatible line** (2.3.x+ needs Java 11); module is `<release>8</release>`. Rationale in that module's `pom.xml` comment. |
 | `com.oracle.database.jdbc:ojdbc8` | 21.21.0.0 | BroomCabinet (`JOracleRowSetGetRowBug`) | 23.26.3.0.0 | The `oracle.jdbc.rowset.OracleCachedRowSet` class the bug reproducer needs exists **only in the 19.x/21.x ojdbc8 lines — Oracle removed the package in 23.x**. Rationale in that module's `pom.xml` comment + `BUG.md`. |
 | `org.bouncycastle:bcprov-jdk15to18` | 1.85.2 | BAF | — (already latest stable) | Pins the bitcoinj-transitive bcprov to patch GHSA-c3fc-8qff-9hwx / GHSA-p93r-85wp-75v3. Rationale in BAF `CLAUDE.md` deps table. |
 | `org.apache.logging.log4j:log4j-api` + `log4j-to-slf4j` | 2.26.1 | BAF, jllama | — (already latest stable 2.x) | **Was a security pin; is now a floor guard — the CVE it was written for is no longer reachable.** Both arrive only as **test-scope** transitives of `io.github.hakky54:logcaptor` (**2.12.7** in both repos). When the pin was added, logcaptor 2.12.6 requested log4j 2.25.3, affected by CVE-2026-49844 / GHSA-qv9r-c865-cp47 (moderate), and Dependabot reported "cannot update to the required version" — so a `dependencyManagement` pin was the fix. **Both repos are now on logcaptor 2.12.7, whose own pom declares `<version.log4j>2.26.1</version.log4j>`**, i.e. exactly what the pin forces; it therefore changes nothing today and only prevents a silent regression if logcaptor ever falls back. **Decision 2026-09-05: keep the pin, reword the comments** — both pom comments claimed "logcaptor … requests 2.25.3", which stopped being true at logcaptor 2.12.7, and both now describe a lower bound instead (BAF `3fbf138`, jllama on `claude/log4j-floor-guard-and-langchain4j`). Dropping the pin was the alternative and was rejected: it costs nothing to keep and stops a logcaptor release that fell back to an affected line from regressing the test classpath silently. Do not re-open this as "stale dependency" in a future sweep. Note also what it is **not**: unrelated to the Java 8 class-file floor (that is slf4j-simple-instead-of-logback plus `checker-qual` at `provided`), which is a separate change from the same week and easy to conflate. Pinned **as a pair** because `log4j-to-slf4j` requires a matching `log4j-api`. Neither reaches a published artifact. |
 | `org.slf4j:slf4j-api` (and `slf4j-simple` where shipped) | 2.0.19 | BAF, jllama, srcmorph (sb has no logger) | 2.1.0-alpha1 | Latest **stable**; newer is alpha only. Central's `<release>` element points at the alpha, so read the `<version>` list, not `<release>`, when re-checking this one. |
-| `org.jetbrains.kotlin` | 2.4.10 | jllama (`llama-kotlin`) | 2.4.20-RC | Latest **stable**; newer is an RC only. |
+| ~~`org.jetbrains.kotlin`~~ | ~~2.4.10~~ → **2.4.20** | jllama (`llama-kotlin`) | — (now current) | **Retired 2026-09-09 — do not re-add.** The rationale was "latest stable; newer is an RC only", true when written; Central now carries the plain `2.4.20` release after `-Beta1/2` and `-RC/-RC2/-RC3`, so the pin expired rather than being overruled and the bump was taken. Note what did **not** move with it: `android-llmservice/settings.gradle.kts` keeps the Compose compiler plugin at `2.4.10`. That is a different pin against a different Kotlin — AGP 9.x supplies its own built-in Kotlin (2.2.10+) for that Gradle build, which never reads `llama-kotlin`'s property — so the two are not required to move together. |
 | Maven-4 plugin line / surefire `3.6.0-M1` | — | all | `4.0.0-beta-*` / `-M1` | Maven-3 toolchain; Maven-4 betas + milestones deliberately not adopted. |
 
 **Standing policy:** DO NOT UPGRADE jqwik past 1.9.3 — 📌 active in all 4 repos (see [`policies/jqwik-prompt-injection.md`](policies/jqwik-prompt-injection.md)).
@@ -362,7 +379,7 @@ those pins were accidental, not deliberate. Enumerated from every `uses:` in
 
 | Pin style | Actions | Repos |
 |---|---|---|
-| **floating major** | `github/codeql-action/{init,analyze,upload-sarif}@v4`, `gradle/actions/setup-gradle@v6`, `actions/{checkout@v7,setup-java@v6,cache@v6,upload-artifact@v7,download-artifact@v8,setup-python@v7,setup-node@v7}`, `codecov/codecov-action@v7`, `coverallsapp/github-action@v2`, `fsfe/reuse-action@v6`, `softprops/action-gh-release@v3`, `advanced-security/maven-dependency-submission-action@v5`, `anthropics/claude-code-action@v1`, and jllama's `ilammy/msvc-dev-cmd@v1` + `reactivecircus/android-emulator-runner@v2` | all 4 (where used) |
+| **floating major** | `github/codeql-action/{init,analyze,upload-sarif}@v4`, `gradle/actions/setup-gradle@v6`, `actions/{checkout@v7,setup-java@v6,cache@v6,upload-artifact@v7,download-artifact@v8,setup-python@v7,setup-node@v7}`, `codecov/codecov-action@v7`, `coverallsapp/github-action@v2`, `fsfe/reuse-action@v6`, `softprops/action-gh-release@v3`, `advanced-security/maven-dependency-submission-action@v6`, `anthropics/claude-code-action@v1`, and jllama's `ilammy/msvc-dev-cmd@v1` + `reactivecircus/android-emulator-runner@v2` | all 4 (where used) |
 | **exact** | `google/osv-scanner-action` reusable `@v2.5.1`, `ossf/scorecard-action@v2.4.4` | all 4 |
 | **exact, jllama-only** | `Jimver/cuda-toolkit@v0.2.36`, `jakoch/install-vulkan-sdk-action@v1.6.0` | jllama |
 
@@ -383,12 +400,25 @@ newest stable, and CI's `gradle-version: "9.6.1"` already exceeds AGP 9.3.0's mi
 of 9.5.0. Gradle 9.7.1 exists but is **deliberately not adopted** — it is untested against AGP 9.3.0
 and buys nothing; see jllama `CLAUDE.md` for the AGP/Gradle pin history.
 
-**Dependabot note:** the `github-actions` ecosystem has no `versioning-strategy` config knob —
-when it opens a bump PR against a floating major-version pin (`@v5`), it rewrites the reference
-to the exact release tag it's bumping to, and there is no way to configure it to preserve the
-floating alias. Decide per-repo whether to standardize on exact pins (matches Dependabot's
-default) or keep re-floating drifted lines manually; no config change prevents the drift from
-recurring either way.
+**Version drift closed 2026-09-09 — `advanced-security/maven-dependency-submission-action`
+v5 → v6.** Dependabot opened this bump in **streambuffer only** (#156, merged), which is the
+normal shape of Actions drift here: the four repos are meant to run the same toolchain, their
+`dependabot.yml` files are identical (`maven` + `github-actions`, both weekly), but the weekly runs
+are staggered, so for a few days one repo is ahead and three are behind. The other three were
+brought up by hand rather than waiting (jllama `claude/kotlin-2.4.20-and-submission-action-v6`,
+BAF + srcmorph `claude/dep-submission-action-v6`). v6.0.0 moves the action runtime from Node 20 to
+Node 24; it was **not** adopted on faith — streambuffer's `Report` job, the job that actually runs
+the action and which carries no `continue-on-error` on that step, went green on it first.
+
+**Dependabot note — corrected 2026-09-09.** This note used to state that the `github-actions`
+ecosystem "rewrites the reference to the exact release tag it's bumping to, and there is no way to
+configure it to preserve the floating alias". **That is not what happened here:** Dependabot's own
+commit in streambuffer #156 (`18080d3`) is exactly
+`-@v5` / `+@v6` — the floating major was preserved, no exact tag appeared, and no config knob was
+involved. The `versioning-strategy` knob genuinely does not exist for this ecosystem, but the
+conclusion drawn from that (expect exact-tag rewrites, decide between standardizing on exact pins
+or re-floating by hand) does not follow for a `@vN` reference. Re-verify before acting on it again;
+do not plan a pin-style migration on the strength of the old claim.
 
 ## 2026-08-27 — CI hygiene sweep across all four Java repos
 
