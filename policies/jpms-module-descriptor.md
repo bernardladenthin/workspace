@@ -113,6 +113,40 @@ avoiding options (1)/(2) above and the invariant they still rely on. That is a l
 applied anywhere in this org as of this writing; note it here if a repo's publish pipeline
 grows enough Maven invocations that the discipline in (1)/(2) becomes hard to keep straight.
 
+## The same second trigger, through `testCompile` (surfaced by maven-compiler-plugin 3.16.0)
+
+The javadoc plugin is not the only consumer that auto-selects module mode from the mere presence
+of `target/classes/module-info.class`. **maven-compiler-plugin's `testCompile` does the same**:
+when the main output holds a descriptor, it compiles the tests on the module path, patched into
+the named module — so every package the tests import must be readable from *that* module's
+`requires` graph. A repo whose descriptor declares no `requires` (BAF, deliberately) then fails
+on the first test that imports anything outside `java.base`
+(`package java.lang.management is not visible … module net.ladenthin.bitcoinaddressfinder does
+not read it`). `-DskipTests` does not avoid it: it skips test *execution*, not `testCompile`.
+
+Within one clean invocation this never fires on BAF, because `module-info-compile` is bound to
+`prepare-package`, after `test`. It fires on the **second invocation sharing `target/`** —
+exactly the `deploy` → `release,assembly verify` shape above — and the reason it stayed latent
+for months is a compiler-plugin detail: **3.15.0 treated the tests as up to date on the second
+invocation and skipped the recompile; 3.16.0's output tracking (MCOMPILER-578) recompiles them**
+("Recompiling the module because of changed dependency"), and *that* recompile sees the leftover
+descriptor. Confirmed on BAF's first publish dispatch after the Dependabot 3.15.0 → 3.16.0 bump
+(2026-09-20, run 35508164897, `publish-snapshot` → "Build & sign fat jar"), and bisected in a
+clean two-invocation sequence: 3.15.0 passes, 3.16.0 fails, 3.16.0 with the fix below passes.
+The `-Dmaven.javadoc.skip=true` from fix pattern (1) is untouched and still needed; it guards a
+different plugin.
+
+**Fix pattern (3): pin the test compile mode in the pom** —
+`<useModulePath>false</useModulePath>` on the `default-testCompile` execution. It states what is
+true in these repos anyway (tests are compiled *and run* on the classpath; the descriptor is
+metadata for module-path consumers), so it removes the dependence on `target/`'s history rather
+than adding one more invocation that must remember to `clean`. It also closes the local-dev shape
+(`mvn test` after `mvn package` without `clean`) for the compile step. Note what it does **not**
+change: Surefire's own module-mode selection is a separate knob (`useModulePath` on
+`maven-surefire-plugin`; srcmorph sets it to `false` in all three modules for a related reason),
+and BAF still relies on the descriptor being absent at *test run* time for the lmdbjava
+`--add-opens` — see the BAF-only section below.
+
 ## When you bump a Java-8 repo to Java ≥ 9
 
 Raising the source level (and therefore javadoc `<source>`) arms the trap. Keep javadoc in
