@@ -129,8 +129,9 @@ by coincidence, same latent shape jspecify had before it actually broke).
 
 Shared dependency versions are kept identical across all four repos where
 the dependency is used by more than one of them (`jspecify` 1.0.1,
-`checker-qual` 4.2.2, `junit-jupiter` 6.1.3, `archunit-junit5` 1.5.0,
-`hamcrest` 3.0, `slf4j-api` 2.0.18, `logback-classic` 1.6.1, `jackson`
-2.22.1 — all confirmed against Maven Central `maven-metadata.xml` as the
-current release at audit time). When bumping any of these in one repo,
+`checker-qual` 4.2.3, `junit-jupiter` 6.1.3, `archunit-junit5` 1.5.1,
+`hamcrest` 3.0, `slf4j-api` 2.0.20, `logback-classic` 1.6.4, `jackson`
+2.22.3 — all confirmed against Maven Central `maven-metadata.xml` as the
+current release at the 2026-09-27 audit; the live matrix is the "Tool
+versions" row in [`../crossrepostatus.md`](../crossrepostatus.md)). When bumping any of these in one repo,
 check whether the others should move in lockstep.
