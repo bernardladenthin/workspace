@@ -404,12 +404,20 @@ those pins were accidental, not deliberate. Enumerated from every `uses:` in
 |---|---|---|
 | **floating major** | `github/codeql-action/{init,analyze,upload-sarif}@v4`, `gradle/actions/setup-gradle@v6`, `actions/{checkout@v7,setup-java@v6,cache@v6,upload-artifact@v7,download-artifact@v8,setup-python@v7,setup-node@v7}`, `codecov/codecov-action@v7`, `coverallsapp/github-action@v2`, `fsfe/reuse-action@v6`, `softprops/action-gh-release@v3`, `advanced-security/maven-dependency-submission-action@v6`, `anthropics/claude-code-action@v1`, and jllama's `ilammy/msvc-dev-cmd@v1` + `reactivecircus/android-emulator-runner@v2` | all 4 (where used) |
 | **exact** | `google/osv-scanner-action` reusable `@v2.6.0`, `ossf/scorecard-action@v2.4.4` | all 4 |
-| **exact, jllama-only** | `Jimver/cuda-toolkit@v0.2.36`, `jakoch/install-vulkan-sdk-action@v1.6.0` | jllama |
+| **exact, jllama-only** | `ggml-org/free-disk-space@v1.3.1`, `jakoch/install-vulkan-sdk-action@v1.6.0` | jllama |
 
 `actions/setup-java` is on **`v6`** in all four (bumped from `v5`). v6 is an ESM rewrite that drops
 only the legacy **`adopt`** distributions and renames `jdkFile` → `jdk-file` (deprecated alias kept);
 every job here uses `temurin` (or `zulu` in `sonarqube.yml`), both still supported, so the major bump
 is a no-op for these pipelines.
+
+**jllama: `Jimver/cuda-toolkit` retired, `ggml-org/free-disk-space` added (2026-09-27, branch
+`claude/busy-archimedes-lo9uyy`).** Jimver's newest release (`v0.2.36`) and its `master` both stop at
+CUDA 13.3.1, so the move to CUDA 13.4 (upstream llama.cpp's version) assembles the Windows toolkit from
+NVIDIA's redist archives the way upstream's own `windows-setup-cuda` action does. `free-disk-space`
+(the ggml-org fork upstream uses, newest tag) now runs first in the CUDA/ROCm/SYCL Linux build jobs and
+the two emulator jobs. The same branch moves both ROCm jobs to ROCm 10.0 from TheRock (pip wheels), so
+the `repo.radeon.com` apt repo and the Windows HIP SDK installer are no longer pinned anywhere.
 
 All floating majors and the four exact-pinned actions were re-verified on **2026-09-27** (git tags of each action repo — every one already current, nothing to bump). Previous check, **2026-09-20**: `ossf/scorecard-action@v2.4.4`,
 `Jimver/cuda-toolkit@v0.2.36` and `jakoch/install-vulkan-sdk-action@v1.6.0` are each the newest
