@@ -125,6 +125,7 @@ would be worse than the duplication it saves:
 | srcmorph | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_Plan.json` | exit 0 + `Main#run end.`; `mock` provider, so no GGUF/GPU/network |
 | jllama | `smoke-fatjar-linux` / `-windows` | `smoke-test-fatjar.{sh,ps1}` → real `java -jar` server | `/health` 200 + a `/v1/chat/completions` choice + the backend-selection log line |
 | jllama | `smoke-fatjar-macos` | `smoke-native-macos.sh` → `codesign` + `NativeLoadSmoke.java` | signature matches its own pages + the JVM loads the dylib and crosses JNI |
+| jllama | `smoke-agent-linux` | `smoke-agent-jar.sh` → `java -jar` on the agent jar **next to** the `all-linux-x86-64` fat jar | bytecode ≤ 65 + the jar alone fails for the missing core + `--help` + a one-shot answer + a `read_file` round surfacing a marker (cached tool model) |
 | sb | `smoke-jar` | `smoke-jar.sh` → `java -cp <jar> StreamBufferSmoke.java` | jar carries `module-info.class` + a real write/read/EOF round-trip through the API, exit 0 + marker |
 
 BAF and srcmorph share a **byte-identical `.github/smoke-fatjar-cli.sh`** (`<jar-dir> <jar-glob>
@@ -136,16 +137,27 @@ its own scripts: its Main-Class is a server that never exits, so "exit 0" is not
 satisfy, and on macOS the assertion that matters is native loadability rather than any CLI
 behaviour.
 
+**Assets that only run together are smoked together.** jllama's agent jar
+(`llama-atmosphere-agent-<v>-jar-with-dependencies.jar`) deliberately carries **no core** and finds
+it through its manifest `Class-Path`, so on its own it is not a runnable artifact at all. Its smoke
+therefore launches it the way the README tells a user to — next to a real core fat jar from the same
+run — which is the only place a version mismatch in the file names, or a dependency both sides
+assumed the other one bundles, can show up. It also asserts the negative (started alone, it must
+fail with `NoClassDefFoundError` for the core), because "a few MB and no natives" is the property the
+asset exists for. The job keeps its own name (`smoke-agent-*`, not `smoke-fatjar*`): it tests a
+different asset, and the name says which.
+
 **Cheap beats thorough here.** Each of these runs in about a minute with no model, no GPU and no
 network. That is deliberate: a smoke that is expensive gets skipped, made non-gating, or quietly
 deleted, and then the gap reopens. Add depth only where a cheap check genuinely cannot reach the
-failure class.
+failure class. (jllama's agent smoke is such a case: what it ships is a tool loop, which needs a
+model — it uses the already-cached 1.5B tool model on CPU, no download.)
 
 ## Per-repo shapes
 
 | Repo | Fat jar(s) | Kept off Central by | Built + signed by |
 |---|---|---|---|
-| **jllama** (`java-llama.cpp`) | Multi-backend **`all-<os>-<arch>`** jars (default CPU + every GPU backend of that OS/arch in `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` subdirs, runtime-selected by `LlamaLoader` via the `jllama-backends.txt` manifest) + the default CPU fat jar | The Central `deploy` runs **without** the `assembly` profile; the fat jars are assembled by a separate `package-fatjars` job | `.github/package-fatjars.sh` assembles them; `.github/sign-fatjars.sh` GPG-signs each (`.asc`) in the `github-release-signed` / `github-snapshot` attach jobs (which declare `environment: maven-central` + `checkout`). `.sha256` **and** `.asc`. |
+| **jllama** (`java-llama.cpp`) | Multi-backend **`all-<os>-<arch>`** jars (default CPU + every GPU backend of that OS/arch in `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` subdirs, runtime-selected by `LlamaLoader` via the `jllama-backends.txt` manifest) + the default CPU fat jar | The Central `deploy` runs **without** the `assembly` profile; the fat jars are assembled by a separate `package-fatjars` job | `.github/package-fatjars.sh` assembles them; `.github/sign-fatjars.sh` GPG-signs each (`.asc`) in the `github-release-signed` / `github-snapshot` attach jobs (which declare `environment: maven-central` + `checkout`). `.sha256` **and** `.asc`. **Plus the agent jar** `llama-atmosphere-agent-<v>-jar-with-dependencies.jar` — built **without** the core (`-P assembly` of the standalone `llama-atmosphere-agent/` project, never deployed anywhere), uploaded by the model-free agent job and downloaded by the same attach jobs into the same directory, so the same `sign-fatjars.sh` run signs it. |
 | **srcmorph** (`srcmorph-cli`) | One CLI fat jar **per `net.ladenthin:llama` classifier** (default all-platform CPU + one per GPU classifier: `cuda13-*`, `vulkan-*`, `opencl-*`, `rocm-*`, `sycl-*`, `openvino-*`, `msvc-windows`) named `srcmorph-cli-<v>-jar-with-dependencies[-<classifier>].jar` | `srcmorph-cli/pom.xml` sets `<attach>false</attach>` on the assembly execution → built into `target/` but never installed/deployed | The `publish-{release,snapshot}` jobs loop over the classifier set (`mvn -pl srcmorph-cli -am -Dllama.classifier=<c> package`), rename per classifier (default built **last** = unsuffixed CPU jar), collect them into the asset dir, then sign via `.github/sign-fatjars.sh`. `.asc` only. |
 | **BAF** (`BitcoinAddressFinder`) | **Single** fat jar (LWJGL ships one `natives-*` classifier jar per platform, but they may all sit on one classpath — LWJGL picks the match at runtime — so there is still no classifier split) | The Central `deploy` runs `-P release` **without** `assembly`; the fat jar is built by a **second** invocation that stops at `verify` (never reaching `deploy`), so `central-publishing`'s deploy-bound publish goal never runs | `mvn -P release,assembly verify` in the `publish-{release,snapshot}` jobs; `maven-gpg-plugin` (bound to `verify`) signs the attached fat jar → `.asc`. |
 | **sb** (`streambuffer`) | ➖ N/A — a pure library with no runnable entry point, so no fat jar is produced or shipped. Its **thin** jar is still smoke-tested before release (`smoke-jar`, see above) and still carries a `.asc` | — | — |
