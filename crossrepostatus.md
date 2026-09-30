@@ -59,46 +59,48 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
 | `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing` | All 4 ✅ |
 | Full `layeredArchitecture()` + per-module banned-imports | BAF/jllama/srcmorph ✅ (flat root package split into layered packages, strict rule enforced per repo — see each repo's own `TODO.md` "Done"); sb ➖ (single package) |
-| GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired byte-identically in `publish.yml`: two standalone jobs (no `needs:`, run in parallel at pipeline start, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata; **red-by-design on every `pull_request` run, not just fork PRs** — the jobs declare `environment: maven-central` and GitHub withholds environment secrets from any PR context, including a branch pushed to the repo itself. Verified on BAF run 33866409744, where both preflight jobs failed within a second on a same-repository Dependabot branch. Green evidence therefore only ever comes from a `push`/dispatch run. The `.github/signing-selftest/` Gradle project used by the second job is byte-identical across all 4 (checksums below). |
-| Class-file floor on the built jars (`verify-bytecode-version.sh`) | All 4 wired in `publish.yml` with the **byte-identical** `.github/verify-bytecode-version.sh` (checksums below). `maven.compiler.release` governs only the code *we* compile; a dependency built for a newer Java lands in the jar untouched and surfaces as `UnsupportedClassVersionError` on a consumer's JVM. It has happened twice: **checker-qual 4.x** (Java 11, `@Retention(RUNTIME)`, so any reflection over an annotated element loads it) and **logback-classic 1.4.0+**, whose `LogbackServiceProvider` SLF4J's `ServiceLoader` loads at startup. `--max-major` is passed from the workflow so the ceiling lives next to the release it belongs to: **52** in jllama/srcmorph/sb, **65** in BAF (Java 21). Placement is per-repo, on whatever job first has the jars: jllama `package` + `smoke-fatjar-linux` (module jars *and* the reassembled all-backends asset), srcmorph/BAF `smoke-fatjar`, sb `smoke-jar` (its deliverable is the plain jar, not a fat jar). `module-info.class` and `META-INF/versions/**` are skipped unconditionally — a classpath JVM never loads either. Exit 2 on an empty scan, so a build that produced no jars cannot read as a pass. |
+| GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired byte-identically in `publish.yml` (the gpg job's body is the shared `.github/verify-signing-key.sh`): two standalone jobs (no `needs:`, run in parallel at pipeline start, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata; **red-by-design on every `pull_request` run, not just fork PRs** — the jobs declare `environment: maven-central` and GitHub withholds environment secrets from any PR context, including a branch pushed to the repo itself. Verified on BAF run 33866409744, where both preflight jobs failed within a second on a same-repository Dependabot branch. Green evidence therefore only ever comes from a `push`/dispatch run. The `.github/signing-selftest/` Gradle project used by the second job is byte-identical across all 4 (checksums below). |
+| Class-file floor on the built jars (`verify-bytecode-version.sh`) | All 4 wired in `publish.yml` with the **byte-identical** `.github/verify-bytecode-version.sh` (listed in each repo's `shared-files.sha256`, see below). `maven.compiler.release` governs only the code *we* compile; a dependency built for a newer Java lands in the jar untouched and surfaces as `UnsupportedClassVersionError` on a consumer's JVM. It has happened twice: **checker-qual 4.x** (Java 11, `@Retention(RUNTIME)`, so any reflection over an annotated element loads it) and **logback-classic 1.4.0+**, whose `LogbackServiceProvider` SLF4J's `ServiceLoader` loads at startup. `--max-major` is passed from the workflow so the ceiling lives next to the release it belongs to: **52** in jllama/srcmorph/sb, **65** in BAF (Java 21). Placement is per-repo, on whatever job first has the jars: jllama `package` + `smoke-fatjar-linux` (module jars *and* the reassembled all-backends asset), srcmorph/BAF `smoke-fatjar`, sb `smoke-jar` (its deliverable is the plain jar, not a fat jar). `module-info.class` and `META-INF/versions/**` are skipped unconditionally — a classpath JVM never loads either. Exit 2 on an empty scan, so a build that produced no jars cannot read as a pass. |
 | Informational steps in the `report` job never gate the release | **srcmorph ✅ · jllama / BAF / sb in open PRs as of 2026-09-09 (#424 / #364 / #157) — this row becomes "All 4 ✅" when those merge, and must not be read as parity before then.** Keep in sync; this one is easy to lose and expensive to lose. The rule: a third-party step in `report` that only *reports* (dependency graph, coverage upload) carries `continue-on-error: true`; a step that is a **gate** does not. **Why it is not cosmetic:** the pipelines are deliberately built so the GitHub assets land even when the Central publish fails — `github-snapshot`/`github-release*` run on `(needs.publish-*.result == 'success' \|\| == 'failure')`. That `if:` tolerates **`failure`** but not **`skipped`**, and `report` gates the chain: a failed `report` *skips* `check-snapshot` (its `if:` is a plain event/ref condition with no `always()`/`!cancelled()` escape), which skips `publish-snapshot`, which leaves `publish-snapshot.result == 'skipped'` — matching neither arm, so **`github-snapshot` does not run and the assets are lost**. An unguarded informational action therefore does not merely delay a Central publish; it silently defeats the one guarantee the release path exists to provide. **History — how it drifted:** srcmorph got the guard *in passing* from `ee2ae49` ("ci: report unsigned assets without ever withholding them"), whose actual feature was the unsigned-asset reporting. That feature **was** ported to the other three the same day (jllama `90dd21a`, BAF `2e14f5c`, sb `2ed13ff` — each a clean `68 insertions(+)` change), but the port reproduced the *feature*, not the *commit*, so the unrelated drive-by line never travelled and sat missing for nine days. Being closed by jllama #424, BAF #364, sb #157 — open at the time of writing. **What stays bare, on purpose:** `checkout`/`setup-java` (infrastructure, must work) and streambuffer's PIT steps (gates, meant to block). **Verifiable:** the 5-line block — rationale comment + `uses:` + flag — is byte-identical in all four; see the block-level check below. |
 
-### Cross-repo byte-identical files — checksum drift check
+### Cross-repo byte-identical files — the `shared-files` job
 
-Files kept **byte-identical across repos** (sync any edit to every copy AND the hash here):
+Files kept **byte-identical across repos** are listed, with their SHA-256, in **each repository's own
+manifest** — that manifest is the reference for what must stay equal, and each repository's
+`shared-files` job checks it on every run (a copy changed in one repository alone **fails**; a copy
+another repository's default branch lists with a different hash **warns**, since a sync lands one
+repository at a time). This file only links; the lists live next to the files:
 
-| File | SHA-256 | Copies |
+| Repo | Manifest | Job |
 |---|---|---|
-| `.github/signing-selftest/build.gradle.kts` | `ab45f5c102b47dd16c325d4d9c283d158ba90c05f484eac45b2767885c4462f9` | all 4 repos |
-| `.github/signing-selftest/settings.gradle.kts` | `9b2ea5b5ff8d48607e26e4e211ad6d496f7660e71c84e42caaa82b84f7001710` | all 4 repos |
-| `.github/sign-fatjars.sh` | `3a240faac46c35d3ac4a11dc2969648e2134906b90a79b990ce2b713c7a96b36` | jllama + srcmorph (see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md)) |
-| `.github/verify-bytecode-version.sh` | `88555f1ebe2ab52418b5ef628ffc078f132473b8000a3340b5bb73460a0b185d` | all 4 repos (class-file floor on the built jars; `--max-major` comes from the workflow, so the value lives next to the release it belongs to: 52 in the three Java 8 repos, 65 in BAF) |
-| `.github/smoke-fatjar-cli.sh` | `4d1cc65cbd84a38f0d2015f55c0b2ba9027c72794b2c2ed578693a58d702efd2` | BAF + srcmorph (the two CLI fat jars; jllama's server/native smokes are repo-specific — see [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md) "No release asset is attached that CI has not run") |
-| `lombok.config` (jllama: `llama/lombok.config`) | `42f1842270af691bdfe561355bee4eb9ae326383f1852db19763abb888d6b90e` | the 3 Lombok repos: jllama + BAF + srcmorph (sb has no Lombok). Canonical content in [`policies/lombok-config.md`](policies/lombok-config.md) |
-| `.github/ISSUE_TEMPLATE/bug_report.md` | `7232b092d3ba49b97bee7b539aaf6ee4c698e86bd3d4dd256e8ae2f85f653ee9` | all 4 repos |
-| `.github/ISSUE_TEMPLATE/feature_request.md` | `0f08122e597f93dbbdc9c80e88984b4bf4738951d5902813df3d4640cdb11bac` | all 4 repos |
-| `.github/PULL_REQUEST_TEMPLATE.md` | `ebfcc0adf59f5858bbe4dc077c906304a197f72a55256f0d5aac669bee5e871f` | all 4 repos |
+| java-llama.cpp | [`.github/shared-files.sha256`](https://github.com/bernardladenthin/java-llama.cpp/blob/main/.github/shared-files.sha256) | `shared-files` in [`publish.yml`](https://github.com/bernardladenthin/java-llama.cpp/blob/main/.github/workflows/publish.yml) |
+| BitcoinAddressFinder | [`.github/shared-files.sha256`](https://github.com/bernardladenthin/BitcoinAddressFinder/blob/main/.github/shared-files.sha256) | `shared-files` in [`publish.yml`](https://github.com/bernardladenthin/BitcoinAddressFinder/blob/main/.github/workflows/publish.yml) |
+| srcmorph | [`.github/shared-files.sha256`](https://github.com/bernardladenthin/srcmorph/blob/main/.github/shared-files.sha256) | `shared-files` in [`publish.yml`](https://github.com/bernardladenthin/srcmorph/blob/main/.github/workflows/publish.yml) |
+| streambuffer | [`.github/shared-files.sha256`](https://github.com/bernardladenthin/streambuffer/blob/main/.github/shared-files.sha256) | `shared-files` in [`publish.yml`](https://github.com/bernardladenthin/streambuffer/blob/main/.github/workflows/publish.yml) |
 
-Verify from the `workspace` repo root (siblings checked out alongside):
+**Changing a shared file:** change it in every repository whose manifest lists it, then run
+`python3 .github/check-shared-files.py --write` in each (it recomputes the hashes of the listed
+files). Forgetting one is not a disaster — its job says so and the history shows it — but nobody can
+edit a shared script without learning that it is shared. **Adding one:** put the file in each
+repository and a `sha256sum` line for it in each manifest.
 
-```bash
-# Repo names are listed explicitly in each {…} — bash runs brace expansion BEFORE
-# variable expansion, so a $var inside {…} would not expand into the repo list.
-sha256sum ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/build.gradle.kts \
-          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/signing-selftest/settings.gradle.kts \
-          ../{java-llama.cpp,srcmorph}/.github/sign-fatjars.sh \
-          ../{BitcoinAddressFinder,srcmorph}/.github/smoke-fatjar-cli.sh \
-          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/verify-bytecode-version.sh \
-          ../java-llama.cpp/llama/lombok.config ../{BitcoinAddressFinder,srcmorph}/lombok.config \
-          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/bug_report.md \
-          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/ISSUE_TEMPLATE/feature_request.md \
-          ../{java-llama.cpp,BitcoinAddressFinder,srcmorph,streambuffer}/.github/PULL_REQUEST_TEMPLATE.md
-# each file's copies must all show the hash in the table above; a mismatch = drift (re-sync) or an
-# intentional edit (update every copy AND this table in the same change set).
-```
+**Why copies with a checksum, not a shared actions/library repository:** every consumer of a remote
+action would pin it by SHA (Scorecard's pinned-dependencies rule), it would need a release process
+of its own, and a checkout of a second repository in CI; copies keep each repository self-contained,
+and the manifest makes the duplication explicit instead of accidental. The shared set: the build-check
+library (`.github/buildcheck/{__init__,workflow,releasegate,sharedfiles}.py`, its tests, and the
+`check-release-gate.py` / `check-shared-files.py` entry points), `print-crash-logs.sh`,
+`verify-signing-key.sh`, `verify-bytecode-version.sh`, the signing self-test (`.github/signing-selftest/`),
+the issue/PR templates, `sign-fatjars.sh` (jllama + srcmorph), `smoke-fatjar-cli.sh` (BAF + srcmorph)
+and `lombok.config` (jllama at `llama/lombok.config`; matched by file name there). Canonical content
+of `lombok.config` in [`policies/lombok-config.md`](policies/lombok-config.md).
+
+**The same job runs the release-gate check** (`check-release-gate.py`): every job of `publish.yml`
+must gate both publish jobs, unless the repository's `.github/release-gate-exemptions.txt` names it
+with a reason. Introducing it found `vmlens` gating nothing in all four repositories.
 
 **Block-level check — the `report` job's dependency-submission step.** Not a whole file, so it is
-not in the table above, but it is kept byte-identical for the same reason and drifts the same way
+not in the manifests above, but it is kept byte-identical for the same reason and drifts the same way
 (see the parity row "Informational steps in the `report` job never gate the release"). The 5 lines
 are the three-line rationale comment, the `uses:` line and `continue-on-error: true`:
 
@@ -223,7 +225,7 @@ Differences below are intentional design decisions, not gaps to close.
   srcmorph (`config_Plan.json`, mock provider), jllama (`smoke-fatjar-linux`/`-windows` server
   smokes, plus `smoke-fatjar-macos` closing the gap that let a corrupt dylib ship), and — since
   2026-09-01 — **sb (`smoke-jar`)**. BAF and srcmorph share a byte-identical
-  `.github/smoke-fatjar-cli.sh` (in the checksum table above); jllama keeps its own scripts because
+  `.github/smoke-fatjar-cli.sh` (listed in both repos' `shared-files.sha256`); jllama keeps its own scripts because
   its Main-Class is a server that never exits and the macOS assertion is native loadability, not a
   CLI exit code. Rule, rationale and the per-repo assertion table live in
   [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). Each smoke is

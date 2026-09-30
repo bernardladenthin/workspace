@@ -132,7 +132,7 @@ BAF and srcmorph share a **byte-identical `.github/smoke-fatjar-cli.sh`** (`<jar
 <work-dir> <success-marker> [args…]`, plain `java -jar`, no extra JVM flags — the contract under
 test is that the published artifact runs as-is). Both CLIs derive from the same `cli.Main` pattern
 and log `Main#run end.`, which is what lets the marker be identical too. **Sync any edit to both
-copies and to the checksum table in [`../crossrepostatus.md`](../crossrepostatus.md).** jllama needs
+copies, then `check-shared-files.py --write` in each** (both list it in `.github/shared-files.sha256`). jllama needs
 its own scripts: its Main-Class is a server that never exits, so "exit 0" is not a contract it can
 satisfy, and on macOS the assertion that matters is native loadability rather than any CLI
 behaviour.
@@ -187,18 +187,17 @@ its Java baseline.
   jars with a **byte-identical** `.github/sign-fatjars.sh` (dual-licensed `MIT OR Apache-2.0`, the
   cross-repo-synced-file convention) — it imports the key into an ephemeral keyring and produces a
   verified detached armored `.asc` for every `*-jar-with-dependencies*.jar` in a directory. **Sync
-  any edit to both copies, and update the recorded checksum below** (same discipline as the
-  byte-identical `verify-signing-key` job).
+  any edit to both copies**; both repos list it in `.github/shared-files.sha256`, which their
+  `shared-files` job checks (same discipline as the shared `verify-signing-key.sh`).
   BAF does **not** use it: its single fat jar is an *attached* Maven artifact, so `maven-gpg-plugin`
   signs it directly during the `verify` run.
 - **Signature convention.** New fat-jar-shipping surfaces should sign with a detached armored
   `.asc` using the `maven-central`-scoped key, in a dispatch-gated job, reusing `sign-fatjars.sh`.
 
-## Drift check — `sign-fatjars.sh` checksum
+## Drift check — `sign-fatjars.sh`
 
-The shared script must be **byte-identical** in both repos (jllama + srcmorph). Its canonical
-SHA-256 and a one-line verify command live in the single consolidated drift-check table —
-**"Cross-repo byte-identical files — checksum drift check"** in
-[`../crossrepostatus.md`](../crossrepostatus.md) (alongside the `signing-selftest` `.kts` files).
-On any intentional edit to `sign-fatjars.sh`, update both copies **and** that table in the same
-change set.
+The shared script must be **byte-identical** in both repos (jllama + srcmorph). Both list it in
+`.github/shared-files.sha256`; each repo's `shared-files` job fails when its copy changed alone and
+warns when the other repo's copy differs (see "Cross-repo byte-identical files" in
+[`../crossrepostatus.md`](../crossrepostatus.md)). On an intentional edit, change both copies and run
+`python3 .github/check-shared-files.py --write` in each.

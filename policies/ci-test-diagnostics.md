@@ -88,31 +88,7 @@ Two equivalent shapes are in use (both correct):
 - name: Print crash logs (on failure)   # § 3.1 — MUST precede the upload
   if: failure()
   shell: bash
-  run: |
-    shopt -s nullglob
-    found=0
-    for f in <repo's hs_err glob>; do
-      found=1
-      echo "===== $f (first 200 lines; full file in the uploaded artifact) ====="
-      sed -n '1,200p' "$f"
-    done
-    for f in <repo's *.dumpstream and *.dump globs>; do
-      found=1
-      echo "===== $f ====="
-      cat "$f"
-    done
-    if [ "$found" = 0 ]; then
-      echo "No hs_err_pid*.log and no surefire dump/dumpstream was written."
-      echo
-      echo "For an ordinary test failure that is EXPECTED, not a finding: this step runs on"
-      echo "any job failure, and an assertion failure, a timeout or a compile error writes no"
-      echo "crash log. Read the surefire output above for the real cause."
-      echo
-      echo "It points at a JVM-level abort only if the log ALSO shows a fork ending abnormally"
-      echo "- 'The forked VM terminated without properly saying goodbye', or an exit with no"
-      echo "test results. In that case the abort bypassed the JVM error handler (a native"
-      echo "exit()/terminate() rather than a raised signal), which is why no file was written."
-    fi
+  run: bash .github/print-crash-logs.sh <module-dir>...   # default: .
 - name: Upload crash & surefire dumps
   if: failure()
   uses: actions/upload-artifact@v7
@@ -156,9 +132,16 @@ aborts the forked JVM on all six of jllama's Java test platforms, and the
 aborting frame was unreachable for exactly this reason while every other avenue
 (local reproduction) was also closed.
 
-The step above therefore **precedes** the upload and echoes the same files. It
-is `shell: bash` on every platform including Windows (GitHub's Windows runners
-ship Git Bash), so one snippet covers the whole matrix. Two deliberate details:
+The step above therefore **precedes** the upload and echoes the same files. The
+logic is the shared script **`.github/print-crash-logs.sh`**, byte-identical in all
+four repos (listed in each repo's `.github/shared-files.sha256`, checked by its
+`shared-files` job) — it used to be pasted into every test job (eight copies in
+jllama alone), and a copy edited in one place is exactly the drift the manifest now
+catches. Arguments are the module directories to look in (`.` by default; srcmorph
+passes its three modules, jllama `llama` or the sibling module the job tests). It
+always exits 0, so it can never replace the job's real failure. It runs under
+`shell: bash` on every platform including Windows (GitHub's Windows runners ship Git
+Bash), so one line covers the whole matrix. Two deliberate details:
 
 - **hs_err is truncated to 200 lines, the dumps are not.** An hs_err's
   diagnostic core (fatal-error line, signal, problematic frame, Java frames,
