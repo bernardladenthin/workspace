@@ -123,7 +123,7 @@ would be worse than the duplication it saves:
 |---|---|---|---|
 | BAF | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_AddressFilesToLMDB.json` | exit 0 + `Main#run end.`; also exercises the **lmdbjava natives** out of the jar |
 | srcmorph | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_Plan.json` | exit 0 + `Main#run end.`; `mock` provider, so no GGUF/GPU/network |
-| jllama | `smoke-fatjar-linux` / `-windows` | `smoke-test-fatjar.{sh,ps1}` → real `java -jar` server | `/health` 200 + a `/v1/chat/completions` choice + the backend-selection log line |
+| jllama | `smoke-fatjar` (matrix, one row per `all-<os>-<arch>` jar) | `smoke-test-fatjar.{sh,ps1}` → real `java -jar` server | `/health` 200 + a `/v1/chat/completions` choice + the backend-selection log line |
 | jllama | `smoke-fatjar-macos` | `smoke-native-macos.sh` → `codesign` + `NativeLoadSmoke.java` | signature matches its own pages + the JVM loads the dylib and crosses JNI |
 | jllama | `smoke-agent-linux` | `smoke-agent-jar.sh` → `java -jar` on the agent jar **next to** the `all-linux-x86-64` fat jar | bytecode ≤ 65 + the jar alone fails for the missing core + `--help` + a one-shot answer + a `read_file` round surfacing a marker (cached tool model) |
 | sb | `smoke-jar` | `smoke-jar.sh` → `java -cp <jar> StreamBufferSmoke.java` | jar carries `module-info.class` + a real write/read/EOF round-trip through the API, exit 0 + marker |
