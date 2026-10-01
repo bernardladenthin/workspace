@@ -80,7 +80,11 @@ repository at a time). This file only links; the lists live next to the files:
 
 **Changing a shared file:** change it in every repository whose manifest lists it, then run
 `python3 .github/check-shared-files.py --write` in each (it recomputes the hashes of the listed
-files). Forgetting one is not a disaster — its job says so and the history shows it — but nobody can
+files). **Jobs, too:** an entry `.github/workflows/publish.yml#<job>` hashes one job of the workflow, so
+the jobs kept identical inside four otherwise different `publish.yml` files (`startgate`,
+`shared-files`, `verify-signing-key`, `check-snapshot`, `check-tag`; in the three Maven-only repos also
+`verify-signing-key-gradle`, `github-snapshot`, `github-release`) are checked like files instead of by
+convention. Forgetting one is not a disaster — its job says so and the history shows it — but nobody can
 edit a shared script without learning that it is shared. **Adding one:** put the file in each
 repository and a `sha256sum` line for it in each manifest.
 
