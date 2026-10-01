@@ -85,7 +85,8 @@ the jobs kept identical inside four otherwise different `publish.yml` files (`st
 `shared-files`, `verify-signing-key`, `check-snapshot`, `check-tag`; in the three Maven-only repos also
 `verify-signing-key-gradle`, `github-snapshot`, `github-release`) are checked like files instead of by
 convention. The same job runs `check-versions.py`, which warns where a Maven dependency or plugin is
-used in another version than in a sibling. Forgetting one is not a disaster — its job says so and the history shows it — but nobody can
+used in another version than in a sibling, and `check-run-scripts.py`, which fails when a bash
+`run:` script of a workflow or composite action does not parse (`bash -n`). Forgetting one is not a disaster — its job says so and the history shows it — but nobody can
 edit a shared script without learning that it is shared. **Adding one:** put the file in each
 repository and a `sha256sum` line for it in each manifest.
 
