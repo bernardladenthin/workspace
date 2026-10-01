@@ -123,10 +123,9 @@ supplement rather than weakening the workspace policy.
 The file lives in each sibling repo's root (jllama: `llama/lombok.config`) and the
 canonical content above is the source of truth. Since 2026-07-24 all three copies are
 **byte-identical** to this block — the repo-specific rationale that used to drift in
-per-file comments now lives only here (that is why the file can be identical). The SHA-256
-is recorded in the **"Cross-repo byte-identical files — checksum drift check"** table in
-[`../crossrepostatus.md`](../crossrepostatus.md), verifiable from the workspace repo.
+per-file comments now lives only here (that is why the file can be identical). Each of the three
+repos lists it in `.github/shared-files.sha256` (jllama as `llama/lombok.config`), and its
+`shared-files` job fails when the copy changed alone and warns when another repo's differs.
 
-Manual sync is the only mechanism today — when this canonical content changes, update every
-sibling repo's `lombok.config` **and** the checksum row in `../crossrepostatus.md` in the same
-series of commits.
+When this canonical content changes, update every sibling repo's `lombok.config` and run
+`python3 .github/check-shared-files.py --write` in each, in the same series of commits.

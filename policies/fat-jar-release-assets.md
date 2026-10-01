@@ -123,7 +123,7 @@ would be worse than the duplication it saves:
 |---|---|---|---|
 | BAF | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_AddressFilesToLMDB.json` | exit 0 + `Main#run end.`; also exercises the **lmdbjava natives** out of the jar |
 | srcmorph | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_Plan.json` | exit 0 + `Main#run end.`; `mock` provider, so no GGUF/GPU/network |
-| jllama | `smoke-fatjar-linux` / `-windows` | `smoke-test-fatjar.{sh,ps1}` → real `java -jar` server | `/health` 200 + a `/v1/chat/completions` choice + the backend-selection log line |
+| jllama | `smoke-fatjar` (matrix, one row per `all-<os>-<arch>` jar) | `smoke-test-fatjar.{sh,ps1}` → real `java -jar` server | `/health` 200 + a `/v1/chat/completions` choice + the backend-selection log line |
 | jllama | `smoke-fatjar-macos` | `smoke-native-macos.sh` → `codesign` + `NativeLoadSmoke.java` | signature matches its own pages + the JVM loads the dylib and crosses JNI |
 | jllama | `smoke-agent-linux` | `smoke-agent-jar.sh` → `java -jar` on the agent jar **next to** the `all-linux-x86-64` fat jar | bytecode ≤ 65 + the jar alone fails for the missing core + `--help` + a one-shot answer + a `read_file` round surfacing a marker (cached tool model) |
 | sb | `smoke-jar` | `smoke-jar.sh` → `java -cp <jar> StreamBufferSmoke.java` | jar carries `module-info.class` + a real write/read/EOF round-trip through the API, exit 0 + marker |
@@ -132,7 +132,7 @@ BAF and srcmorph share a **byte-identical `.github/smoke-fatjar-cli.sh`** (`<jar
 <work-dir> <success-marker> [args…]`, plain `java -jar`, no extra JVM flags — the contract under
 test is that the published artifact runs as-is). Both CLIs derive from the same `cli.Main` pattern
 and log `Main#run end.`, which is what lets the marker be identical too. **Sync any edit to both
-copies and to the checksum table in [`../crossrepostatus.md`](../crossrepostatus.md).** jllama needs
+copies, then `check-shared-files.py --write` in each** (both list it in `.github/shared-files.sha256`). jllama needs
 its own scripts: its Main-Class is a server that never exits, so "exit 0" is not a contract it can
 satisfy, and on macOS the assertion that matters is native loadability rather than any CLI
 behaviour.
@@ -157,8 +157,8 @@ model — it uses the already-cached 1.5B tool model on CPU, no download.)
 
 | Repo | Fat jar(s) | Kept off Central by | Built + signed by |
 |---|---|---|---|
-| **jllama** (`java-llama.cpp`) | Multi-backend **`all-<os>-<arch>`** jars (default CPU + every GPU backend of that OS/arch in `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` subdirs, runtime-selected by `LlamaLoader` via the `jllama-backends.txt` manifest) + the default CPU fat jar | The Central `deploy` runs **without** the `assembly` profile; the fat jars are assembled by a separate `package-fatjars` job | `.github/package-fatjars.sh` assembles them; `.github/sign-fatjars.sh` GPG-signs each (`.asc`) in the `github-release-signed` / `github-snapshot` attach jobs (which declare `environment: maven-central` + `checkout`). `.sha256` **and** `.asc`. **Plus the agent jar** `llama-atmosphere-agent-<v>-jar-with-dependencies.jar` — built **without** the core (`-P assembly` of the standalone `llama-atmosphere-agent/` project, never deployed anywhere), uploaded by the model-free agent job and downloaded by the same attach jobs into the same directory, so the same `sign-fatjars.sh` run signs it. |
-| **srcmorph** (`srcmorph-cli`) | One CLI fat jar **per `net.ladenthin:llama` classifier** (default all-platform CPU + one per GPU classifier: `cuda13-*`, `vulkan-*`, `opencl-*`, `rocm-*`, `sycl-*`, `openvino-*`, `msvc-windows`) named `srcmorph-cli-<v>-jar-with-dependencies[-<classifier>].jar` | `srcmorph-cli/pom.xml` sets `<attach>false</attach>` on the assembly execution → built into `target/` but never installed/deployed | The `publish-{release,snapshot}` jobs loop over the classifier set (`mvn -pl srcmorph-cli -am -Dllama.classifier=<c> package`), rename per classifier (default built **last** = unsuffixed CPU jar), collect them into the asset dir, then sign via `.github/sign-fatjars.sh`. `.asc` only. |
+| **jllama** (`java-llama.cpp`) | Multi-backend **`all-<os>-<arch>`** jars (the default fat jar reduced to its own OS/arch, plus every natives jar of that OS/arch; each backend is its own `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` directory, tried by `LlamaLoader` in its fixed priority order, falling back to `cpu`) + the default CPU fat jar | The Central `deploy` runs **without** the `assembly` profile; the fat jars are assembled by a separate `package-fatjars` job | `.github/package-fatjars.sh` assembles them; `.github/sign-fatjars.sh` GPG-signs each (`.asc`) in the `github-release-signed` / `github-snapshot` attach jobs (which declare `environment: maven-central` + `checkout`). `.sha256` **and** `.asc`. **Plus the agent jar** `llama-atmosphere-agent-<v>-jar-with-dependencies.jar` — built **without** the core (`-P assembly` of the standalone `llama-atmosphere-agent/` project, never deployed anywhere), uploaded by the model-free agent job and downloaded by the same attach jobs into the same directory, so the same `sign-fatjars.sh` run signs it. |
+| **srcmorph** (`srcmorph-cli`) | One CLI fat jar **per `net.ladenthin:llama` natives jar** besides the CPU ones (default all-platform CPU + one per GPU/`msvc` natives jar: `cuda13-*`, `vulkan-*`, `opencl-*`, `rocm-*`, `sycl-*`, `openvino-*`, `msvc-windows-*`), each the default jar **plus** that one backend (the CPU natives stay as the loader's fallback), named `srcmorph-cli-<v>-jar-with-dependencies[-<classifier>].jar` | `srcmorph-cli/pom.xml` sets `<attach>false</attach>` on the assembly execution → built into `target/` but never installed/deployed | The `publish-{release,snapshot}` jobs loop over the classifier set (`mvn -pl srcmorph-cli -am -Dllama.classifier=<c> package`), rename per classifier (default built **last** = unsuffixed CPU jar), collect them into the asset dir, then sign via `.github/sign-fatjars.sh`. `.asc` only. |
 | **BAF** (`BitcoinAddressFinder`) | **Single** fat jar (LWJGL ships one `natives-*` classifier jar per platform, but they may all sit on one classpath — LWJGL picks the match at runtime — so there is still no classifier split) | The Central `deploy` runs `-P release` **without** `assembly`; the fat jar is built by a **second** invocation that stops at `verify` (never reaching `deploy`), so `central-publishing`'s deploy-bound publish goal never runs | `mvn -P release,assembly verify` in the `publish-{release,snapshot}` jobs; `maven-gpg-plugin` (bound to `verify`) signs the attached fat jar → `.asc`. |
 | **sb** (`streambuffer`) | ➖ N/A — a pure library with no runnable entry point, so no fat jar is produced or shipped. Its **thin** jar is still smoke-tested before release (`smoke-jar`, see above) and still carries a `.asc` | — | — |
 
@@ -176,28 +176,28 @@ its Java baseline.
 
 ## Keep-in-sync notes
 
-- **jllama / srcmorph classifier lists.** The set of GPU classifiers is defined by
-  `java-llama.cpp/llama/pom.xml`'s `<classifier>` entries. jllama's `package-fatjars.sh`
-  enumerates it from the pom and **fails loud** on any new classifier until it is consciously
-  ranked/excluded. srcmorph's `publish.yml` hardcodes the classifier array — **on a
-  `net.ladenthin:llama` version bump, re-check that list against the pom** (and confirm every
-  classifier is actually published on Central for the pinned version).
+- **jllama / srcmorph classifier lists.** The natives jars are declared once, in
+  `java-llama.cpp/.github/natives.csv`; jllama's pom executions, `llama-platform`, workflow
+  artifacts and loader priority are checked against it (`check-natives.py`), and
+  `package-fatjars.sh` reads it. srcmorph's `publish.yml` hardcodes its classifier array (the rows
+  with `platform=no` except the Android ones) — **on a `net.ladenthin:llama` version bump, re-check
+  that array against `natives.csv`** (and confirm every natives jar is actually published on Central
+  for the pinned version); `verify-classifier-fatjars.sh` fails on an unmapped classifier shape.
 - **Shared signing script (`.github/sign-fatjars.sh`).** jllama and srcmorph sign their loose fat
   jars with a **byte-identical** `.github/sign-fatjars.sh` (dual-licensed `MIT OR Apache-2.0`, the
   cross-repo-synced-file convention) — it imports the key into an ephemeral keyring and produces a
   verified detached armored `.asc` for every `*-jar-with-dependencies*.jar` in a directory. **Sync
-  any edit to both copies, and update the recorded checksum below** (same discipline as the
-  byte-identical `verify-signing-key` job).
+  any edit to both copies**; both repos list it in `.github/shared-files.sha256`, which their
+  `shared-files` job checks (same discipline as the shared `verify-signing-key.sh`).
   BAF does **not** use it: its single fat jar is an *attached* Maven artifact, so `maven-gpg-plugin`
   signs it directly during the `verify` run.
 - **Signature convention.** New fat-jar-shipping surfaces should sign with a detached armored
   `.asc` using the `maven-central`-scoped key, in a dispatch-gated job, reusing `sign-fatjars.sh`.
 
-## Drift check — `sign-fatjars.sh` checksum
+## Drift check — `sign-fatjars.sh`
 
-The shared script must be **byte-identical** in both repos (jllama + srcmorph). Its canonical
-SHA-256 and a one-line verify command live in the single consolidated drift-check table —
-**"Cross-repo byte-identical files — checksum drift check"** in
-[`../crossrepostatus.md`](../crossrepostatus.md) (alongside the `signing-selftest` `.kts` files).
-On any intentional edit to `sign-fatjars.sh`, update both copies **and** that table in the same
-change set.
+The shared script must be **byte-identical** in both repos (jllama + srcmorph). Both list it in
+`.github/shared-files.sha256`; each repo's `shared-files` job fails when its copy changed alone and
+warns when the other repo's copy differs (see "Cross-repo byte-identical files" in
+[`../crossrepostatus.md`](../crossrepostatus.md)). On an intentional edit, change both copies and run
+`python3 .github/check-shared-files.py --write` in each.
