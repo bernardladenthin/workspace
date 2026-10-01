@@ -100,7 +100,13 @@ tests, and the `check-*.py` entry points), `print-crash-logs.sh`,
 the issue/PR templates, `CODE_OF_CONDUCT.md`, `sign-fatjars.sh` (jllama + srcmorph), `smoke-fatjar-cli.sh`
 (BAF + srcmorph), `lombok.config` (jllama at `llama/lombok.config`; matched by file name there),
 `claude.yml`, `claude-code-review.yml`, `codeql.yml`, `scorecard.yml`, `reuse.yml`, `osv-scanner.yml`,
-`dependabot.yml` and `.java-version` (the JDK every workflow reads via `java-version-file`). Every own `.github` file is licensed `MIT OR Apache-2.0` in all four repositories, so
+`dependabot.yml`, `.java-version` (the JDK every workflow reads via `java-version-file`), `.editorconfig`,
+`.gitattributes`, `FUNDING.yml`, `CODEOWNERS`, `LICENSES/{MIT,Apache-2.0}.txt`, the job
+`verify-signing-key-gradle` (all four now on Gradle 9.8.0; the siblings were on 9.6.1), `.mvn/jvm.config`
+(all but BAF) and `.mvn/settings.xml` (all but jllama). Entries ending in `?repo` cover files identical up
+to the repository name (hashed with it replaced by `{repo}`): `SUPPORT.md`, `ISSUE_TEMPLATE/config.yml`,
+`CITATION.cff` (not jllama: its license differs), `sonarqube.yml` (srcmorph + streambuffer) and the
+`code-style` job (BAF + streambuffer). Every own `.github` file is licensed `MIT OR Apache-2.0` in all four repositories, so
 a shared file needs no per-repository header. Canonical content
 of `lombok.config` in [`policies/lombok-config.md`](policies/lombok-config.md).
 
