@@ -99,8 +99,8 @@ tests, and the `check-*.py` entry points), `print-crash-logs.sh`,
 `verify-signing-key.sh`, `verify-bytecode-version.sh`, the signing self-test (`.github/signing-selftest/`),
 the issue/PR templates, `CODE_OF_CONDUCT.md`, `sign-fatjars.sh` (jllama + srcmorph), `smoke-fatjar-cli.sh`
 (BAF + srcmorph), `lombok.config` (jllama at `llama/lombok.config`; matched by file name there),
-`claude.yml`, `claude-code-review.yml`, `scorecard.yml`, `reuse.yml`, `osv-scanner.yml` and
-`dependabot.yml`. Every own `.github` file is licensed `MIT OR Apache-2.0` in all four repositories, so
+`claude.yml`, `claude-code-review.yml`, `codeql.yml`, `scorecard.yml`, `reuse.yml`, `osv-scanner.yml`,
+`dependabot.yml` and `.java-version` (the JDK every workflow reads via `java-version-file`). Every own `.github` file is licensed `MIT OR Apache-2.0` in all four repositories, so
 a shared file needs no per-repository header. Canonical content
 of `lombok.config` in [`policies/lombok-config.md`](policies/lombok-config.md).
 
