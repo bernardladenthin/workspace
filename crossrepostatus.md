@@ -94,11 +94,15 @@ repository and a `sha256sum` line for it in each manifest.
 action would pin it by SHA (Scorecard's pinned-dependencies rule), it would need a release process
 of its own, and a checkout of a second repository in CI; copies keep each repository self-contained,
 and the manifest makes the duplication explicit instead of accidental. The shared set: the build-check
-library (`.github/buildcheck/{__init__,workflow,releasegate,sharedfiles}.py`, its tests, and the
-`check-release-gate.py` / `check-shared-files.py` entry points), `print-crash-logs.sh`,
+library (`.github/buildcheck/{__init__,workflow,releasegate,sharedfiles,versions,runscripts}.py`, its
+tests, and the `check-*.py` entry points), `print-crash-logs.sh`,
 `verify-signing-key.sh`, `verify-bytecode-version.sh`, the signing self-test (`.github/signing-selftest/`),
-the issue/PR templates, `sign-fatjars.sh` (jllama + srcmorph), `smoke-fatjar-cli.sh` (BAF + srcmorph)
-and `lombok.config` (jllama at `llama/lombok.config`; matched by file name there). Canonical content
+the issue/PR templates, `CODE_OF_CONDUCT.md`, `sign-fatjars.sh` (jllama + srcmorph), `smoke-fatjar-cli.sh`
+(BAF + srcmorph), `lombok.config` (jllama at `llama/lombok.config`; matched by file name there), and
+in BAF/srcmorph/streambuffer `claude.yml`, `claude-code-review.yml`, `scorecard.yml`, `reuse.yml`,
+`osv-scanner.yml` and `dependabot.yml` (java-llama.cpp's copies differ only in their license header,
+which still names the upstream author). Every `.github` file carrying only the owner's copyright is
+licensed `MIT OR Apache-2.0` in all four repositories, so a shared file needs no per-repository header. Canonical content
 of `lombok.config` in [`policies/lombok-config.md`](policies/lombok-config.md).
 
 **The same job runs the release-gate check** (`check-release-gate.py`): every job of `publish.yml`
