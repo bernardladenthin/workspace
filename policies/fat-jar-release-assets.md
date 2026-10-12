@@ -76,8 +76,9 @@ condition exists to prevent.
 The ordering that satisfies both:
 
 1. **Report** (before the upload, `id: signatures`, never exits non-zero): emit one `::error::`
-   annotation per unsigned jar, and one for the case where *no* jars were collected at all; write the
-   count to `$GITHUB_OUTPUT`.
+   annotation per unsigned artifact -- every attachable type, `*.jar`, `*.aar` and `*.pom` (a
+   `*.jar`-only glob let jllama's AARs ship unsigned for months with a green job, measured 2026-10-12)
+   -- and one for the case where *nothing* was collected at all; write the count to `$GITHUB_OUTPUT`.
 2. **Upload** — unconditionally, exactly as before.
 3. **Assert** (after the upload, `if: always() && steps.signatures.outputs.missing != '0'`): fail the
    job, naming the count.
@@ -85,11 +86,48 @@ The ordering that satisfies both:
 Assets always land. An unsigned release is still loudly red rather than quietly wrong. Use `-1` for
 "nothing was collected", so an empty asset directory is distinguishable from a signing failure.
 
-**Status:** landed in **all four repos** — srcmorph, jllama, BAF **and streambuffer**. The two steps
-are byte-identical everywhere (the only per-repo difference is the asset directory name,
-`snapshot-assets` / `release-assets`), so a change to one must be synced to all four. Note the scope:
+**Status:** landed in **all four repos** — srcmorph, jllama, BAF **and streambuffer**. In the three
+Maven-only repos the whole `github-snapshot` / `github-release` jobs are byte-identical and held so by
+`.github/shared-files.sha256` (`publish.yml#github-snapshot`, `#github-release`); jllama's
+`github-snapshot` / `github-release-signed` carry the same steps with job comments of their own, which
+is why they are not in its manifest. The two steps differ only in the asset directory name
+(`snapshot-assets` / `release-assets`), so a change to one must be synced to all four. Note the scope:
 this guard is about **release assets**, not about fat jars, so it applies to streambuffer too even
 though streambuffer ships no fat jar — it attaches signed thin jars like everyone else.
+
+**What the collect steps copy (since 2026-10-12): everything Central gets.** Every module's jars with
+their `.asc` and every module's `<artifactId>-<version>.pom` + `.pom.asc` -- maven-gpg writes both into
+`target/`, also for a pom-only module (jllama's `llama-parent` and `llama-platform`, srcmorph's
+`srcmorph-parent`); jllama additionally the two AARs with the `.aar.asc` Gradle writes next to them,
+their poms (`build/publications/<publication>/pom-default.xml` + `.asc`, renamed to
+`<artifactId>-<version>.pom`) and the sources/javadoc jars under `build/distributions/`, and the
+agent's thin jar. Measured against Central's snapshot metadata before the change: the release had no
+`.pom` at all, `llama-platform` -- the artifact consumers are told to depend on -- was absent entirely,
+and the AARs were attached without their existing `.asc`. After a run, the release's asset set should
+equal every module's Central `maven-metadata.xml` (each classifier/extension listed there) minus the
+checksum files Central keeps and the release does not.
+
+## The `snapshot` pre-release holds exactly the current upload
+
+`snapshot` is a rolling "latest" pre-release, and `gh release upload --clobber` replaces same-named
+assets but never removes any other. Measured 2026-10-12: java-llama.cpp's `snapshot` held **208**
+assets, 109 of them from 5.0.0–5.0.7 and 43 in shapes that no longer existed (`msvc-windows`,
+`all-*-jar-with-dependencies`); srcmorph (16 assets, all stale, from the old
+`llamacpp-ai-index-maven-plugin` coordinates), streambuffer (11, 5 stale) and java-llama.cpp each
+still carried `fb-contrib-7.6.4.jar`, `fb-contrib-7.7.4.jar` and `findsecbugs-plugin-1.14.0.jar`,
+SpotBugs plugin jars an older collect step uploaded from `target/spotbugs/` in 2026-05/06; BAF (14)
+carried the previous version's six jars.
+
+So `github-snapshot` ends with a step that deletes every asset the run did not upload, in all four
+repos (the same step text everywhere):
+
+- the **keep-set is the asset directory the run uploaded**, never a version pattern -- a pattern has
+  to be re-taught at every classifier added or dropped, which is how the 43 stale shapes arose;
+- **after the upload**, so a failed upload leaves the release as it was, never emptier;
+- **every deletion is printed by name**, so the job log is the audit trail;
+- `github-release` / `github-release-signed` **never delete**: a versioned `v*` release is history.
+
+Nothing is deleted by hand; the next snapshot run clears each repo's backlog by itself.
 
 ## No release asset is attached that CI has not run
 
