@@ -46,6 +46,14 @@ config.stopBubbling = true
 # NM_FIELD_NAMING_CONVENTION, ...) on every Lombok-generated method.
 lombok.addLombokGeneratedAnnotation = true
 
+# Annotate generated code with JSpecify nullness: every package here is @NullMarked, so an
+# unannotated parameter of a generated equals(Object) reads as non-null while Object.equals
+# accepts null -- SpotBugs 4.10.5 (JSpecify-aware) reports NP_METHOD_PARAMETER_TIGHTENS_ANNOTATION
+# on each of them, and a consumer's nullness checker would believe the same wrong contract.
+# With this, Lombok writes @Nullable on the equals/canEqual parameter and @NonNull where a
+# generated member cannot return or take null (toString, @NonNull constructor parameters).
+lombok.addNullAnnotations = jspecify
+
 # Default to "skip" on @EqualsAndHashCode / @ToString: we inherit from
 # Object in almost all cases; "skip" is the right default for
 # Object-extending classes. Classes that extend a non-Object base override
@@ -95,6 +103,7 @@ lombok.accessors.flagUsage = ALLOW
 |---|---|---|
 | `config.stopBubbling = true` | Stops Lombok config inheritance from parent dirs | Stray configs in `/home/user/` or upstream could leak into the build |
 | `lombok.addLombokGeneratedAnnotation = true` | Emits `@lombok.Generated` on every synthetic method | SpotBugs / fb-contrib report 20+ findings on every Lombok class (USBR, IMC_NO_TOSTRING, NM_FIELD_NAMING, ...) |
+| `lombok.addNullAnnotations = jspecify` | JSpecify `@Nullable` / `@NonNull` on generated code: the `equals(Object)` / `canEqual` parameter nullable, as `Object.equals` promises | Under `@NullMarked` the generated `equals` parameter reads as non-null: SpotBugs 4.10.5 reports `NP_METHOD_PARAMETER_TIGHTENS_ANNOTATION` per class (27 in java-llama.cpp on 2026-10-12), and the published bytecode tells a consumer's nullness checker the same wrong contract |
 | `lombok.equalsAndHashCode.callSuper = skip` | No callSuper default → explicit decision per class | Lombok warning on every `@EqualsAndHashCode` → `-Werror` fails the build |
 | `lombok.toString.callSuper = skip` | Same for `@ToString` | Same |
 | `lombok.equalsAndHashCode.doNotUseGetters = true` | Field-access in generated equals/hashCode | fb-contrib `OI_OPTIONAL_ISSUES_CHECKING_REFERENCE` fires on every Optional-wrapping getter; `Collections.unmodifiableList(...)` + `Optional` allocated on every equals call |
