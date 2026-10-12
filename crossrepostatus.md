@@ -239,9 +239,12 @@ Differences below are intentional design decisions, not gaps to close.
   `.pom.asc` with the jars (jllama also the AARs' `.asc`, poms and sources/javadoc jars, the agent's
   thin jar and the pom-only `llama-platform`), the signature check counts `*.jar`, `*.aar` and `*.pom`,
   and `github-snapshot` deletes every asset the run did not upload, printed by name -- 208 had
-  accumulated on jllama, and three repos carried SpotBugs plugin jars from 2026-05. Versioned releases
-  are never pruned. Policy: [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md),
-  "The `snapshot` pre-release holds exactly the current upload".
+  accumulated on jllama, and three repos carried SpotBugs plugin jars from 2026-05. The prune
+  refuses an empty upload, treats an asset that is already gone as removed and fails only after
+  trying every deletion (follow-up of the same day, after the May 2026 delete-and-recreate history
+  was dug up). Versioned releases are never pruned. Policy:
+  [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md), "The `snapshot`
+  pre-release holds exactly the current upload".
 - **No release asset is attached that CI has not run** (✅ landed in **all four** repos).
   Every repo that attaches a release asset now launches it in a `smoke-*` job that gates both
   publish jobs: BAF (`config_AddressFilesToLMDB.json`, also exercises the lmdbjava natives),

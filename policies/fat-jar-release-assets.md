@@ -129,6 +129,46 @@ repos (the same step text everywhere):
 
 Nothing is deleted by hand; the next snapshot run clears each repo's backlog by itself.
 
+### Asset by asset, after the upload -- what the May 2026 runs taught
+
+The step has three guards, and they come from the job's own history rather than from caution:
+
+- **An empty upload is refused** (`::error`, exit 1): with nothing in the asset directory every
+  asset of the release would count as stale and the step would empty it. Unreachable today -- the
+  attach job fails at `download-artifact` when the publish job collected nothing (no artifact is
+  uploaded from an empty directory; BAF, 2026-07-12, dispatched on a non-`SNAPSHOT` version) and `gh
+  release upload snapshot snapshot-assets/*` fails on the unexpanded glob -- but the guard makes the
+  invariant explicit instead of a consequence of step order.
+- **An asset that is already gone counts as removed.** A failed `delete-asset` is followed by one
+  re-read of the release: name absent means another run of this job (or a hand deletion) got there
+  first, which is the outcome the step wants; name still present is a real failure.
+- **A failed deletion is reported and the rest are still tried**; the step fails afterwards. The
+  assets of this upload are on the release either way, so this is "attach first, then red" like the
+  signature check. Nothing is swallowed with `|| true` -- that is what hid the GitHub Packages
+  failures below for a day.
+
+**The history, from the four repos' `git log` and the Actions API (job logs expire after 90 days,
+the step results do not).** The first snapshot job (2026-05-07, all four repos, `release.yaml` /
+`snapshot.yml`) cleaned up on two levels, both by delete-and-recreate: `gh release delete snapshot
+--yes --cleanup-tag || true` followed by `gh release create snapshot <jars>`, and for GitHub
+Packages `actions/delete-package-versions` with `min-versions-to-keep: 0`, replaced the same evening
+by `gh api --method DELETE /user/packages/maven/<package> || true` because the action cannot remove
+the last version of a package. On 2026-05-10, 22:30-22:45 UTC, bursts of dependabot merges put
+several main-push runs minutes apart on each sibling; their snapshot jobs started within seconds of
+each other and deleted the release under one another: BAF 4 of 5, srcmorph 4 of 6, streambuffer 5 of
+6 jobs failed in the step "Publish rolling snapshot release" **with the artifact download green**,
+and per repo exactly the job whose `create` came last survived. java-llama.cpp (2026-05-07, run
+25521091023) and streambuffer (2026-05-10 22:44 UTC) also failed that step once each with no
+concurrent job. The Central migration of 2026-05-11 (07:50 UTC) dropped the GitHub Releases and
+GitHub Packages snapshots altogether, and the same day `github-snapshot` came back as `gh release
+view || gh release create` plus `gh release upload --clobber`: idempotent, never deleting, which is
+why the backlog above could grow; no commit or PR named the failures, so the reason was lost. The
+case remembered as "no artifacts, so no cleanup" is a different one: the attach job dying at
+`download-artifact` after a publish job that collected nothing (BAF, 2026-07-12), which is the
+intended fail-loud path and never reaches the upload or the prune. Since 2026-06-18
+`publish-snapshot` -- and with it `github-snapshot` -- runs only on a manual dispatch with
+`publish_to_central`, so two attach jobs overlap only when two dispatches do.
+
 ## No release asset is attached that CI has not run
 
 **Every repo that attaches a release asset runs it in CI first, in a `smoke-*` job that gates both
