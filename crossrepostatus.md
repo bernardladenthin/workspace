@@ -234,6 +234,14 @@ Differences below are intentional design decisions, not gaps to close.
   still broken is unchanged: the `LlamaCppJniAiGenerationProvider` path only (the `mock` provider
   never loads the native library), so `Plan`/mock runs and the whole test suite say nothing either
   way.
+- **The release assets are what Central gets, and the `snapshot` pre-release holds exactly the current
+  upload** (✅ landed in **all four** repos, 2026-10-12). The collect steps copy every module's pom +
+  `.pom.asc` with the jars (jllama also the AARs' `.asc`, poms and sources/javadoc jars, the agent's
+  thin jar and the pom-only `llama-platform`), the signature check counts `*.jar`, `*.aar` and `*.pom`,
+  and `github-snapshot` deletes every asset the run did not upload, printed by name -- 208 had
+  accumulated on jllama, and three repos carried SpotBugs plugin jars from 2026-05. Versioned releases
+  are never pruned. Policy: [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md),
+  "The `snapshot` pre-release holds exactly the current upload".
 - **No release asset is attached that CI has not run** (✅ landed in **all four** repos).
   Every repo that attaches a release asset now launches it in a `smoke-*` job that gates both
   publish jobs: BAF (`config_AddressFilesToLMDB.json`, also exercises the lmdbjava natives),
