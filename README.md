@@ -35,28 +35,15 @@ crossrepostatus.md                       Live cross-repo status table
 ## Topic folders
 
 Separate from the Java layer above, and not covered by any of its guides or
-policies. These hold platform and upstream-contribution knowledge; none is a
-tracked repository and none appears in `crossrepostatus.md`.
+policies.
 
 ```
-AIX/            Running AIX under QEMU, and what it takes to build there
-qemu/           Defects found in QEMU itself, with patches
-Linux/          Linux platform notes
-subprocess.h/   Upstream contributions to sheredom/subprocess.h
-utest.h/        Upstream contributions to sheredom/utest.h
-llama.cpp/      llama.cpp notes
-VeraCrypt/      VeraCrypt notes
+llama.cpp/projects/logo/   Logo and app-icon generator for java-llama.cpp and srcmorph
 ```
 
-`subprocess.h/` and `utest.h/` belong together: subprocess.h vendors utest.h, and
-every utest.h defect recorded there surfaced while porting subprocess.h to AIX.
-
-`AIX/` and `qemu/` split the same way. Trying to boot AIX 5.3 on
-`qemu-system-ppc64` turned up eight defects in QEMU's PowerPC emulation. Two
-have nothing to do with AIX: `mfsr` reading back zero on any 64-bit CPU model
-breaks any 32-bit PowerPC guest, and `spapr_vscsi` wrapping a 16-bit descriptor
-offset silently corrupts guest data on any transfer above 128 KiB. Those belong
-in `qemu/`, with the patches; the AIX-specific walls stay in `AIX/5.3L/`.
+Platform and upstream-contribution notes (AIX, QEMU, Linux, GCC, Wine,
+subprocess.h, utest.h, VeraCrypt, llama.cpp upstream) are kept in a separate,
+private repository.
 
 ## Versioned guide chain
 

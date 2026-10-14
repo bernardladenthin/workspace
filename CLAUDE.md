@@ -15,17 +15,11 @@ Bernard Ladenthin tracks. It has two tiers.
 - [srcmorph](https://github.com/bernardladenthin/srcmorph) — prompt-driven source-tree transformer / AI-index generator, a 3-module reactor (`net.ladenthin:srcmorph` core + `srcmorph-cli` + `srcmorph-maven-plugin`; formerly `llamacpp-ai-index-maven-plugin`)
 - [streambuffer](https://github.com/bernardladenthin/streambuffer) — `OutputStream`/`InputStream` bridge over a dynamic FIFO (`net.ladenthin:streambuffer`)
 
-**Other tracked repos** — no shared Java toolchain, each with its own
-conventions and its own folder here:
-
-- [VeraCrypt](https://github.com/veracrypt/VeraCrypt) (C/C++) — see [`VeraCrypt/`](VeraCrypt/)
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) (C/C++) — see [`llama.cpp/`](llama.cpp/)
-- [subprocess.h](https://github.com/sheredom/subprocess.h) (C) — see [`subprocess.h/`](subprocess.h/)
+One non-Java folder remains: [`llama.cpp/projects/logo/`](llama.cpp/projects/logo/),
+the logo and app-icon generator for java-llama.cpp and srcmorph.
 
 **Everything below — the guides, the policies, the Java version tier,
-the `java-tdd-guide` skill — applies to the Java tier only.** The other
-repos are tracked for cross-repo status and knowledge, not governed by
-these conventions.
+the `java-tdd-guide` skill — applies to the Java tier only.**
 
 This repo carries **no production code and no build system** of its
 own. It is read by AI assistants and human contributors as the single
