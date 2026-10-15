@@ -89,7 +89,7 @@ library (`.github/buildcheck/{__init__,workflow,releasegate,sharedfiles,versions
 tests, and the `check-*.py` entry points), `print-crash-logs.sh`, `print-host-info.sh`,
 `verify-signing-key.sh`, `verify-bytecode-version.sh`, the signing self-test (`.github/signing-selftest/`),
 the issue/PR templates, `CODE_OF_CONDUCT.md`, `smoke-fatjar-cli.sh` (BAF + srcmorph; `sign-fatjars.sh`
-was jllama + srcmorph until jllama dropped its fat jars with the modular natives, 5.2.0), `lombok.config` (jllama at `llama/lombok.config`; matched by file name there),
+was jllama + srcmorph until jllama dropped its fat jars with the modular natives, 6.0.0), `lombok.config` (jllama at `llama/lombok.config`; matched by file name there),
 `claude.yml`, `claude-code-review.yml`, `codeql.yml`, `scorecard.yml`, `reuse.yml`, `osv-scanner.yml`,
 `dependabot.yml`, `.java-version` (the JDK every workflow reads via `java-version-file`), `.editorconfig`,
 `.gitattributes`, `FUNDING.yml`, `CODEOWNERS`, `LICENSES/{MIT,Apache-2.0}.txt`, the job
@@ -137,7 +137,7 @@ Differences below are intentional design decisions, not gaps to close.
   startup and the JVM throws `UnsupportedClassVersionError` before a line is logged. The Java 8
   logback line (1.3.x) is EOL with unbackported CVEs, so it is not an option either. BAF is Java 21
   and keeps logback; sb has no logger at all. **The shipped binding is a fat-jar concern, not a
-  library one** — srcmorph-cli's fat jar (and, until 5.2.0, jllama's) is an application and may choose a binding;
+  library one** — srcmorph-cli's fat jar (and, until 6.0.0, jllama's) is an application and may choose a binding;
   their published library jars impose nothing, and srcmorph excludes the binding
   `net.ladenthin:llama` brings transitively so the Maven plugin does not end up with two providers
   alongside Maven's own `maven-slf4j-provider`.
@@ -187,7 +187,8 @@ Differences below are intentional design decisions, not gaps to close.
   so a "one library per `{OS}/{ARCH}`" assertion on the merged tree cannot detect it. Details in
   jllama's `CLAUDE.md`, "macOS arm64: three build jobs, one shipped dylib".
 - **`jar-with-dependencies` (fat/uber JAR) = GitHub-Release asset only, never Central, signed
-  `.asc` — BAF + jllama + srcmorph (not sb).** Convention + per-repo shapes live in
+  `.asc` — BAF + srcmorph (not sb; jllama dropped its fat jars with the modular natives in 6.0.0:
+  its release assets are the Maven artifacts, launched by the smoke sets).** Convention + per-repo shapes live in
   [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). sb ships no fat
   jar (single-class `Closeable` library, no runnable entry point). Note what does **not** follow
   from that: the *release-asset* rules — the pre-release smoke and the unsigned-asset guard — are
@@ -240,7 +241,7 @@ Differences below are intentional design decisions, not gaps to close.
   Every repo that attaches a release asset now launches it in a `smoke-*` job that gates both
   publish jobs: BAF (`config_AddressFilesToLMDB.json`, also exercises the lmdbjava natives),
   srcmorph (`config_Plan.json`, mock provider), jllama (the `smoke-natives` matrix, one server smoke per
-  desktop platform on the published natives jars -- since 5.2.0 there is no fat jar: the GPU backends
+  desktop platform on the published natives jars -- since 6.0.0 there is no fat jar: the GPU backends
   are additive module jars -- plus `smoke-natives-macos` closing the gap that let a corrupt dylib ship), and — since
   2026-09-01 — **sb (`smoke-jar`)**. BAF and srcmorph share a byte-identical
   `.github/smoke-fatjar-cli.sh` (listed in both repos' `shared-files.sha256`); jllama keeps its own scripts because
@@ -300,17 +301,17 @@ Differences below are intentional design decisions, not gaps to close.
   production package, not a curated subset. Today only sb is whole-package; the other three gate
   a verified-100% subset that should keep growing — add tests for a class, then widen the scope
   to include it, never the other way around. Track per-repo progress in each repo's `TODO.md`.
-- **srcmorph `main` cannot resolve its dependencies, by design, until jllama releases 5.2.0**
+- **srcmorph `main` cannot resolve its dependencies, by design, until jllama releases 6.0.0**
   (❌ open, blocked on another repo — the only such state in the workspace). `srcmorph/srcmorph/pom.xml`
-  pins `<llama.version>5.2.0</llama.version>`; Central's newest `net.ladenthin:llama` release is
-  `5.1.0` and jllama `main` is `5.2.0-SNAPSHOT`, so `mvn -pl srcmorph dependency:resolve` ends in
-  `Could not find artifact net.ladenthin:llama:jar:5.2.0`. **This is deliberate and is documented in
+  pins `<llama.version>6.0.0</llama.version>`; Central's newest `net.ladenthin:llama` release is
+  `5.1.0` and jllama `main` is `6.0.0-SNAPSHOT`, so `mvn -pl srcmorph dependency:resolve` ends in
+  `Could not find artifact net.ladenthin:llama:jar:6.0.0`. **This is deliberate and is documented in
   a 22-line comment above the property — do not "fix" it.** The provider calls
   `setFlashAttn(FlashAttn)` and `setLazyMode(LazyMode)`, neither of which exists in 5.1.0, so a
-  downgrade does not compile; and naming `5.2.0-SNAPSHOT` would need a `<repositories>` entry the
+  downgrade does not compile; and naming `6.0.0-SNAPSHOT` would need a `<repositories>` entry the
   repo deliberately does not declare **and** would block every future srcmorph release, since
   Central rejects a release with a `-SNAPSHOT` dependency. The pin goes green with no further edit
-  the moment 5.2.0 is published.
+  the moment 6.0.0 is published.
   **What is *not* covered by that rationale, and is the reason this is an open item rather than a
   footnote: srcmorph has had no green CI of any kind since it landed.** The pin arrived in `5b4abeb`,
   merged as **PR #198 on 2026-09-01**; since then **8 PRs (#198–#205) have been merged with a red
@@ -320,7 +321,7 @@ Differences below are intentional design decisions, not gaps to close.
   PIT and bytecode gates have been asserting nothing. Each of those PRs was verified locally against
   a `mvn install`-ed jllama snapshot, which is what makes the arrangement workable at all — but a
   local build is the developer's evidence, not the repo's. **The single resolving step is a jllama
-  5.2.0 release**; nothing is open on the srcmorph side, and jllama has no open PR blocking one.
+  6.0.0 release**; nothing is open on the srcmorph side, and jllama has no open PR blocking one.
 - **"Did CI ever actually run this?" is not answerable from a run's presence in any of these repos**
   (📌 standing caveat, worth re-reading before citing any run as evidence). Two mechanisms suppress
   completed runs, and both were mistaken for green at least once: **(1)** a push to `main` is
@@ -386,7 +387,7 @@ the pinning convention and the `DependencyConvergence` `excludedScopes` gotcha t
 > and the matching `main` runs were all `cancelled` by the start gate — so no red `main` was ever
 > visible and the failure went unattributed for eight days. A naive revert to `5.1.0` is not
 > obviously right: `229903c` had raised the pin precisely because the newer binding "can express"
-> flashAttn. jllama's `main` is at `5.2.0-SNAPSHOT`, so publishing that release is the likely fix.
+> flashAttn. jllama's `main` is at `6.0.0-SNAPSHOT`, so publishing that release is the likely fix.
 > Tracked in srcmorph's `TODO.md`.
 
 #### Pinned dependencies — do-not-bump registry (cross-repo audit reference)
