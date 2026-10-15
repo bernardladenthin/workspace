@@ -187,7 +187,8 @@ Differences below are intentional design decisions, not gaps to close.
   so a "one library per `{OS}/{ARCH}`" assertion on the merged tree cannot detect it. Details in
   jllama's `CLAUDE.md`, "macOS arm64: three build jobs, one shipped dylib".
 - **`jar-with-dependencies` (fat/uber JAR) = GitHub-Release asset only, never Central, signed
-  `.asc` — BAF + jllama + srcmorph (not sb).** Convention + per-repo shapes live in
+  `.asc` — BAF + srcmorph (not sb; jllama dropped its fat jars with the modular natives in 5.2.0:
+  its release assets are the Maven artifacts, launched by the smoke sets).** Convention + per-repo shapes live in
   [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). sb ships no fat
   jar (single-class `Closeable` library, no runnable entry point). Note what does **not** follow
   from that: the *release-asset* rules — the pre-release smoke and the unsigned-asset guard — are
