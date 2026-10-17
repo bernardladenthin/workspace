@@ -46,6 +46,7 @@ policies/ci-test-diagnostics.md          Test-JVM heap (-Xmx2g, no -Xms) + crash
 policies/pit-mutation-testing.md         PIT version/threshold + the test-compile/@{argLine} invocation rule
 workflows/pull-request-workflow.md       gh / MCP PR steps
 workflows/release-process.md             Canonical Maven Central release procedure (siblings point here)
+workflows/bughunt-loop.md                Self-improving bug-hunt loop over the working branches (run via /loop)
 templates/CLAUDE.md.template             Standard per-repo CLAUDE.md
 crossrepostatus.md                       Live cross-repo status table
 ```
