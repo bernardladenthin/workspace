@@ -180,3 +180,4 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   Eingabe. Eine Musterdurchsicht ist erst fertig, wenn jede Fundstelle mit dem konkreten Grenzwert (hier `""`)
   durchgedacht ist, nicht nur nach der Form des Codes. Nächste Runde: alle `readTree`-Aufrufe in den Zielen
   erneut, jeweils mit der Frage „was passiert bei `""`?“.
+- 2026-10-17: `Paths.get`/`Path.of` auf Fremdtext wirft `InvalidPathException` (eine `IllegalArgumentException`) bei NUL und unter Windows bei `?*<>|"`. Ein Fund nur, wo die Javadoc eine andere, typisierte Ausnahme verspricht (F56 `OfflineModelGuard`). Durchsicht erledigt: BAF (`Main`, `LMDBDelta`) und `RpcServer --cache` werfen sie bei der Argumentprüfung, wo eine IAE passt; streambuffer hat keine Pfade.
