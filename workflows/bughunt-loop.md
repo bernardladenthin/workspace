@@ -161,3 +161,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   „done“/„finished“, auch wenn das Flag sie beendet hat (F46–F49: Export, Import, Delta, Secrets-Dateien).
   Bei jeder abbrechbaren Arbeit prüfen, ob die Fertigmeldung das Flag berücksichtigt. Test: vor dem Lauf
   `interrupt()` aufrufen (oder ein Consumer ruft es nach dem ersten Element) und mit LogCaptor prüfen.
+- 2026-10-17: „Flag prüfen, dann laufende Arbeit registrieren“ ist ein Race, wenn `interrupt()` nur die
+  registrierte Arbeit stoppt (F50). Nach dem Registrieren das Flag erneut prüfen. Testbar wird das mit einer
+  paketinternen Fabrikmethode als Naht (`createSecretsFile`), in deren Test-Override `interrupt()` aufgerufen
+  wird – deterministisch, ohne Threads. Nächste Runde: weitere `current…`-Referenzen, die `interrupt()` liest,
+  nach demselben Muster absuchen.
