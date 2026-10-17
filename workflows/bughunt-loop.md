@@ -172,3 +172,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   Schleife unverändert werfen. BAF unterdrückt `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` dafür methodengenau in
   `spotbugs-exclude.xml` (mit Begründung gegen Verpacken); dort eintragen, nicht verpacken. Nächste Runde:
   `Finder.interrupt()`/`shutdownAndAwaitTermination` und andere Freigabe-Schleifen nach demselben Muster prüfen.
+- 2026-10-17: Die `readTree`-Durchsicht nach F37 hat `ChatStreamChunkParser` übersehen (F53): dort ist der
+  `catch`-Zweig ein Abbruchsignal, kein Ersatzwert, und die Javadoc verspricht genau das für jede unparsbare
+  Eingabe. Eine Musterdurchsicht ist erst fertig, wenn jede Fundstelle mit dem konkreten Grenzwert (hier `""`)
+  durchgedacht ist, nicht nur nach der Form des Codes. Nächste Runde: alle `readTree`-Aufrufe in den Zielen
+  erneut, jeweils mit der Frage „was passiert bei `""`?“.
