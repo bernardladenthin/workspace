@@ -145,3 +145,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   nicht von Maven. Grün daher am Surefire-XML ablesen (`tests`, `failures`, `skipped`) und den
   Maven-Status über `${PIPESTATUS[0]}` prüfen. Rot-Grün-Läufe, die länger als 2 Minuten brauchen, mit
   `run_in_background` starten statt mit Vordergrund-Timeout.
+- 2026-10-17: Dateien, die Nutzer selbst anlegen (Secrets, Adresslisten, Prompts, Konfiguration), auf eine
+  UTF-8-BOM am Anfang prüfen: Windows-Editoren schreiben sie, und Java entfernt sie beim Dekodieren nicht
+  (F42). Nächste Runde: alle Leser von Nutzerdateien in den drei Zielen danach absuchen.
+- 2026-10-17: Buchtext mit Backslashes nicht per `echo "…\\n…"` schreiben, das landet doppelt maskiert in der
+  Datei; Python-Heredoc mit `'EOF'` verwenden und das Ergebnis mit `grep -o` gegenlesen.
