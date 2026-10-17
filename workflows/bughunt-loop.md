@@ -45,7 +45,10 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
    Fehlerbehandlung, Null-Pfade, falsche `equals`/`hashCode`, Encoding und Endianness, Pfad- und
    Dateisystemfälle, Abweichungen zwischen Javadoc und Code. Stil-Nits zählen nicht. Vorher
    `BUGHUNT-FOUND.md` aller drei Repos lesen, damit nichts doppelt gemeldet wird.
-4. **Rot-Grün-Zyklus, ohne den es keinen Fix gibt.**
+4. **Rot-Grün-Zyklus, ohne den es keinen Fix gibt.** Regel des Nutzers (2026-10-17): Funde werden gefixt
+   und committet, **aber nur, wenn es einen Test gibt**, der den Fehler zeigt (rot ohne Fix, grün mit Fix).
+   Ohne einen solchen Test wird kein Produktionscode geändert und kein Fix committet; der Fund steht dann nur
+   im Buch („nur beschrieben“ bzw. „nur Test“). Das gilt auch für reine Doku-Abweichungen wie F35.
    1. Zuerst einen kleinen Test im passenden Testverzeichnis schreiben (Konventionen nach `CLAUDE.md`
       und den TEST_WRITING_GUIDEs), der genau den Fehler zeigt. Gegen den unveränderten
       Produktionscode muss er ROT sein, aus dem erwarteten Grund: eine Assertion oder eine erwartete
@@ -81,7 +84,7 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
    „gefixt“ nur mit bestandenem Zyklus. In jedem Fall die Zeile der Datei in `BUGHUNT-CHECKED.md`
    ersetzen oder ergänzen: aktueller Blob-Hash (`git hash-object <Pfad>`, sieben Zeichen), Datum,
    Ergebnis, kurze Notiz, was geprüft wurde.
-7. **Commit und Push.** Ein Fund ist ein Commit mit Test, Fix und Buchzeilen, mit klarer Nachricht und den
+7. **Commit und Push.** Ein Fund ist ein Commit mit Test, Fix und Buchzeilen (kein Fix-Commit ohne Test, siehe Schritt 4), mit klarer Nachricht und den
    Trailern dieser Session. Danach den Commit-Hash im Eintrag nachtragen, als eigener kleiner Commit
    „Record the commit of Fnn in the bug-hunt ledger“. Nach jedem Commit
    `git push origin ccr-90fc5f6a-vs4s0f`, bei Netzwerkfehlern bis zu 4 Wiederholungen mit 2, 4, 8 und
