@@ -152,3 +152,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   YAML-Parser überspringt eine BOM, der JSON-Parser nicht.
 - 2026-10-17: Buchtext mit Backslashes nicht per `echo "…\\n…"` schreiben, das landet doppelt maskiert in der
   Datei; Python-Heredoc mit `'EOF'` verwenden und das Ergebnis mit `grep -o` gegenlesen.
+- 2026-10-17: Ein Test, der ein Verhalten festschreibt, macht es noch nicht zur Designentscheidung. Widerspricht
+  er einer Spezifikation und lässt sich ein Absturz zeigen, ist es ein Fund, und der festschreibende Test wird
+  mit dem Fix korrigiert (F45: n galt per Test als gültiger Schlüssel). Designentscheidung bleibt, was
+  spezifikationskonform ist und nur eine Abwägung trifft (Teilbatch am Bereichsende). Bei `MAX_*`/`*_END`-
+  Konstanten immer prüfen, ob die Grenze inklusiv oder exklusiv gemeint ist und so verwendet wird.
