@@ -28,7 +28,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
 1. **Stand holen.** In jedem der drei Repos `git pull --ff-only origin ccr-90fc5f6a-vs4s0f`. Gibt es
    außer den beiden Buchdateien uncommittete Änderungen, schließe zuerst die Arbeit daran ab (oder
    verwirf sie, wenn sie unvollständig und nicht beweisbar ist). Gibt es nur Buchänderungen, committe
-   und pushe sie als „Update the bug-hunt ledger“.
+   und pushe sie als „Update the bug-hunt ledger“. Eine Runde ohne Fund committet und pusht ihre
+   Buchzeile ebenso sofort am Ende der Runde: ein Push kostet nichts, und nichts bleibt uncommittet.
 2. **Ziel wählen**, in dieser Reihenfolge:
    1. Offene Einträge zuerst: ein Fund mit Status „nur beschrieben“ oder „unsicher“ oder ein offener
       Verdacht, dessen Blocker nicht mehr besteht. Ausgenommen sind Designentscheidungen, die im
@@ -119,3 +120,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   CI-Bedarf.
 - 2026-10-17: Die Drop-Checks der llama.cpp-Patches und alles unter `llama/patches/` gehören nicht zum
   Ziel (kein C++).
+- 2026-10-17: Buchzeilen ohne Fund werden sofort committet und gepusht, nicht erst nach 60 Minuten (Schritt 1):
+  liegen sie uncommittet herum, meldet der Stop-Hook jede Runde „uncommitted changes“.
+- 2026-10-17: Kandidaten mit `grep -F -e "- \`<Pfad>\` · "` in `BUGHUNT-CHECKED.md` suchen: ohne `-e` hält
+  grep das Muster wegen des führenden `-` für eine Option. Blob-Hashes immer mit
+  `git rev-parse --short=7 HEAD:<Pfad>` bzw. den ersten sieben Zeichen von `git hash-object` vergleichen.
