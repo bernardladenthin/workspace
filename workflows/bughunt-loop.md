@@ -125,3 +125,9 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
 - 2026-10-17: Kandidaten mit `grep -F -e "- \`<Pfad>\` · "` in `BUGHUNT-CHECKED.md` suchen: ohne `-e` hält
   grep das Muster wegen des führenden `-` für eine Option. Blob-Hashes immer mit
   `git rev-parse --short=7 HEAD:<Pfad>` bzw. den ersten sieben Zeichen von `git hash-object` vergleichen.
+- 2026-10-17: Bei der Zufallswahl Klassen mit mindestens 80 Zeilen bevorzugen (`wc -l`), Konfigurations-,
+  Konstanten- und Wertklassen (`/configuration/`, `/constants/`, `/value/`, `/args/`) zuletzt: Die
+  kleinen Picks (ein Interface, ein 53-Zeilen-Helfer) brachten zwei Runden ohne Verhaltensbefund.
+- 2026-10-17: Ein verschlucktes `InterruptedException` ist nur dann ein Fund, wenn ein Pfad den Thread
+  wirklich unterbricht (`Thread.interrupt()`, `shutdownNow()`, `Future.cancel(true)`); in BAF setzt
+  `interrupt()` der Producer und Key-Producer nur ein Flag.
