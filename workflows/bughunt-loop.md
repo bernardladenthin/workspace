@@ -131,3 +131,7 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
 - 2026-10-17: Ein verschlucktes `InterruptedException` ist nur dann ein Fund, wenn ein Pfad den Thread
   wirklich unterbricht (`Thread.interrupt()`, `shutdownNow()`, `Future.cancel(true)`); in BAF setzt
   `interrupt()` der Producer und Key-Producer nur ein Flag.
+- 2026-10-17: Die Größe für die Zufallswahl in Codezeilen messen, nicht in Dateizeilen:
+  `grep -cvE '^\s*(\*|/\*\*|//|$)' <Datei>`. Eine 100-Zeilen-Exception war fast nur Javadoc. Stand
+  heute haben nur noch wenige ungeprüfte Klassen 60+ Codezeilen; danach Schritt 2.3 (Schnittstellen
+  zwischen Klassen) gleichrangig zu den kleinen Klassen behandeln.
