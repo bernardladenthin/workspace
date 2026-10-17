@@ -167,3 +167,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   paketinternen Fabrikmethode als Naht (`createSecretsFile`), in deren Test-Override `interrupt()` aufgerufen
   wird – deterministisch, ohne Threads. Nächste Runde: weitere `current…`-Referenzen, die `interrupt()` liest,
   nach demselben Muster absuchen.
+- 2026-10-17: Teardown-Schleifen über mehrere Ressourcen (Producer, Broadcaster, Dateien) brechen beim ersten
+  Fehler ab und lassen den Rest laufen (F52). Jeden Schritt einzeln absichern, die erste Exception nach der
+  Schleife unverändert werfen. BAF unterdrückt `THROWS_METHOD_THROWS_RUNTIMEEXCEPTION` dafür methodengenau in
+  `spotbugs-exclude.xml` (mit Begründung gegen Verpacken); dort eintragen, nicht verpacken. Nächste Runde:
+  `Finder.interrupt()`/`shutdownAndAwaitTermination` und andere Freigabe-Schleifen nach demselben Muster prüfen.
