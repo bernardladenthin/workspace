@@ -147,6 +147,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   `run_in_background` starten statt mit Vordergrund-Timeout.
 - 2026-10-17: Dateien, die Nutzer selbst anlegen (Secrets, Adresslisten, Prompts, Konfiguration), auf eine
   UTF-8-BOM am Anfang prüfen: Windows-Editoren schreiben sie, und Java entfernt sie beim Dekodieren nicht
-  (F42). Nächste Runde: alle Leser von Nutzerdateien in den drei Zielen danach absuchen.
+  (F42). Durchsicht erledigt (F43 Adressimport, F44 JSON-Konfiguration); java-llama.cpp und streambuffer
+  lesen keine Nutzer-Textdateien (nur Binärdaten in `ContentPart`, generierte Listen im Loader). Jacksons
+  YAML-Parser überspringt eine BOM, der JSON-Parser nicht.
 - 2026-10-17: Buchtext mit Backslashes nicht per `echo "…\\n…"` schreiben, das landet doppelt maskiert in der
   Datei; Python-Heredoc mit `'EOF'` verwenden und das Ergebnis mit `grep -o` gegenlesen.
