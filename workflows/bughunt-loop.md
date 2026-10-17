@@ -157,3 +157,7 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   mit dem Fix korrigiert (F45: n galt per Test als gültiger Schlüssel). Designentscheidung bleibt, was
   spezifikationskonform ist und nur eine Abwägung trifft (Teilbatch am Bereichsende). Bei `MAX_*`/`*_END`-
   Konstanten immer prüfen, ob die Grenze inklusiv oder exklusiv gemeint ist und so verwendet wird.
+- 2026-10-17: Abbrechbare Befehle und Producer (`shouldRun`/`interrupt()`) melden nach der Schleife gern
+  „done“/„finished“, auch wenn das Flag sie beendet hat (F46–F49: Export, Import, Delta, Secrets-Dateien).
+  Bei jeder abbrechbaren Arbeit prüfen, ob die Fertigmeldung das Flag berücksichtigt. Test: vor dem Lauf
+  `interrupt()` aufrufen (oder ein Consumer ruft es nach dem ersten Element) und mit LogCaptor prüfen.
