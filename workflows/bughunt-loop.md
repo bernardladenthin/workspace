@@ -141,3 +141,7 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
 - 2026-10-17: Nach einem Fund, der auf einem allgemeinen Muster beruht (falsche Annahme über eine Bibliothek,
   ein Idiom), in der nächsten Runde alle Ziele per `grep` nach demselben Muster absuchen, bevor zufällig
   weitergewählt wird. Die `readTree`-Durchsicht nach F37 fand so F38 und F39.
+- 2026-10-17: `mvn -q` gibt bei Erfolg nichts aus, und `$?` nach einer Pipe ist der Status von `grep`/`tail`,
+  nicht von Maven. Grün daher am Surefire-XML ablesen (`tests`, `failures`, `skipped`) und den
+  Maven-Status über `${PIPESTATUS[0]}` prüfen. Rot-Grün-Läufe, die länger als 2 Minuten brauchen, mit
+  `run_in_background` starten statt mit Vordergrund-Timeout.
