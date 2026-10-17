@@ -110,7 +110,8 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   `EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS` (checked → unchecked nur in einer an ein Interface gebundenen
   Methode wie `run()`, Helfer deklarieren die checked Exception). `synchronized`-Methoden scheitern an
   `USO_UNSAFE_METHOD_SYNCHRONIZATION`: privates Lock-Objekt, mit `@ToString.Exclude`, wenn die Klasse
-  `@ToString` trägt.
+  `@ToString` trägt. Eine Exception im Konstruktor meldet `CT_CONSTRUCTOR_THROW`: die Prüfung in eine statische
+  Methode im `super(...)`-Argument verlegen (F51), statt eine weitere Ausnahme einzutragen.
 - 2026-10-17: Races werden deterministisch, indem ein Fake im „nativen“ Aufruf festgehalten wird (Latch)
   und der zweite Thread bis `Thread.State.BLOCKED` oder Ende abgewartet wird. Native Aufrufe bekommen
   dafür eine paketinterne Naht (`Backend`-Interface, Muster `RpcServer.Backend`); die JNI-Methoden
