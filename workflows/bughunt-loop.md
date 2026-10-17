@@ -135,3 +135,6 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
   `grep -cvE '^\s*(\*|/\*\*|//|$)' <Datei>`. Eine 100-Zeilen-Exception war fast nur Javadoc. Stand
   heute haben nur noch wenige ungeprüfte Klassen 60+ Codezeilen; danach Schritt 2.3 (Schnittstellen
   zwischen Klassen) gleichrangig zu den kleinen Klassen behandeln.
+- 2026-10-17: Jackson `ObjectMapper.readTree("")` wirft nicht, sondern liefert `MissingNode` (serialisiert als
+  `null`). Code, der „unparsebar → Fallback“ nur über `catch (IOException)` regelt, verfehlt leere Eingaben
+  (F37). Bei jedem `readTree` auf Fremdtext prüfen, ob danach `isMissingNode()`/der erwartete Typ geprüft wird.
