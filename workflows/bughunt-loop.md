@@ -138,3 +138,6 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
 - 2026-10-17: Jackson `ObjectMapper.readTree("")` wirft nicht, sondern liefert `MissingNode` (serialisiert als
   `null`). Code, der „unparsebar → Fallback“ nur über `catch (IOException)` regelt, verfehlt leere Eingaben
   (F37). Bei jedem `readTree` auf Fremdtext prüfen, ob danach `isMissingNode()`/der erwartete Typ geprüft wird.
+- 2026-10-17: Nach einem Fund, der auf einem allgemeinen Muster beruht (falsche Annahme über eine Bibliothek,
+  ein Idiom), in der nächsten Runde alle Ziele per `grep` nach demselben Muster absuchen, bevor zufällig
+  weitergewählt wird. Die `readTree`-Durchsicht nach F37 fand so F38 und F39.
