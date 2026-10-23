@@ -11,6 +11,10 @@ only the snapshot uploader additionally needs `gh` and `GH_TOKEN`. CI checks out
 the same commit as the artifacts. Repository-specific paths and classifiers live in
 `.github/release-assets.json`, which is deliberately **not** shared.
 
+Release-upload checkouts use `persist-credentials: false`; the GitHub API receives its token
+explicitly. See [git-checkout-credentials.md](git-checkout-credentials.md) for the cross-repo
+authentication policy and Git's separate-token pattern.
+
 ## Collect and check the expected deliverables
 
 ```bash

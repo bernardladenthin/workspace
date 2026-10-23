@@ -68,6 +68,14 @@ complete signed collection. Generic checks and each real POM/config contract are
 an actual dispatch/publish is still required after merge. Interface and synchronization rules:
 [`policies/release-asset-scripts.md`](policies/release-asset-scripts.md).
 
+**Release Git authentication — same coordinated branch.** All four Java repositories disable
+persisted checkout credentials in their snapshot/versioned asset-upload jobs (API tokens are
+explicit); a shared regression test enforces this. The cross-repo audit found one custom Git push,
+jllama's source mirror: both checkouts now opt out, the mirror token is scoped to its exact URL
+and passed through Git's `--config-env`, and failed remote lookups propagate. Local regression
+tests use dummy credentials and intercept all network operations. Rationale and upstream sources:
+[`policies/git-checkout-credentials.md`](policies/git-checkout-credentials.md).
+
 Files kept **byte-identical across repos** are listed, with their SHA-256, in **each repository's own
 manifest** — that manifest is the reference for what must stay equal, and each repository's
 `shared-files` job checks it on every run (a copy changed in one repository alone **fails**; a copy
