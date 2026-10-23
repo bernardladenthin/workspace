@@ -56,6 +56,18 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 
 ### Cross-repo byte-identical files — the `shared-files` job
 
+**Release-asset scripts — coordinated branch `refactor/shared-release-checks` (all four Java
+repos + workspace; not yet merged to main).** The collector, signature reporter, snapshot updater,
+their library/tests and the complete `github-snapshot` job are byte-identical and checksummed in
+all four checkouts. Per-repo `.github/release-assets.json` declares only the differences (native
+CSV, Android publications, BOMs, standalone projects, fat jars); streambuffer needs only
+`{"schema": 1}`. srcmorph stages deploy-signed Maven outputs before rebuilding, then collects the
+staged files plus separately signed fat jars; its build loop reads classifiers from the same JSON.
+Snapshot updates serialize upload/tag/notes/pruning, reject older runs and only promote/prune a
+complete signed collection. Generic checks and each real POM/config contract are tested locally;
+an actual dispatch/publish is still required after merge. Interface and synchronization rules:
+[`policies/release-asset-scripts.md`](policies/release-asset-scripts.md).
+
 Files kept **byte-identical across repos** are listed, with their SHA-256, in **each repository's own
 manifest** — that manifest is the reference for what must stay equal, and each repository's
 `shared-files` job checks it on every run (a copy changed in one repository alone **fails**; a copy
@@ -73,8 +85,8 @@ repository at a time). This file only links; the lists live next to the files:
 `python3 .github/check-shared-files.py --write` in each (it recomputes the hashes of the listed
 files). **Jobs, too:** an entry `.github/workflows/publish.yml#<job>` hashes one job of the workflow, so
 the jobs kept identical inside four otherwise different `publish.yml` files (`startgate`,
-`shared-files`, `verify-signing-key`, `check-snapshot`, `check-tag`; in the three Maven-only repos also
-`verify-signing-key-gradle`, `github-snapshot`, `github-release`) are checked like files instead of by
+`shared-files`, `verify-signing-key`, `verify-signing-key-gradle`, `check-snapshot`, `check-tag`,
+`github-snapshot`; in the three Maven-only repos also `github-release`) are checked like files instead of by
 convention. The same job runs `check-versions.py`, which warns where a Maven dependency or plugin is
 used in another version than in a sibling, and `check-run-scripts.py`, which fails when a bash
 `run:` script of a workflow or composite action does not parse (`bash -n`). Forgetting one is not a disaster — its job says so and the history shows it — but nobody can
@@ -85,8 +97,9 @@ repository and a `sha256sum` line for it in each manifest.
 action would pin it by SHA (Scorecard's pinned-dependencies rule), it would need a release process
 of its own, and a checkout of a second repository in CI; copies keep each repository self-contained,
 and the manifest makes the duplication explicit instead of accidental. The shared set: the build-check
-library (`.github/buildcheck/{__init__,workflow,releasegate,sharedfiles,versions,runscripts}.py`, its
-tests, and the `check-*.py` entry points), `print-crash-logs.sh`, `print-host-info.sh`,
+library (`.github/buildcheck/{__init__,workflow,releasegate,sharedfiles,versions,runscripts,releaseassets,snapshot}.py`, its
+tests, the `check-*.py`, `collect-release-assets.py`, `report-asset-signatures.py` and `update-snapshot.py`
+entry points, plus `release-assets.json.license`), `print-crash-logs.sh`, `print-host-info.sh`,
 `verify-signing-key.sh`, `verify-bytecode-version.sh`, the signing self-test (`.github/signing-selftest/`),
 the issue/PR templates, `CODE_OF_CONDUCT.md`, `smoke-fatjar-cli.sh` (BAF + srcmorph; `sign-fatjars.sh`
 was jllama + srcmorph until jllama dropped its fat jars with the modular natives, 6.0.0), `lombok.config` (jllama at `llama/lombok.config`; matched by file name there),

@@ -67,18 +67,19 @@ artifacts were already uploaded, and if Central is unreachable the GitHub assets
 to get the build output at all. Withholding them because something else went wrong is the worst
 outcome available.
 
-**So a signature check must not gate the upload.** Nothing upstream asserts that every attached jar
-has its detached `.asc`: the collection steps skip a missing signature with `[ -e "$f" ] || continue`,
-so a failed signing step yields an attach that looks complete and is not. The obvious fix — verify,
-and refuse to attach if anything is unsigned — reintroduces exactly the failure mode the `if:`
-condition exists to prevent.
+**So a signature check must not gate the upload.** The shared collector now requires every
+configured artifact and signature, while preserving available files on failure. Its
+`assets_complete` output controls snapshot promotion and pruning. The attach job still reports
+signature gaps independently, because a failed signing step must leave available artifacts
+accessible. See [release-asset-scripts.md](release-asset-scripts.md) for the shared interface.
 
 The ordering that satisfies both:
 
 1. **Report** (before the upload, `id: signatures`, never exits non-zero): emit one `::error::`
-   annotation per unsigned artifact -- every attachable type, `*.jar`, `*.aar` and `*.pom` (a
-   `*.jar`-only glob let jllama's AARs ship unsigned for months with a green job, measured 2026-10-12)
-   -- and one for the case where *nothing* was collected at all; write the count to `$GITHUB_OUTPUT`.
+   annotation per signature/artifact gap using `report-asset-signatures.py` -- every non-`.asc`
+   file, including jars, AARs, POMs, JSON and source archives -- and one for the case where *nothing*
+   was collected at all; write the count to `$GITHUB_OUTPUT`. Empty signatures and orphan signatures
+   count as errors too. This checks presence/size; the signing tools verify cryptographic validity.
 2. **Upload** — unconditionally, exactly as before.
 3. **Assert** (after the upload, `if: always() && steps.signatures.outputs.missing != '0'`): fail the
    job, naming the count.
@@ -86,16 +87,22 @@ The ordering that satisfies both:
 Assets always land. An unsigned release is still loudly red rather than quietly wrong. Use `-1` for
 "nothing was collected", so an empty asset directory is distinguishable from a signing failure.
 
-**Status:** landed in **all four repos** — srcmorph, jllama, BAF **and streambuffer**. In the three
-Maven-only repos the whole `github-snapshot` / `github-release` jobs are byte-identical and held so by
-`.github/shared-files.sha256` (`publish.yml#github-snapshot`, `#github-release`); jllama's
-`github-snapshot` / `github-release-signed` carry the same steps with job comments of their own, which
-is why they are not in its manifest. The two steps differ only in the asset directory name
-(`snapshot-assets` / `release-assets`), so a change to one must be synced to all four. Note the scope:
-this guard is about **release assets**, not about fat jars, so it applies to streambuffer too even
-though streambuffer ships no fat jar — it attaches signed thin jars like everyone else.
+**Status:** the coordinated `refactor/shared-release-checks` branches carry the shared reporter,
+collector and snapshot helper in **all four repos**, with byte-identical copies and tests in
+`.github/shared-files.sha256`. The whole `github-snapshot` job is now shared across all four;
+`github-release` remains shared across the three Maven-only repositories. jllama's versioned
+attach job is still named `github-release-signed`. Both upload paths invoke the same reporter,
+with only the asset-directory argument differing.
 
-**What the collect steps copy (since 2026-10-12): everything Central gets.** Every module's jars with
+**What the collect steps copy: everything Central gets, plus configured GitHub-only fat jars.**
+`collect-release-assets.py` reads each repository's `.github/release-assets.json` and discovers
+its Maven modules automatically. It requires exact current-version outputs, excluding stale and
+third-party jars. jllama enables CycloneDX collection (`target/bom.json[.asc]` renamed to the
+module's Central filename), includes the FFM module and standalone agent, and declares Android,
+native classifiers and the upstream source archive as extra files. The other Maven builds do not
+attach CycloneDX files and leave that option disabled.
+
+The underlying Maven/Gradle locations remain: every module's jars with
 their `.asc` and every module's `<artifactId>-<version>.pom` + `.pom.asc` -- maven-gpg writes both into
 `target/`, also for a pom-only module (jllama's `llama-parent` and `llama-platform`, srcmorph's
 `srcmorph-parent`); jllama additionally the two AARs with the `.aar.asc` Gradle writes next to them,
@@ -118,12 +125,17 @@ still carried `fb-contrib-7.6.4.jar`, `fb-contrib-7.7.4.jar` and `findsecbugs-pl
 SpotBugs plugin jars an older collect step uploaded from `target/spotbugs/` in 2026-05/06; BAF (14)
 carried the previous version's six jars.
 
-So `github-snapshot` ends with a step that deletes every asset the run did not upload, in all four
-repos (the same step text everywhere):
+So `github-snapshot` uses the common `update-snapshot.py` helper in all four repositories.
+The whole upload/tag/notes/prune operation is serialized with a stable job concurrency group;
+older commits or older runs/attempts of the same commit cannot overwrite a promoted snapshot.
+After a **complete signed collection and successful upload**, the helper moves the source tag
+to the build commit, updates notes with the commit and run, and deletes every asset outside the
+upload set. Incomplete collections upload available files, then fail while retaining the existing
+tag, notes and other assets:
 
 - the **keep-set is the asset directory the run uploaded**, never a version pattern -- a pattern has
   to be re-taught at every classifier added or dropped, which is how the 43 stale shapes arose;
-- **after the upload**, so a failed upload leaves the release as it was, never emptier;
+- **after a successful complete upload**, so failed/incomplete uploads do not prune the release;
 - **every deletion is printed by name**, so the job log is the audit trail;
 - `github-release` / `github-release-signed` **never delete**: a versioned `v*` release is history.
 
@@ -139,9 +151,10 @@ The step has three guards, and they come from the job's own history rather than 
   uploaded from an empty directory; BAF, 2026-07-12, dispatched on a non-`SNAPSHOT` version) and `gh
   release upload snapshot snapshot-assets/*` fails on the unexpanded glob -- but the guard makes the
   invariant explicit instead of a consequence of step order.
-- **An asset that is already gone counts as removed.** A failed `delete-asset` is followed by one
-  re-read of the release: name absent means another run of this job (or a hand deletion) got there
-  first, which is the outcome the step wants; name still present is a real failure.
+- **An asset that is already gone counts as removed.** An API deletion returning HTTP 404 is
+  tolerated; authentication and other API failures remain errors. Every asset page is read before
+  deleting anything, so deletions cannot shift a later page and make stale files disappear from
+  the scan.
 - **A failed deletion is reported and the rest are still tried**; the step fails afterwards. The
   assets of this upload are on the release either way, so this is "attach first, then red" like the
   signature check. Nothing is swallowed with `|| true` -- that is what hid the GitHub Packages
@@ -261,7 +274,8 @@ its Java baseline.
   `java-llama.cpp/.github/natives.csv` (a `kind` column since 5.2.0: `library` jars and additive GPU
   `module` jars); jllama's pom executions, `llama-platform`, workflow artifacts, smoke sets and the
   loader's backend lists are checked against it (`check-natives.py`), and `package-smoke-sets.sh`
-  reads it. srcmorph's `publish.yml` hardcodes its classifier array (the rows with `platform=no`
+  reads it. srcmorph's `.github/release-assets.json` declares the classifier list consumed by both
+  its build loop and collector (the rows with `platform=no`
   except the Android ones) — **on a `net.ladenthin:llama` version bump, re-check that array against
   `natives.csv`**: with 5.2.0's modular natives the `cpu-windows-x86`, `msvc-windows-*` and
   `sycl-fp16`/`sycl-fp32` classifiers are gone and a GPU classifier is one module jar that needs the
