@@ -60,7 +60,7 @@ Optional settings, illustrated with generic names:
 }
 ```
 
-- `schema` is required and currently `1`. Unknown keys fail to catch configuration typos.
+- `schema` is required and currently `1`. Unknown keys cause validation to fail, which catches configuration typos.
 - `maven.standalone` adds separately published Maven projects with the same version.
 - `maven.cyclonedx` defaults to false. When true, every reactor module's `target/bom.json` and
   `.asc` are renamed to `<artifactId>-<version>-cyclonedx.json[.asc]`. Standalone projects are
