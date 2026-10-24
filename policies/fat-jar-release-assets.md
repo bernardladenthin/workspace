@@ -52,67 +52,20 @@ plain `git push` of a `v*` tag does **not** attach any assets. To ship the fat j
 the publish workflow manually with that input set (the same way the thin jars have always been
 attached). Symptom of forgetting: a tag release with `assets: []`.
 
-## Attach first, then go red — never withhold assets over a missing signature
+## Verify locally, then publish independently
 
-All repos that attach assets run their attach job (`github-release`, `github-snapshot`,
-jllama's `github-release-signed`) even when the publish job **failed**:
+All intended artifacts must be built and signed before publication. The shared preflight
+verifies the complete local contract, every detached signature and Central/GitHub byte equality,
+then freezes a checksummed handoff. Missing or invalid local output fails before either upload.
 
-```yaml
-if: ${{ !cancelled() && (needs.publish-release.result == 'success'
-                         || needs.publish-release.result == 'failure') }}
-```
+Central and GitHub Release then consume the same checked files independently. Neither waits
+for the other. A Central error cannot hide the signed GitHub files, and slow Portal validation
+must not hold a build open: release uploads request automatic publication and return after
+upload acceptance. Never rebuild or re-sign between the gate and either consumer.
 
-That is deliberate and load-bearing. A Central publish-poll timeout reds the publish job *after* the
-artifacts were already uploaded, and if Central is unreachable the GitHub assets are the **only** way
-to get the build output at all. Withholding them because something else went wrong is the worst
-outcome available.
-
-**So a signature check must not gate the upload.** The shared collector now requires every
-configured artifact and signature, while preserving available files on failure. Its
-`assets_complete` output controls snapshot promotion and pruning. The attach job still reports
-signature gaps independently, because a failed signing step must leave available artifacts
-accessible. See [release-asset-scripts.md](release-asset-scripts.md) for the shared interface.
-
-The ordering that satisfies both:
-
-1. **Report** (before the upload, `id: signatures`, never exits non-zero): emit one `::error::`
-   annotation per signature/artifact gap using `report-asset-signatures.py` -- every non-`.asc`
-   file, including jars, AARs, POMs, JSON and source archives -- and one for the case where *nothing*
-   was collected at all; write the count to `$GITHUB_OUTPUT`. Empty signatures and orphan signatures
-   count as errors too. This checks presence/size; the signing tools verify cryptographic validity.
-2. **Upload** — unconditionally, exactly as before.
-3. **Assert** (after the upload, `if: always() && steps.signatures.outputs.missing != '0'`): fail the
-   job, naming the count.
-
-Assets always land. An unsigned release is still loudly red rather than quietly wrong. Use `-1` for
-"nothing was collected", so an empty asset directory is distinguishable from a signing failure.
-
-**Status:** the coordinated `refactor/shared-release-checks` branches carry the shared reporter,
-collector and snapshot helper in **all four repos**, with byte-identical copies and tests in
-`.github/shared-files.sha256`. The whole `github-snapshot` job is now shared across all four;
-`github-release` remains shared across the three Maven-only repositories. jllama's versioned
-attach job is still named `github-release-signed`. Both upload paths invoke the same reporter,
-with only the asset-directory argument differing.
-
-**What the collect steps copy: everything Central gets, plus configured GitHub-only fat jars.**
-`collect-release-assets.py` reads each repository's `.github/release-assets.json` and discovers
-its Maven modules automatically. It requires exact current-version outputs, excluding stale and
-third-party jars. jllama enables CycloneDX collection (`target/bom.json[.asc]` renamed to the
-module's Central filename), includes the FFM module and standalone agent, and declares Android,
-native classifiers and the upstream source archive as extra files. The other Maven builds do not
-attach CycloneDX files and leave that option disabled.
-
-The underlying Maven/Gradle locations remain: every module's jars with
-their `.asc` and every module's `<artifactId>-<version>.pom` + `.pom.asc` -- maven-gpg writes both into
-`target/`, also for a pom-only module (jllama's `llama-parent` and `llama-platform`, srcmorph's
-`srcmorph-parent`); jllama additionally the two AARs with the `.aar.asc` Gradle writes next to them,
-their poms (`build/publications/<publication>/pom-default.xml` + `.asc`, renamed to
-`<artifactId>-<version>.pom`) and the sources/javadoc jars under `build/distributions/`, and the
-agent's thin jar. Measured against Central's snapshot metadata before the change: the release had no
-`.pom` at all, `llama-platform` -- the artifact consumers are told to depend on -- was absent entirely,
-and the AARs were attached without their existing `.asc`. After a run, the release's asset set should
-equal every module's Central `maven-metadata.xml` (each classifier/extension listed there) minus the
-checksum files Central keeps and the release does not.
+This supersedes the earlier attach-unsigned-then-fail procedure. See
+[publication-preflight.md](publication-preflight.md) for the complete sequence and shared tools,
+and [release-asset-scripts.md](release-asset-scripts.md) for the collector contract.
 
 ## The `snapshot` pre-release holds exactly the current upload
 

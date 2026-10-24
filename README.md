@@ -25,6 +25,7 @@ guides/src/CODE_WRITING_GUIDE-8.md       Production-code conventions (Java 8 bas
 guides/src/CODE_WRITING_GUIDE-21.md      Java 21 production-code supplement (extends -8.md)
 guides/test/TEST_WRITING_GUIDE-8.md      Test conventions (Java 8 baseline, Jupiter + Hamcrest)
 guides/test/TEST_WRITING_GUIDE-21.md     Java 21 test supplement (extends -8.md)
+policies/publication-preflight.md       Local signed gate and independent Central/GitHub uploads
 policies/dependency-license-review.md    FOSSA evidence and runtime notice distribution
 policies/javadoc-conventions.md          HTML-entity rules for Javadoc
 policies/spotbugs-suppressions.md        spotbugs-exclude.xml maintenance

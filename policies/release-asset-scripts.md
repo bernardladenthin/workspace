@@ -33,10 +33,10 @@ and third-party plugin dependencies do not become release assets.
 Every expected artifact and `.asc` must exist and be nonempty. Missing files fail the collector,
 but all available expected files are copied first. `complete=true|false` is written to
 `GITHUB_OUTPUT` even on a collection error; the publish job exports
-`assets_complete: ${{ steps.collect.outputs.complete }}`. Upload-artifact runs with
-`if: ${{ !cancelled() }}` so a failed deploy or collection still yields available downloads.
+`assets_complete: ${{ steps.collect.outputs.complete }}`. The publication handoff upload runs only after the final preflight succeeds. Central transfer
+is a later independent job, so a Central failure cannot remove that already secured handoff.
 
-Minimal configuration for a plain Maven library (streambuffer):
+Minimal configuration for a plain Maven library:
 
 ```json
 {"schema": 1}
@@ -65,7 +65,8 @@ Optional settings, illustrated with generic names:
 - `maven.cyclonedx` defaults to false. When true, every reactor module's `target/bom.json` and
   `.asc` are renamed to `<artifactId>-<version>-cyclonedx.json[.asc]`. Standalone projects are
   excluded. Enable this only where the Maven build actually attaches that BOM.
-- Each `files` rule names **one** required artifact per classifier. `source` is relative to the
+- Each `files` rule names **one** required artifact per classifier. `central: true` marks an extra
+  for Central staging verification; it defaults to false. `source` is relative to the
   repository and may contain a glob, which must match exactly one path. `name` optionally renames
   the artifact; its signature is copied with the same name plus `.asc`.
 - The only template parameters are `{version}` and `{classifier}`. `classifiers` defaults to
@@ -95,17 +96,15 @@ Missing staged files still fail the final collection. `--list-classifiers` takes
 file-rule index and lets the build and verifier consume one classifier list. The CPU build
 remains last; the structural native-content checks and signing stay in srcmorph.
 
-## Report signatures, attach, then fail
+## Gate publication before uploading
 
-```bash
-python3 .github/report-asset-signatures.py snapshot-assets
-```
+The publication workflow stages and signs locally, then uses `publication.py prepare` to
+cryptographically verify and freeze the complete contract. Central and GitHub Release consume
+that same GitHub-Actions handoff independently. See [publication-preflight.md](publication-preflight.md)
+for the shared CLI, configuration, checksums and asynchronous Central transfer.
 
-The reporter checks every non-`.asc` file, regardless of extension, including JSON and archives.
-It reports absent/empty artifacts or signatures and orphan signatures. This is a presence/size
-check; the signing tools verify cryptographic signatures. It writes `missing=<count>` (`-1` for
-no artifacts) and returns success so the upload can run. After uploading, the workflow fails if
-`steps.signatures.outputs.missing != '0'`. Keep that order, also for versioned releases.
+`report-asset-signatures.py` remains a diagnostic presence/size reporter; it is not the
+publication gate. Publish jobs no longer attach unsigned files and fail afterwards.
 
 ## Update the rolling snapshot
 
@@ -115,13 +114,13 @@ ASSETS_COMPLETE=true python3 .github/update-snapshot.py snapshot-assets
 ```
 
 CI supplies `GITHUB_REPOSITORY`, `GITHUB_SHA`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT` and passes the
-collector's result through `ASSETS_COMPLETE`. The complete job is serialized by
+successful preflight result through `ASSETS_COMPLETE`. The complete job is serialized by
 `snapshot-release-${{ github.repository }}` with `cancel-in-progress: false` in all four repos.
 If another channel is introduced, give it a distinct but stable serialization group.
 
 The helper compares commit ancestry and the recorded run/attempt before any upload. Superseded
-runs are skipped; divergent histories fail. It uploads available files before reporting an
-incomplete collection. Only a complete signed upload advances the source tag and release notes,
+runs are skipped; divergent histories fail. The workflow calls it only with a complete, preflight-verified collection. Its legacy direct-call
+partial-upload path is not used by publishing workflows. Only a complete signed upload advances the source tag and release notes,
 then prunes assets outside the uploaded set. Existing release IDs are retained. All asset pages
 are read before deletion, HTTP 404 is tolerated for already removed assets, other failures are
 reported after trying the remaining deletions. Versioned releases are never pruned.
@@ -131,7 +130,8 @@ reported after trying the remaining deletions. Versioned releases are never prun
 Change shared code, entry points and tests in every consumer, then run
 `python3 .github/check-shared-files.py --write` in each. The config's `.license` sidecar is shared;
 the JSON itself differs. `github-snapshot` is a shared job across all four; `github-release` is
-shared across the three Maven-only repositories. Keep job-level changes synchronized too.
+shared across the three Maven-only repositories. The Central transfer jobs and publication helper
+are identical across all four consumers. Keep job-level changes synchronized too.
 
 Run `python3 -m unittest discover -s .github/buildcheck/tests -t .github`, the offline shared-file
 check, release-gate and run-script checks, and actionlint in each checkout. The common tests cover
