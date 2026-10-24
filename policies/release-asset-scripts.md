@@ -32,8 +32,9 @@ and third-party plugin dependencies do not become release assets.
 
 Every expected artifact and `.asc` must exist and be nonempty. Missing files fail the collector,
 but all available expected files are copied first. `complete=true|false` is written to
-`GITHUB_OUTPUT` even on a collection error; the publish job exports
-`assets_complete: ${{ steps.collect.outputs.complete }}`. The publication handoff upload runs only after the final preflight succeeds. Central transfer
+`GITHUB_OUTPUT` even on a collection error; the collector output is diagnostic. The publish job exports
+`assets_complete: ${{ steps.finalize.outputs.complete }}` from the shared finalization action
+only after the complete package has passed the gate and its handoff upload has succeeded. The publication handoff upload runs only after the final preflight succeeds. Central transfer
 is a later independent job, so a Central failure cannot remove that already secured handoff.
 
 Minimal configuration for a plain Maven library:
@@ -99,8 +100,9 @@ remains last; the structural native-content checks and signing stay in srcmorph.
 ## Gate publication before uploading
 
 The publication workflow stages and signs locally, then uses `publication.py prepare` to
-cryptographically verify and freeze the complete contract. Central and GitHub Release consume
-that same GitHub-Actions handoff independently. See [publication-preflight.md](publication-preflight.md)
+cryptographically verify and freeze the complete contract. Central, GitHub Release and provenance attestation consume
+that same GitHub Actions handoff independently. The common
+`.github/actions/finalize-publication/action.yml` collects, verifies and secures the package. See [publication-preflight.md](publication-preflight.md)
 for the shared CLI, configuration, checksums and asynchronous Central transfer.
 
 `report-asset-signatures.py` remains a diagnostic presence/size reporter; it is not the
@@ -129,8 +131,8 @@ reported after trying the remaining deletions. Versioned releases are never prun
 
 Change shared code, entry points and tests in every consumer, then run
 `python3 .github/check-shared-files.py --write` in each. The config's `.license` sidecar is shared;
-the JSON itself differs. `github-snapshot` is a shared job across all four; `github-release` is
-shared across the three Maven-only repositories. The Central transfer jobs and publication helper
+the JSON itself differs. The `github-snapshot`, `github-release`, `central-snapshot`, `central-release`,
+`attest-snapshot` and `attest-release` jobs and the finalization composite action
 are identical across all four consumers. Keep job-level changes synchronized too.
 
 Run `python3 -m unittest discover -s .github/buildcheck/tests -t .github`, the offline shared-file
