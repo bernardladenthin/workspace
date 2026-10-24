@@ -1,5 +1,7 @@
 # workspace
 
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/bernardladenthin/workspace?utm_source=oss&utm_medium=github&utm_campaign=bernardladenthin%2Fworkspace&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
 Cross-repo shared layer for Bernard Ladenthin's Java repositories.
 
 This repo is the **single source of truth** for content that applies to
@@ -23,6 +25,7 @@ guides/src/CODE_WRITING_GUIDE-8.md       Production-code conventions (Java 8 bas
 guides/src/CODE_WRITING_GUIDE-21.md      Java 21 production-code supplement (extends -8.md)
 guides/test/TEST_WRITING_GUIDE-8.md      Test conventions (Java 8 baseline, Jupiter + Hamcrest)
 guides/test/TEST_WRITING_GUIDE-21.md     Java 21 test supplement (extends -8.md)
+policies/dependency-license-review.md    FOSSA evidence and runtime notice distribution
 policies/javadoc-conventions.md          HTML-entity rules for Javadoc
 policies/spotbugs-suppressions.md        spotbugs-exclude.xml maintenance
 policies/jqwik-prompt-injection.md       jqwik pin + incident note
