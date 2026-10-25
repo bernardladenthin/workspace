@@ -119,9 +119,8 @@ its upload is complete. An actual dispatch/publish is still required after merge
 
 **Release Git authentication — same coordinated branch.** All four Java repositories disable
 persisted checkout credentials in their asset-upload jobs (API tokens are explicit), and the
-publication-wiring check enforces it. The cross-repo audit found one custom Git push, jllama's source
-mirror: both checkouts now opt out, the mirror token is scoped to its exact URL and passed through
-Git's `--config-env`, and failed remote lookups propagate. Rationale and upstream sources:
+publication-wiring check enforces it. The one custom Git push the cross-repo audit found, jllama's
+source mirror, was removed on 2026-10-25. Rationale and upstream sources:
 [`policies/git-checkout-credentials.md`](policies/git-checkout-credentials.md).
 
 ## Deliberate non-parity (NOT drift)

@@ -22,39 +22,17 @@ authenticated Git commands. Make the repository and required permissions explici
 `GITHUB_TOKEN` is scoped to the workflow repository; pushing to another repository needs an
 identity authorized for that destination. Use a token limited to the required repository and
 permissions; a GitHub App installation token is suitable where an App is already provisioned,
-otherwise a suitably scoped fine-grained PAT can supply the existing secret.
+otherwise a suitably scoped fine-grained PAT.
 
 ## A separate token for a Git push
 
-java-llama.cpp's release-only `mirror-llama-source` is the only custom authenticated Git push
-found in the four Java repositories. Both of its checkouts disable persisted credentials.
-`LLAMA_MIRROR_TOKEN` is provided only to the push step and needs `contents: write` on
-`bernardladenthin/llama.cpp`. The workflow's own token remains `contents: read`.
-
-The script scopes its HTTP authorization header to the exact mirror URL and passes its value
-through `--config-env` (Git 2.31+), not through a token-bearing URL or command-line value:
-
-```bash
-# MIRROR_URL is a validated https://github.com/owner/repo.git URL.
-# JLLAMA_MIRROR_AUTH_HEADER is exported from the step's mirror secret.
-GIT_TERMINAL_PROMPT=0 git -C "$SRC" \
-  -c "credential.$MIRROR_URL.helper=" \
-  -c "http.$MIRROR_URL.extraheader=" \
-  --config-env="http.$MIRROR_URL.extraheader=JLLAMA_MIRROR_AUTH_HEADER" \
-  push "$MIRROR_URL" "$HEAD_COMMIT:$REF"
-```
-
-An empty header resets inherited values for that URL before adding the intended one, including
-an existing exact-URL header. The URL-specific empty credential helper prevents fallback to an
-unrelated stored identity. There are no persistent Git-config writes; the raw/encoded secret is
-absent from Git's argv. In Actions the encoded value is masked; outside Actions the script never
-prints it. An unsuccessful remote tag lookup fails the step instead of being mistaken for an
-absent tag. Existing matching tags remain idempotent; different tags are never force-updated.
-
-The repository-specific mirror regression tests create a temporary Git repository with included
-checkout credentials and stale mirror credentials. Real Git resolves the effective configuration;
-network reads/writes are intercepted. The tests check the chosen identity, argv, unchanged config,
-lookup/push failures and idempotency without using real tokens or contacting GitHub.
+None of the four Java repositories pushes with Git from a workflow. java-llama.cpp's
+`mirror-llama-source`, which pushed each release's pinned llama.cpp commit to a fork with a token of
+its own, was removed on 2026-10-25: the owner maintains that fork. Should a workflow need a Git
+push to another repository again, give it a token scoped to that repository and to
+`contents: write`, only in the push step, keep the checkouts at `persist-credentials: false`, and
+pass the authorization header through `--config-env` scoped to the exact URL rather than in a
+token-bearing URL or a command-line value (see the Git sources below).
 
 ## Sources and scope of the cross-repository check
 
@@ -66,6 +44,5 @@ lookup/push failures and idempotency without using real tokens or contacting Git
   specificity of URL matching; `http.extraHeader` supports clearing inherited headers with an empty value.
 
 The audit covered workflows, composite actions and shell scripts in java-llama.cpp,
-BitcoinAddressFinder, srcmorph and streambuffer, plus workspace automation. The three other Java
-repositories use explicit API tokens for release uploads and contain no corresponding custom
-Git push/header override. Public upstream fetches in java-llama.cpp do not require its mirror token.
+BitcoinAddressFinder, srcmorph and streambuffer, plus workspace automation. All four use explicit API
+tokens for release uploads and contain no custom Git push or header override.
