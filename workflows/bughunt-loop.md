@@ -92,12 +92,13 @@ nächsten Runde. Der Loop läuft, bis der Nutzer ihn stoppt; es gibt keine Endze
 8. **Keine PRs.** Ein Push startet keine Pipeline, ein PR schon, und die dauert lange. Braucht ein Fund
    unbedingt CI (etwa einen Test, der nur dort laufen kann), wird das im Eintrag unter **CI-Bedarf**
    notiert und weitergemacht. CI macht der Nutzer am Schluss gemeinsam mit dir. Ebenso tabu: GitHub-
-   Kommentare und Änderungen an Dateien aus `.github/shared-files.sha256`.
+   Kommentare und Änderungen an Dateien, die Vorlagen von bernardladenthin/actions sind (Abschnitt
+   `templates` in `.github/actions-config.json`), und am Repository bernardladenthin/actions selbst.
 9. **Selbst verbessern.** Hat die Runde etwas gezeigt, das künftige Runden schneller oder sicherer macht
    (eine Falle, ein Gate, das fehlte, ein Werkzeug, das nicht erreichbar ist), ergänze es unten unter
    „Erkenntnisse“: eine Zeile mit Datum und Begründung, committet und gepusht im Repo `workspace` auf
    `ccr-90fc5f6a-vs4s0f`. Der Loop darf Regeln schärfen und präzisieren, aber nie lockern: Rot-Grün-
-   Zyklus, Gates, „keine PRs“, „kein force-push“, „keine shared-files“ und die Zielgrenzen bleiben.
+   Zyklus, Gates, „keine PRs“, „kein force-push“, „keine Vorlagen-Dateien“ und die Zielgrenzen bleiben.
    Größere Umbauten dieser Datei gehören in eine Notiz an den Nutzer, nicht in einen stillen Edit.
 10. **Kurz berichten und weiter.** Eine kurze sichtbare Zeile, was die Runde gefunden oder geprüft hat.
     Dann `ScheduleWakeup` mit 60 s und genau dem Aufruf oben als `prompt`.

@@ -52,60 +52,20 @@ plain `git push` of a `v*` tag does **not** attach any assets. To ship the fat j
 the publish workflow manually with that input set (the same way the thin jars have always been
 attached). Symptom of forgetting: a tag release with `assets: []`.
 
-## Attach first, then go red — never withhold assets over a missing signature
+## Verify locally, then publish independently
 
-All repos that attach assets run their attach job (`github-release`, `github-snapshot`,
-jllama's `github-release-signed`) even when the publish job **failed**:
+All intended artifacts must be built and signed before publication. The shared preflight
+verifies the complete local contract, every detached signature and Central/GitHub byte equality,
+then freezes a checksummed handoff. Missing or invalid local output fails before either upload.
 
-```yaml
-if: ${{ !cancelled() && (needs.publish-release.result == 'success'
-                         || needs.publish-release.result == 'failure') }}
-```
+Central and GitHub Release then consume the same checked files independently. Neither waits
+for the other. A Central error cannot hide the signed GitHub files, and slow Portal validation
+must not hold a build open: release uploads request automatic publication and return after
+upload acceptance. Never rebuild or re-sign between the gate and either consumer.
 
-That is deliberate and load-bearing. A Central publish-poll timeout reds the publish job *after* the
-artifacts were already uploaded, and if Central is unreachable the GitHub assets are the **only** way
-to get the build output at all. Withholding them because something else went wrong is the worst
-outcome available.
-
-**So a signature check must not gate the upload.** Nothing upstream asserts that every attached jar
-has its detached `.asc`: the collection steps skip a missing signature with `[ -e "$f" ] || continue`,
-so a failed signing step yields an attach that looks complete and is not. The obvious fix — verify,
-and refuse to attach if anything is unsigned — reintroduces exactly the failure mode the `if:`
-condition exists to prevent.
-
-The ordering that satisfies both:
-
-1. **Report** (before the upload, `id: signatures`, never exits non-zero): emit one `::error::`
-   annotation per unsigned artifact -- every attachable type, `*.jar`, `*.aar` and `*.pom` (a
-   `*.jar`-only glob let jllama's AARs ship unsigned for months with a green job, measured 2026-10-12)
-   -- and one for the case where *nothing* was collected at all; write the count to `$GITHUB_OUTPUT`.
-2. **Upload** — unconditionally, exactly as before.
-3. **Assert** (after the upload, `if: always() && steps.signatures.outputs.missing != '0'`): fail the
-   job, naming the count.
-
-Assets always land. An unsigned release is still loudly red rather than quietly wrong. Use `-1` for
-"nothing was collected", so an empty asset directory is distinguishable from a signing failure.
-
-**Status:** landed in **all four repos** — srcmorph, jllama, BAF **and streambuffer**. In the three
-Maven-only repos the whole `github-snapshot` / `github-release` jobs are byte-identical and held so by
-`.github/shared-files.sha256` (`publish.yml#github-snapshot`, `#github-release`); jllama's
-`github-snapshot` / `github-release-signed` carry the same steps with job comments of their own, which
-is why they are not in its manifest. The two steps differ only in the asset directory name
-(`snapshot-assets` / `release-assets`), so a change to one must be synced to all four. Note the scope:
-this guard is about **release assets**, not about fat jars, so it applies to streambuffer too even
-though streambuffer ships no fat jar — it attaches signed thin jars like everyone else.
-
-**What the collect steps copy (since 2026-10-12): everything Central gets.** Every module's jars with
-their `.asc` and every module's `<artifactId>-<version>.pom` + `.pom.asc` -- maven-gpg writes both into
-`target/`, also for a pom-only module (jllama's `llama-parent` and `llama-platform`, srcmorph's
-`srcmorph-parent`); jllama additionally the two AARs with the `.aar.asc` Gradle writes next to them,
-their poms (`build/publications/<publication>/pom-default.xml` + `.asc`, renamed to
-`<artifactId>-<version>.pom`) and the sources/javadoc jars under `build/distributions/`, and the
-agent's thin jar. Measured against Central's snapshot metadata before the change: the release had no
-`.pom` at all, `llama-platform` -- the artifact consumers are told to depend on -- was absent entirely,
-and the AARs were attached without their existing `.asc`. After a run, the release's asset set should
-equal every module's Central `maven-metadata.xml` (each classifier/extension listed there) minus the
-checksum files Central keeps and the release does not.
+This supersedes the earlier attach-unsigned-then-fail procedure. See
+[publication-preflight.md](publication-preflight.md) for the complete sequence and shared tools,
+and [release-asset-scripts.md](release-asset-scripts.md) for the collector contract.
 
 ## The `snapshot` pre-release holds exactly the current upload
 
@@ -118,14 +78,23 @@ still carried `fb-contrib-7.6.4.jar`, `fb-contrib-7.7.4.jar` and `findsecbugs-pl
 SpotBugs plugin jars an older collect step uploaded from `target/spotbugs/` in 2026-05/06; BAF (14)
 carried the previous version's six jars.
 
-So `github-snapshot` ends with a step that deletes every asset the run did not upload, in all four
-repos (the same step text everywhere):
+So `github-snapshot` uses the common snapshot update (`java/publish-github` of bernardladenthin/actions) in all four repositories.
+The whole upload/tag/notes/prune operation is serialized with a stable job concurrency group;
+older commits or older runs/attempts of the same commit cannot overwrite a promoted snapshot.
+After a **complete signed collection and successful upload**, the helper moves the source tag
+to the build commit, updates notes with the commit and run, and deletes every asset outside the
+upload set. An incomplete collection never reaches the job (`github-snapshot` runs only on the
+publication gate's `assets_complete=true`), and the helper itself refuses one before any change:
 
 - the **keep-set is the asset directory the run uploaded**, never a version pattern -- a pattern has
   to be re-taught at every classifier added or dropped, which is how the 43 stale shapes arose;
-- **after the upload**, so a failed upload leaves the release as it was, never emptier;
+- **after a successful complete upload**, so failed/incomplete uploads do not prune the release;
+- **the first snapshot of a repository is a draft until its upload is complete**: no public
+  pre-release and no `snapshot` tag naming a build whose assets are not there yet; a draft that a
+  failed first upload left behind is reused by the next run;
 - **every deletion is printed by name**, so the job log is the audit trail;
-- `github-release` / `github-release-signed` **never delete**: a versioned `v*` release is history.
+- `github-release` **never deletes**, and the helper refuses a `v<digit>...` tag as the rolling
+  tag: a versioned `v*` release is history.
 
 Nothing is deleted by hand; the next snapshot run clears each repo's backlog by itself.
 
@@ -139,12 +108,13 @@ The step has three guards, and they come from the job's own history rather than 
   uploaded from an empty directory; BAF, 2026-07-12, dispatched on a non-`SNAPSHOT` version) and `gh
   release upload snapshot snapshot-assets/*` fails on the unexpanded glob -- but the guard makes the
   invariant explicit instead of a consequence of step order.
-- **An asset that is already gone counts as removed.** A failed `delete-asset` is followed by one
-  re-read of the release: name absent means another run of this job (or a hand deletion) got there
-  first, which is the outcome the step wants; name still present is a real failure.
+- **An asset that is already gone counts as removed.** An API deletion returning HTTP 404 is
+  tolerated; authentication and other API failures remain errors. Every asset page is read before
+  deleting anything, so deletions cannot shift a later page and make stale files disappear from
+  the scan.
 - **A failed deletion is reported and the rest are still tried**; the step fails afterwards. The
-  assets of this upload are on the release either way, so this is "attach first, then red" like the
-  signature check. Nothing is swallowed with `|| true` -- that is what hid the GitHub Packages
+  assets of this upload are on the release either way, so a failed prune leaves extra assets, never
+  missing ones. Nothing is swallowed with `|| true` -- that is what hid the GitHub Packages
   failures below for a day.
 
 **The history, from the four repos' `git log` and the Actions API (job logs expire after 90 days,
@@ -210,11 +180,10 @@ would be worse than the duplication it saves:
 | jllama | `smoke-agent-linux` | `smoke-agent.sh` → the published agent's thin jar + its dependencies on one classpath with the Linux x86-64 smoke set | bytecode ≤ 65 + the agent alone fails for the missing core + `--help` + a one-shot answer + a `read_file` round surfacing a marker (cached tool model) + `--web` + `--acp` |
 | sb | `smoke-jar` | `smoke-jar.sh` → `java -cp <jar> StreamBufferSmoke.java` | jar carries `module-info.class` + a real write/read/EOF round-trip through the API, exit 0 + marker |
 
-BAF and srcmorph share a **byte-identical `.github/smoke-fatjar-cli.sh`** (`<jar-dir> <jar-glob>
-<work-dir> <success-marker> [args…]`, plain `java -jar`, no extra JVM flags — the contract under
-test is that the published artifact runs as-is). Both CLIs derive from the same `cli.Main` pattern
-and log `Main#run end.`, which is what lets the marker be identical too. **Sync any edit to both
-copies, then `check-shared-files.py --write` in each** (both list it in `.github/shared-files.sha256`). jllama needs
+BAF and srcmorph run the **`java/smoke-fatjar-cli` action of bernardladenthin/actions** (inputs
+`jar-dir`, `jar-glob`, `work-dir`, `marker`, `args`; plain `java -jar`, no extra JVM flags — the
+contract under test is that the published artifact runs as-is). Both CLIs derive from the same `cli.Main` pattern
+and log `Main#run end.`, which is what lets the marker be identical too. jllama needs
 its own scripts: its Main-Class is a server that never exits, so "exit 0" is not a contract it can
 satisfy, and on macOS the assertion that matters is native loadability rather than any CLI
 behaviour.
@@ -261,7 +230,8 @@ its Java baseline.
   `java-llama.cpp/.github/natives.csv` (a `kind` column since 5.2.0: `library` jars and additive GPU
   `module` jars); jllama's pom executions, `llama-platform`, workflow artifacts, smoke sets and the
   loader's backend lists are checked against it (`check-natives.py`), and `package-smoke-sets.sh`
-  reads it. srcmorph's `publish.yml` hardcodes its classifier array (the rows with `platform=no`
+  reads it. srcmorph's `.github/release-assets.json` declares the classifier list consumed by both
+  its build loop and collector (the rows with `platform=no`
   except the Android ones) — **on a `net.ladenthin:llama` version bump, re-check that array against
   `natives.csv`**: with 5.2.0's modular natives the `cpu-windows-x86`, `msvc-windows-*` and
   `sycl-fp16`/`sycl-fp32` classifiers are gone and a GPU classifier is one module jar that needs the
@@ -272,18 +242,15 @@ its Java baseline.
   `.github/sign-fatjars.sh` (dual-licensed `MIT OR Apache-2.0`) — it imports the key into an
   ephemeral keyring and produces a verified detached armored `.asc` for every
   `*-jar-with-dependencies*.jar` in a directory. It was byte-identical with jllama's copy until
-  jllama dropped its fat jars (5.2.0); srcmorph's `shared-files.sha256` still lists it, which is why
-  its `shared-files` job warns about the sibling until the entry is removed there. BAF does **not**
+  jllama dropped its fat jars (5.2.0); it is srcmorph's own now. BAF does **not**
   use it: its single fat jar is an *attached* Maven artifact, so `maven-gpg-plugin` signs it directly
   during the `verify` run.
 - **Signature convention.** New fat-jar-shipping surfaces should sign with a detached armored
   `.asc` using the `maven-central`-scoped key, in a dispatch-gated job, reusing `sign-fatjars.sh`.
 
-## Drift check — `sign-fatjars.sh`
+## `sign-fatjars.sh` — srcmorph's own
 
 The script was **byte-identical** in both repos (jllama + srcmorph) while both shipped fat jars;
-jllama's copy is gone with its fat jars (5.2.0), srcmorph's remains. Both listed it in
-`.github/shared-files.sha256`; each repo's `shared-files` job fails when its copy changed alone and
-warns when the other repo's copy differs (see "Cross-repo byte-identical files" in
-[`../crossrepostatus.md`](../crossrepostatus.md)). On an intentional edit, change both copies and run
-`python3 .github/check-shared-files.py --write` in each.
+jllama's copy is gone with its fat jars (5.2.0), srcmorph's remains as a file of that repository
+only. Should a second repository ship fat jars again, it becomes an action of
+bernardladenthin/actions rather than a second copy.

@@ -37,9 +37,12 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 
 | Dimension | Status |
 |---|---|
+| Maven dependency submission JDK | 2026-10-24: GitHub's generated `dynamic/dependency-graph/auto-submission` still installs JDK 21 even after `.java-version` becomes 25 (observed on jllama commit 45fafcbf). The four coordinated branches add `.github/workflows/dependency-submission.yml` (since 2026-10-25 a caller of the reusable `java-maven-dependency-submission.yml` of bernardladenthin/actions), using the shared build JDK, pinned submission action, contents:write only for submission, and triggers limited to pushes to `main` and manual dispatches (no PR events; a Dependabot branch's push gets a read-only token and would only fail). The `report` jobs no longer submit a second graph and run with `contents: read`. Disable the GitHub-managed automatic variant in Settings → Advanced Security → Dependency graph → Automatic dependency submission after adopting this workflow; this setting is outside Git and inaccessible to the current integration (403). No compiler targets change. |
+| Build JDK and artifact floors | 2026-10-24, coordinated `refactor/shared-release-checks` branches: `.java-version` is 25 in all four Maven repos. Production/test release settings remain unchanged: jllama core, Kotlin, srcmorph and streambuffer Java 8; LangChain4j 17; agent and BAF 21; FFM 22; existing test release 21 retained where configured. Redundant JDK 25 + 21 installation pairs removed, FFM's below-22 local fallback retained. Native smoke adds a real Java-8 runtime round on Linux x86-64. 2026-10-25: BAF's fat-jar smoke runs a second round on Java 21, the jar's release, since nothing else runs on that floor any more; jllama's `windows-aarch64` smoke row uses Microsoft's JDK 25, because Temurin publishes no JDK 25 for Windows on arm64 (Adoptium API: 21 is the newest there). JPF still runs on its required JDK 11 and OpenJML keeps its bundled JDK; ordinary streambuffer production compilation uses 25. Local JDK-25 builds passed for core/Kotlin/LangChain4j/FFM, BAF and streambuffer. The rebuilt core loaded natives on Java 8.0_504; all 148 core classes are major 52. Srcmorph still awaits the intentionally pinned llama 6.0.0 release. |
+| Signed publication preflight | 2026-10-24: common finalization composite (since 2026-10-25 `java/finalize-publication` of bernardladenthin/actions); readiness only after successful handoff upload; independent Central, GitHub and attestation consumer jobs in all four repos. Preparation needs no OIDC/attestation write permission. Coordinated `refactor/shared-release-checks` branches: all four Maven repos prepare locally with Central `skipUpload=true`, verify signatures and exact Central/GitHub membership, freeze a checksummed Actions handoff, then run independent Central/GitHub consumers. BAF and srcmorph preserve signed Maven outputs before fat-jar rebuilds. jllama includes the standalone agent and local Android staging. Central Portal upload returns on acceptance without validation polling. Shared code and tests live in bernardladenthin/actions; `java/check-publication` checks the consumer jobs' wiring. 2026-10-25 additions: the version is checked against the tag after the build and test jobs and before anything is staged (`java/check-release-ref` in `check-snapshot`/`check-tag`), and again in the gate; unknown files in a Central staging directory fail instead of being dropped; Gradle's timestamped snapshot names are mapped back to `-SNAPSHOT` (jllama's AARs); Central signatures pair by name; names GitHub would rename are refused; Central snapshot transfers are serialized and skip a superseded commit. See [publication-preflight.md](policies/publication-preflight.md) and docs/publication.md of bernardladenthin/actions. |
 | Error Prone `-Xep:<Name>:ERROR` promotions | Identical 13-pattern set in all 4 poms |
 | NullAway `-XepOpt` options | Identical 6 standard options (`CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled`, `OnlyNullMarked`, strict JSpecify). Plugin additionally has `ExcludedFieldAnnotations=…@Parameter,@Component` — correct repo-local exception for Mojo POJOs. |
-| Tool versions | Identical across all 4 (re-derived from every pom 2026-10-20 -- the working branches of that day's sweep, `origin/main` once its pull requests merge -- not copied forward): Checker 4.3.1, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs-maven-plugin 4.10.5.0, spotless 3.10.4, palantir 2.102.0, errorprone 2.50.0, nullaway 0.14.2, surefire 3.6.0, archunit 1.5.1, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.30.1 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. **This row has now gone stale twice, the same way both times, and the note added after the first occurrence did not prevent the second — so treat the numbers here as evidence only when the audit date above is recent.** 2026-08-29: spotless 3.10.0, palantir 2.96.0, pitest-maven 1.25.9 and nullaway 0.13.8 were behind while the row claimed "all latest stable". 2026-09-05: Checker 4.2.2, spotbugs 4.10.4.0, spotless 3.10.1, nullaway 0.14.0 and surefire 3.5.6 were behind, again under the same claim. 2026-09-20: palantir 2.97.0 was behind (→ 2.98.0), a third time under the same claim. 2026-09-27: spotless 3.10.2, palantir 2.98.0, nullaway 0.14.1 and archunit 1.5.0 were behind — a fourth time; NullAway and palantir are exactly the two the versions plugin cannot see (annotation-processor path and a formatter version inside a plugin `<configuration>`), so only the direct `maven-metadata.xml` probe caught them. Every time the *identity* half held (all four repos really did carry the same values) and only the recorded numbers lagged. The mechanism is the same each time: a per-repo Dependabot bump lands in one repo, the other three are brought back in step by a follow-up commit, and nothing in that sequence touches this file. **What would actually fix it is a check that derives this row from the poms rather than a reminder to update it by hand** — the *identity* half exists now: every repository's `shared-files` job runs `check-versions.py`, which compares each `groupId:artifactId` the POMs use (incl. NullAway's processor path and the Spotless palantir version) with the siblings' default branches and warns per difference. Whether the shared value is the *latest* is still a manual question — re-derive before citing (the loop under "Dependency / plugin freshness" does it in one command). 2026-10-01: palantir 2.99.0 was behind (→ 2.100.0) — the formatter version again, the one Dependabot cannot see. 2026-10-06: palantir 2.100.0 was behind again (→ 2.102.0), and Checker 4.2.3 (→ 4.3.0) — the latter the usual one-repo-ahead shape: Dependabot had bumped streambuffer alone. Every value above was additionally cross-checked against Maven Central's own `maven-metadata.xml` on 2026-10-06 and is the latest **stable** release of its artifact. 2026-10-12: spotbugs-maven-plugin 4.10.4.1 was behind (→ 4.10.5.0 in all 4, the first SpotBugs that reads JSpecify -- it reported `NP_METHOD_PARAMETER_TIGHTENS_ANNOTATION` on every Lombok-generated `equals` under `@NullMarked`, 27 classes in java-llama.cpp and in BAF, answered in the shared `lombok.config` rather than with a suppression, see [`policies/lombok-config.md`](policies/lombok-config.md)); every value re-checked against Maven Central's `maven-metadata.xml` the same day. 2026-10-20: pitest-maven 1.30.0 was behind in BAF alone (→ 1.30.1, which Dependabot had already brought to the other three -- the one-repo-behind shape this time), while the row still said 1.30.0 for all four; every other value re-checked against `maven-metadata.xml` and still the latest stable. |
+| Tool versions | Identical across all 4 (re-derived from every pom 2026-10-20 -- the working branches of that day's sweep, `origin/main` once its pull requests merge -- not copied forward): Checker 4.3.1, fb-contrib 7.7.4, findsecbugs 1.14.0, spotbugs-maven-plugin 4.10.5.0, spotless 3.10.4, palantir 2.102.0, errorprone 2.50.0, nullaway 0.14.2, surefire 3.6.0, archunit 1.5.1, junit-jupiter 6.1.3, hamcrest 3.0, pitest-maven 1.30.1 (pitest-junit5-plugin 1.2.3). **All latest stable** — this row is the **canonical cross-repo tool-version matrix** (policy files point here rather than re-pinning). See "Dependency / plugin freshness" below for how this is kept current. **This row has now gone stale twice, the same way both times, and the note added after the first occurrence did not prevent the second — so treat the numbers here as evidence only when the audit date above is recent.** 2026-08-29: spotless 3.10.0, palantir 2.96.0, pitest-maven 1.25.9 and nullaway 0.13.8 were behind while the row claimed "all latest stable". 2026-09-05: Checker 4.2.2, spotbugs 4.10.4.0, spotless 3.10.1, nullaway 0.14.0 and surefire 3.5.6 were behind, again under the same claim. 2026-09-20: palantir 2.97.0 was behind (→ 2.98.0), a third time under the same claim. 2026-09-27: spotless 3.10.2, palantir 2.98.0, nullaway 0.14.1 and archunit 1.5.0 were behind — a fourth time; NullAway and palantir are exactly the two the versions plugin cannot see (annotation-processor path and a formatter version inside a plugin `<configuration>`), so only the direct `maven-metadata.xml` probe caught them. Every time the *identity* half held (all four repos really did carry the same values) and only the recorded numbers lagged. The mechanism is the same each time: a per-repo Dependabot bump lands in one repo, the other three are brought back in step by a follow-up commit, and nothing in that sequence touches this file. **What would actually fix it is a check that derives this row from the poms rather than a reminder to update it by hand** — the *identity* half exists now: every repository's `repository-checks` job runs `java/check-maven-versions`, which compares each `groupId:artifactId` the POMs use (incl. NullAway's processor path and the Spotless palantir version) with the siblings' default branches and warns per difference. Whether the shared value is the *latest* is still a manual question — re-derive before citing (the loop under "Dependency / plugin freshness" does it in one command). 2026-10-01: palantir 2.99.0 was behind (→ 2.100.0) — the formatter version again, the one Dependabot cannot see. 2026-10-06: palantir 2.100.0 was behind again (→ 2.102.0), and Checker 4.2.3 (→ 4.3.0) — the latter the usual one-repo-ahead shape: Dependabot had bumped streambuffer alone. Every value above was additionally cross-checked against Maven Central's own `maven-metadata.xml` on 2026-10-06 and is the latest **stable** release of its artifact. 2026-10-12: spotbugs-maven-plugin 4.10.4.1 was behind (→ 4.10.5.0 in all 4, the first SpotBugs that reads JSpecify -- it reported `NP_METHOD_PARAMETER_TIGHTENS_ANNOTATION` on every Lombok-generated `equals` under `@NullMarked`, 27 classes in java-llama.cpp and in BAF, answered in the shared `lombok.config` rather than with a suppression, see [`policies/lombok-config.md`](policies/lombok-config.md)); every value re-checked against Maven Central's `maven-metadata.xml` the same day. 2026-10-20: pitest-maven 1.30.0 was behind in BAF alone (→ 1.30.1, which Dependabot had already brought to the other three -- the one-repo-behind shape this time), while the row still said 1.30.0 for all four; every other value re-checked against `maven-metadata.xml` and still the latest stable. |
 | Release hygiene (CHANGELOG footer + version sites) | Audited 2026-08-29 while preparing java-llama.cpp 5.1.0 and BAF 1.8.0. **jllama ✅ / streambuffer ✅** — released headings, footer compare-links and `v*` tags are the same set in both. **BAF ➖ → fixed**: `v1.7.0` shipped with no `[1.7.0]` compare-link at all and `[Unreleased]` still pointing at `v1.6.1`; both repaired in the 1.8.0 prep. **srcmorph ➖ → fixed**: `v1.1.0` was tagged and released with **no CHANGELOG section and no link** — the chain jumped `1.0.2 → 1.1.1`, so a shipped version was undocumented. Repaired in the 1.2.0 prep (`ff68cfc`): the section was reconstructed, the compare-link added, and `[1.1.1]` re-pointed to compare from `v1.1.0`. Re-verified 2026-08-31 on srcmorph `main` — release headings and footer links are now the same set (`1.0.0`…`1.2.0`), with `[Unreleased]` kept as the anchor for the next cycle. The footer is the most-missed step because nothing builds or renders it — the mechanical headings/links/tags check and the per-repo table of version sites now live in [`workflows/release-process.md`](workflows/release-process.md) under "What actually gets missed". Related: BAF enforces its 24 launcher-script jar names with `ExampleRunScriptJarVersionTest` (a pom bump reds the build until they follow) and srcmorph is structurally immune via a glob — a repo that hardcodes jar names with neither guard is the gap to close. |
 | `dependencyConvergence` pinning convention | All 4 Maven repos (+ srcmorph's 3 reactor modules) enable maven-enforcer's `<dependencyConvergence/>`. Convention, the `excludedScopes=[test,provided]` default gotcha, and merge-discipline guidance are in [`policies/dependency-convergence-pinning.md`](policies/dependency-convergence-pinning.md). |
 | Maven Enforcer `bannedDependencies` | Identical 7-entry list |
@@ -50,81 +53,76 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
 | `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing` | All 4 ✅ |
 | Full `layeredArchitecture()` + per-module banned-imports | BAF/jllama/srcmorph ✅ (flat root package split into layered packages, strict rule enforced per repo — see each repo's own `TODO.md` "Done"); sb ➖ (single package) |
-| GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired byte-identically in `publish.yml` (the gpg job's body is the shared `.github/verify-signing-key.sh`): two standalone jobs (no `needs:`, run in parallel at pipeline start, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata; **red-by-design on every `pull_request` run, not just fork PRs** — the jobs declare `environment: maven-central` and GitHub withholds environment secrets from any PR context, including a branch pushed to the repo itself. Verified on BAF run 33866409744, where both preflight jobs failed within a second on a same-repository Dependabot branch. Green evidence therefore only ever comes from a `push`/dispatch run. The `.github/signing-selftest/` Gradle project used by the second job is byte-identical across all 4 (checksums below). |
-| Class-file floor on the built jars (`verify-bytecode-version.sh`) | All 4 wired in `publish.yml` with the **byte-identical** `.github/verify-bytecode-version.sh` (listed in each repo's `shared-files.sha256`, see below). `maven.compiler.release` governs only the code *we* compile; a dependency built for a newer Java lands in the jar untouched and surfaces as `UnsupportedClassVersionError` on a consumer's JVM. It has happened twice: **checker-qual 4.x** (Java 11, `@Retention(RUNTIME)`, so any reflection over an annotated element loads it) and **logback-classic 1.4.0+**, whose `LogbackServiceProvider` SLF4J's `ServiceLoader` loads at startup. `--max-major` is passed from the workflow so the ceiling lives next to the release it belongs to: **52** in jllama/srcmorph/sb, **65** in BAF (Java 21). Placement is per-repo, on whatever job first has the jars: jllama `package` + the Linux rows of `smoke-natives` (the natives jars, then the smoke set a consumer's classpath resolves to), srcmorph/BAF `smoke-fatjar`, sb `smoke-jar` (its deliverable is the plain jar, not a fat jar). `module-info.class` and `META-INF/versions/**` are skipped unconditionally — a classpath JVM never loads either. Exit 2 on an empty scan, so a build that produced no jars cannot read as a pass. |
-| Informational steps in the `report` job never gate the release | **srcmorph ✅ · jllama / BAF / sb in open PRs as of 2026-09-09 (#424 / #364 / #157) — this row becomes "All 4 ✅" when those merge, and must not be read as parity before then.** Keep in sync; this one is easy to lose and expensive to lose. The rule: a third-party step in `report` that only *reports* (dependency graph, coverage upload) carries `continue-on-error: true`; a step that is a **gate** does not. **Why it is not cosmetic:** the pipelines are deliberately built so the GitHub assets land even when the Central publish fails — `github-snapshot`/`github-release*` run on `(needs.publish-*.result == 'success' \|\| == 'failure')`. That `if:` tolerates **`failure`** but not **`skipped`**, and `report` gates the chain: a failed `report` *skips* `check-snapshot` (its `if:` is a plain event/ref condition with no `always()`/`!cancelled()` escape), which skips `publish-snapshot`, which leaves `publish-snapshot.result == 'skipped'` — matching neither arm, so **`github-snapshot` does not run and the assets are lost**. An unguarded informational action therefore does not merely delay a Central publish; it silently defeats the one guarantee the release path exists to provide. **History — how it drifted:** srcmorph got the guard *in passing* from `ee2ae49` ("ci: report unsigned assets without ever withholding them"), whose actual feature was the unsigned-asset reporting. That feature **was** ported to the other three the same day (jllama `90dd21a`, BAF `2e14f5c`, sb `2ed13ff` — each a clean `68 insertions(+)` change), but the port reproduced the *feature*, not the *commit*, so the unrelated drive-by line never travelled and sat missing for nine days. Being closed by jllama #424, BAF #364, sb #157 — open at the time of writing. **What stays bare, on purpose:** `checkout`/`setup-java` (infrastructure, must work) and streambuffer's PIT steps (gates, meant to block). **Verifiable:** the 5-line block — rationale comment + `uses:` + flag — is byte-identical in all four; see the block-level check below. |
+| GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired in `publish.yml` through the `common/verify-gpg-key` and `java/verify-signing-key-gradle` actions of bernardladenthin/actions: two standalone jobs (no `needs:`, run in parallel at pipeline start, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata; **red-by-design on every `pull_request` run, not just fork PRs** — the jobs declare `environment: maven-central` and GitHub withholds environment secrets from any PR context, including a branch pushed to the repo itself. Verified on BAF run 33866409744, where both preflight jobs failed within a second on a same-repository Dependabot branch. Green evidence therefore only ever comes from a `push`/dispatch run. The Gradle self-test project used by the second job ships with its action. |
+| Class-file floor on the built jars (`java/verify-bytecode`) | All 4 wired in `publish.yml` with the `java/verify-bytecode` action of bernardladenthin/actions. `maven.compiler.release` governs only the code *we* compile; a dependency built for a newer Java lands in the jar untouched and surfaces as `UnsupportedClassVersionError` on a consumer's JVM. It has happened twice: **checker-qual 4.x** (Java 11, `@Retention(RUNTIME)`, so any reflection over an annotated element loads it) and **logback-classic 1.4.0+**, whose `LogbackServiceProvider` SLF4J's `ServiceLoader` loads at startup. `max-major` is passed from the workflow so the ceiling lives next to the release it belongs to: **52** in jllama/srcmorph/sb, **65** in BAF (Java 21). Placement is per-repo, on whatever job first has the jars: jllama `package` + the Linux rows of `smoke-natives` (the natives jars, then the smoke set a consumer's classpath resolves to), srcmorph/BAF `smoke-fatjar`, sb `smoke-jar` (its deliverable is the plain jar, not a fat jar). `module-info.class` and `META-INF/versions/**` are skipped unconditionally — a classpath JVM never loads either. Exit 2 on an empty scan, so a build that produced no jars cannot read as a pass. |
+| Informational steps in the `report` job never gate the release | **srcmorph ✅ · jllama / BAF / sb in open PRs as of 2026-09-09 (#424 / #364 / #157) — this row becomes "All 4 ✅" when those merge, and must not be read as parity before then.** Keep in sync; this one is easy to lose and expensive to lose. The rule: a third-party step in `report` that only *reports* (dependency graph, coverage upload) carries `continue-on-error: true`; a step that is a **gate** does not. **Why it is not cosmetic:** the pipelines are deliberately built so the GitHub assets land even when the Central publish fails — `github-snapshot`/`github-release*` run on `(needs.publish-*.result == 'success' \|\| == 'failure')`. That `if:` tolerates **`failure`** but not **`skipped`**, and `report` gates the chain: a failed `report` *skips* `check-snapshot` (its `if:` is a plain event/ref condition with no `always()`/`!cancelled()` escape), which skips `publish-snapshot`, which leaves `publish-snapshot.result == 'skipped'` — matching neither arm, so **`github-snapshot` does not run and the assets are lost**. An unguarded informational action therefore does not merely delay a Central publish; it silently defeats the one guarantee the release path exists to provide. **History — how it drifted:** srcmorph got the guard *in passing* from `ee2ae49` ("ci: report unsigned assets without ever withholding them"), whose actual feature was the unsigned-asset reporting. That feature **was** ported to the other three the same day (jllama `90dd21a`, BAF `2e14f5c`, sb `2ed13ff` — each a clean `68 insertions(+)` change), but the port reproduced the *feature*, not the *commit*, so the unrelated drive-by line never travelled and sat missing for nine days. Being closed by jllama #424, BAF #364, sb #157 — open at the time of writing. **What stays bare, on purpose:** `checkout`/`setup-java` (infrastructure, must work) and streambuffer's PIT steps (gates, meant to block). **Verifiable:** the 5-line block — rationale comment + `uses:` + flag — is byte-identical in all four; see the block-level check below, retired since. **Since the `refactor/shared-release-checks` branches** the dependency graph is no longer a step of `report` (it moved to `dependency-submission.yml`, see the row above), so `report` keeps only the coverage uploads, each still with `continue-on-error: true`; and the publication consumers run on the gate's `assets_complete` output rather than on `publish-*.result`. |
 
-### Cross-repo byte-identical files — the `shared-files` job
+### Shared CI — bernardladenthin/actions (the `repository-checks` job)
 
-Files kept **byte-identical across repos** are listed, with their SHA-256, in **each repository's own
-manifest** — that manifest is the reference for what must stay equal, and each repository's
-`shared-files` job checks it on every run (a copy changed in one repository alone **fails**; a copy
-another repository's default branch lists with a different hash **warns**, since a sync lands one
-repository at a time). This file only links; the lists live next to the files:
+**Since 2026-10-25 (coordinated `refactor/shared-release-checks` branches, all four Java repos +
+workspace) the shared CI code lives once in
+[bernardladenthin/actions](https://github.com/bernardladenthin/actions)** instead of as four
+byte-identical copies held together by a `.github/shared-files.sha256` manifest per repository:
 
-| Repo | Manifest | Job |
-|---|---|---|
-| java-llama.cpp | [`.github/shared-files.sha256`](https://github.com/bernardladenthin/java-llama.cpp/blob/main/.github/shared-files.sha256) | `shared-files` in [`publish.yml`](https://github.com/bernardladenthin/java-llama.cpp/blob/main/.github/workflows/publish.yml) |
-| BitcoinAddressFinder | [`.github/shared-files.sha256`](https://github.com/bernardladenthin/BitcoinAddressFinder/blob/main/.github/shared-files.sha256) | `shared-files` in [`publish.yml`](https://github.com/bernardladenthin/BitcoinAddressFinder/blob/main/.github/workflows/publish.yml) |
-| srcmorph | [`.github/shared-files.sha256`](https://github.com/bernardladenthin/srcmorph/blob/main/.github/shared-files.sha256) | `shared-files` in [`publish.yml`](https://github.com/bernardladenthin/srcmorph/blob/main/.github/workflows/publish.yml) |
-| streambuffer | [`.github/shared-files.sha256`](https://github.com/bernardladenthin/streambuffer/blob/main/.github/shared-files.sha256) | `shared-files` in [`publish.yml`](https://github.com/bernardladenthin/streambuffer/blob/main/.github/workflows/publish.yml) |
+- **composite actions** for single steps (`common/<action>` language-neutral, `java/<action>` for Maven
+  and the JVM): the publication gate and its three consumers, the ref check, the signing-key checks,
+  the bytecode gate, the fat-jar smoke, host info and crash logs, and the repository checks below;
+- **reusable workflows** for whole jobs (`reuse`, `osv-scanner`, `java-codeql`,
+  `java-maven-dependency-submission`, `java-sonarqube`): the files in the repositories only name the
+  triggers;
+- **templates** for the files every repository has to carry itself (community files, licenses,
+  `.editorconfig`, `.gitattributes`, `.java-version`, `.mvn/`, `lombok.config`, Dependabot,
+  `scorecard.yml`, the Claude workflows, the callers of the reusable workflows, `CITATION.cff`);
+- the **`actionlib`** Python library behind them, stdlib-only, with `common/` and `java/` like the
+  actions, so a future ecosystem (Rust, ...) gets a subpackage of its own.
 
-**Changing a shared file:** change it in every repository whose manifest lists it, then run
-`python3 .github/check-shared-files.py --write` in each (it recomputes the hashes of the listed
-files). **Jobs, too:** an entry `.github/workflows/publish.yml#<job>` hashes one job of the workflow, so
-the jobs kept identical inside four otherwise different `publish.yml` files (`startgate`,
-`shared-files`, `verify-signing-key`, `check-snapshot`, `check-tag`; in the three Maven-only repos also
-`verify-signing-key-gradle`, `github-snapshot`, `github-release`) are checked like files instead of by
-convention. The same job runs `check-versions.py`, which warns where a Maven dependency or plugin is
-used in another version than in a sibling, and `check-run-scripts.py`, which fails when a bash
-`run:` script of a workflow or composite action does not parse (`bash -n`). Forgetting one is not a disaster — its job says so and the history shows it — but nobody can
-edit a shared script without learning that it is shared. **Adding one:** put the file in each
-repository and a `sha256sum` line for it in each manifest.
+Each repository pins it by commit (`uses: bernardladenthin/actions/<path>@<commit> # v1.x.y`;
+Dependabot moves the pin with every release, a tag `v<major>.<minor>.<patch>` there) and configures it
+in **`.github/actions-config.json`** -- nothing about a repository is written into the shared code:
 
-**Why copies with a checksum, not a shared actions/library repository:** every consumer of a remote
-action would pin it by SHA (Scorecard's pinned-dependencies rule), it would need a release process
-of its own, and a checkout of a second repository in CI; copies keep each repository self-contained,
-and the manifest makes the duplication explicit instead of accidental. The shared set: the build-check
-library (`.github/buildcheck/{__init__,workflow,releasegate,sharedfiles,versions,runscripts}.py`, its
-tests, and the `check-*.py` entry points), `print-crash-logs.sh`, `print-host-info.sh`,
-`verify-signing-key.sh`, `verify-bytecode-version.sh`, the signing self-test (`.github/signing-selftest/`),
-the issue/PR templates, `CODE_OF_CONDUCT.md`, `smoke-fatjar-cli.sh` (BAF + srcmorph; `sign-fatjars.sh`
-was jllama + srcmorph until jllama dropped its fat jars with the modular natives, 6.0.0), `lombok.config` (jllama at `llama/lombok.config`; matched by file name there),
-`claude.yml`, `claude-code-review.yml`, `codeql.yml`, `scorecard.yml`, `reuse.yml`, `osv-scanner.yml`,
-`dependabot.yml`, `.java-version` (the JDK every workflow reads via `java-version-file`), `.editorconfig`,
-`.gitattributes`, `FUNDING.yml`, `CODEOWNERS`, `LICENSES/{MIT,Apache-2.0}.txt`, the job
-`verify-signing-key-gradle` (all four on Gradle 9.8.2 since 2026-10-20; 9.8.0 before), `.mvn/jvm.config`
-(all but BAF) and `.mvn/settings.xml` (all but jllama). Entries ending in `?repo` cover files identical up
-to the repository name (hashed with it replaced by `{repo}`): `SUPPORT.md`, `ISSUE_TEMPLATE/config.yml`,
-`CITATION.cff` (not jllama: its license differs), `sonarqube.yml` (srcmorph + streambuffer) and the
-`code-style` job (BAF + streambuffer). Every own `.github` file is licensed `MIT OR Apache-2.0` in all four repositories, so
-a shared file needs no per-repository header. Canonical content
-of `lombok.config` in [`policies/lombok-config.md`](policies/lombok-config.md).
+| Section | Check (in the `repository-checks` job of `publish.yml`, gating both publish jobs) |
+|---|---|
+| `templates` | the files the repository carries equal the template sets it names (`exclude`, `relocate` for its own variants); `{{owner}}`/`{{repo}}` and the refs of `uses:` lines may differ |
+| `release-gate` | every job gates both publish jobs unless `.github/release-gate-exemptions.txt` names it with a reason |
+| `run-scripts` | `bash -n` over every bash `run:` script of the workflows and local actions |
+| `maven-versions` | warns where a dependency or plugin differs from a sibling of the `java-maven` family; each repository lists its own POMs, a sibling reads them from its configuration |
+| `publication-wiring` | the publication jobs are wired as the actions expect; with it a dry run of `.github/release-assets.json` against the real POMs |
 
-**The same job runs the release-gate check** (`check-release-gate.py`): every job of `publish.yml`
-must gate both publish jobs, unless the repository's `.github/release-gate-exemptions.txt` names it
-with a reason. Introducing it found `vmlens` gating nothing in all four repositories.
+Per repository: jllama relocates `lombok.config` to `llama/` and excludes `sonarqube.yml`,
+`.mvn/settings.xml` and `CITATION.cff`; BAF excludes `sonarqube.yml` and `.mvn/jvm.config`;
+streambuffer excludes `lombok.config`; srcmorph carries every template. jllama and srcmorph keep their
+own build checks in `.github/buildcheck/` (jllama's build on `actionlib`). BAF's `-P assembly` and
+srcmorph-cli's `package` run the license collector of the actions repository: `ACTIONS_DIR` in CI
+(`common/setup`, the reusable SonarQube workflow), locally a checkout next to the repository
+(`../actions`); when neither is there, the collector call says so and where it looked.
 
-**Block-level check — the `report` job's dependency-submission step.** Not a whole file, so it is
-not in the manifests above, but it is kept byte-identical for the same reason and drifts the same way
-(see the parity row "Informational steps in the `report` job never gate the release"). The 5 lines
-are the three-line rationale comment, the `uses:` line and `continue-on-error: true`:
+**Why a repository now, after copies were chosen before.** The earlier reasons against it were that
+every consumer pins a remote action by commit (Scorecard), that it needs a release process, and that
+CI would check out a second repository. Every action is pinned by commit anyway and Dependabot keeps
+the pins current, so one more costs nothing; the release process is a tag; and a composite action
+gets its repository from the runner (`github.action_path`), a reusable workflow checks out its own
+commit (`job.workflow_sha`) only where it needs a tool. Against that, every change of the copies was
+four pull requests plus four manifest rewrites, and each new repository or language would have been
+one more copy. What stays a per-repository decision: the jobs themselves (environment, permissions,
+concurrency, `needs`) remain in each `publish.yml` and call the actions, so check names and the release
+gate are unchanged; scorecard and the Claude workflows stay plain templates (scorecard-action verifies
+the workflow file itself, the Claude action exchanges an app token for the calling workflow).
 
-```bash
-# from the workspace repo root, siblings checked out alongside
-for d in java-llama.cpp BitcoinAddressFinder streambuffer srcmorph; do
-  f=../$d/.github/workflows/publish.yml
-  ln=$(grep -n 'maven-dependency-submission-action@' "$f" | cut -d: -f1)
-  printf '%-22s %s\n' "$d" "$(sed -n "$((ln-3)),$((ln+1))p" "$f" | sha256sum | cut -c1-16)"
-done
-# All four must print the SAME hash. 5cbdaf64e4f4f303 as of 2026-09-09 (action @v6) -- but note
-# that value is only reached on origin/main once #424 / #364 / #157 have merged; until then only
-# srcmorph prints it and the other three differ by the two missing lines. Mind which ref you are
-# checking: run this against checked-out main, not a feature branch, or it will agree for the
-# wrong reason.
-# The hash changes on any action version bump -- that is expected. What must never differ is the
-# hash BETWEEN the four repos on the same ref.
-```
+**Release asset contract.** Per-repository `.github/release-assets.json` declares only the
+differences (native CSV, Android publications, BOMs, standalone projects, fat jars); streambuffer
+needs only `{"schema": 1}`. BAF and srcmorph stage deploy-signed Maven outputs before the fat-jar
+rebuild, then collect the staged files plus the separately signed fat jars; srcmorph's build loop reads
+its classifiers from the same JSON. Snapshot updates serialize upload/tag/notes/pruning, reject older
+runs, refuse an incomplete collection before any change and create a first snapshot as a draft until
+its upload is complete. An actual dispatch/publish is still required after merge. Interface:
+[`policies/release-asset-scripts.md`](policies/release-asset-scripts.md).
+
+**Release Git authentication — same coordinated branch.** All four Java repositories disable
+persisted checkout credentials in their asset-upload jobs (API tokens are explicit), and the
+publication-wiring check enforces it. The cross-repo audit found one custom Git push, jllama's source
+mirror: both checkouts now opt out, the mirror token is scoped to its exact URL and passed through
+Git's `--config-env`, and failed remote lookups propagate. Rationale and upstream sources:
+[`policies/git-checkout-credentials.md`](policies/git-checkout-credentials.md).
 
 ## Deliberate non-parity (NOT drift)
 
@@ -195,7 +193,7 @@ Differences below are intentional design decisions, not gaps to close.
   about the attached artifact, not about the fat-jar shape, and both are landed in sb as well (see
   "Open cross-repo items"). Only the fat jar itself is sb-exempt.
 - **Actual Gradle-based *publishing* (the `llama-android` AAR) — java-llama.cpp only.** The
-  signing-key preflight harness is byte-identical in all 4 (kept as a "prepared for Gradle"
+  signing-key preflight harness (`java/verify-signing-key-gradle`) runs in all 4 (kept as a "prepared for Gradle"
   canary), but only jllama has a real Gradle-published artifact today.
 - **OPM (fb-contrib `OPM_OVERLY_PERMISSIVE_METHOD`) suppressed project-wide — BAF + jllama.**
   Both repos' package-layout refactors (single root package → layered packages) have landed, so
@@ -243,8 +241,8 @@ Differences below are intentional design decisions, not gaps to close.
   srcmorph (`config_Plan.json`, mock provider), jllama (the `smoke-natives` matrix, one server smoke per
   desktop platform on the published natives jars -- since 6.0.0 there is no fat jar: the GPU backends
   are additive module jars -- plus `smoke-natives-macos` closing the gap that let a corrupt dylib ship), and — since
-  2026-09-01 — **sb (`smoke-jar`)**. BAF and srcmorph share a byte-identical
-  `.github/smoke-fatjar-cli.sh` (listed in both repos' `shared-files.sha256`); jllama keeps its own scripts because
+  2026-09-01 — **sb (`smoke-jar`)**. BAF and srcmorph run the `java/smoke-fatjar-cli`
+  action of bernardladenthin/actions; jllama keeps its own scripts because
   its Main-Class is a server that never exits and the macOS assertion is native loadability, not a
   CLI exit code. Rule, rationale and the per-repo assertion table live in
   [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md). Each smoke is
@@ -268,17 +266,14 @@ Differences below are intentional design decisions, not gaps to close.
   `module-info.class` (compiled in a separate `release 9` execution, so it can be dropped without
   failing anything else). Repo-specific script (`.github/smoke-jar.sh`), not a shared one: there is
   no second no-Main-Class repo to share it with.
-- **Unsigned-asset guard on the attach jobs** (✅ landed in **all four** repos, 2026-09-01). The
-  attach jobs collect `target/*.jar.asc` with `|| true`, so a signing step that produced nothing
-  yielded an attach that looked complete and was not. The guard cannot simply refuse to attach:
-  both attach jobs deliberately run when the publish job *failed*, because when Central is
-  unreachable the GitHub assets are the only way to get the build output at all. So it reports
-  before the upload (non-blocking, one `::error::` per unsigned jar, count to `$GITHUB_OUTPUT`),
-  uploads unconditionally, and fails the job afterwards — assets always land, an unsigned release
-  is loudly red instead of quietly wrong. The two steps are byte-identical in all four repos
-  (only the asset directory name differs); sync any edit everywhere. Rationale in
-  [`policies/fat-jar-release-assets.md`](policies/fat-jar-release-assets.md), "Attach first, then
-  go red".
+- **Unsigned-asset guard on the attach jobs** (✅ 2026-09-01 in all four repos; **superseded** on the
+  `refactor/shared-release-checks` branches). It reported unsigned jars before the upload, uploaded
+  anyway and failed the job afterwards, because the attach jobs then also ran when the publish job
+  had failed. The publication gate replaces it: `publication.py prepare` verifies every signature
+  before anything is attached, the GitHub consumers run only on its `assets_complete` output, and a
+  Central outage no longer blocks them, since Central is a separate consumer of the same frozen
+  package ([`policies/publication-preflight.md`](policies/publication-preflight.md)). The
+  report/upload/assert steps and `report-asset-signatures.py` are gone.
 - **Test-JVM diagnostics + memory standard** ([`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md)):
   🚧 in progress across BAF/jllama/srcmorph/sb — the `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload
   standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
@@ -346,16 +341,17 @@ Differences below are intentional design decisions, not gaps to close.
   same uploader). One shape difference worth knowing rather than closing over: only jllama attaches
   a `.sha256` alongside; srcmorph's 52 assets contain none, so "`.asc`/`.sha256`" describes jllama,
   not the convention. sb is ➖ (ships no fat jar).
-- **Central-publish pipeline current mechanism** (informational, not open, but non-obvious):
-  publishing to Maven Central requires an explicit `workflow_dispatch` with
-  `publish_to_central=true` — nothing publishes from an automatic push or tag anymore, and a
-  version guard aborts the snapshot path unless `project.version` ends in `-SNAPSHOT`. The
-  Central Portal wait condition is `waitUntil=validated` (not `published`) with a 6 h
-  `waitMaxTime` — validation is where real errors surface (bad signature, missing javadoc,
-  coordinate conflicts) and completes in minutes; waiting for full replication caused false-alarm
-  timeouts on a working release. GitHub Release asset upload runs on publish success *or*
-  failure (`if: ${{ !cancelled() }}`) so a failed-but-signed run still gets its assets attached.
-  Identical across all 4 repos.
+- **Central-publish pipeline current mechanism** (informational, not open, but non-obvious; as on
+  the `refactor/shared-release-checks` branches): publishing requires an explicit
+  `workflow_dispatch` with `publish_to_central=true` — nothing publishes from an automatic push or
+  tag. `check-snapshot` / `check-tag` run `publication.py check-ref` (a release only from
+  `v<version>` of a non-SNAPSHOT version, a snapshot never from a tag), the publish job stages and
+  signs locally (`-DskipUpload=true deploy`) and freezes the checked package, and `central-*`,
+  `github-*` and `attest-*` each run on its `assets_complete` output alone. The Central consumer
+  uploads one Portal bundle with `publishingType=AUTOMATIC` and returns on acceptance
+  (`waitUntil=uploaded` in the POMs for a manual deploy); there is no validation polling, so a
+  Portal validation error shows in the Portal, not in the run. Identical across all 4 repos
+  ([`policies/publication-preflight.md`](policies/publication-preflight.md)).
 
 ## Dependency / plugin freshness
 
@@ -439,7 +435,7 @@ those pins were accidental, not deliberate. Enumerated from every `uses:` in
 
 `actions/setup-java` is on **`v6`** in all four (bumped from `v5`). v6 is an ESM rewrite that drops
 only the legacy **`adopt`** distributions and renames `jdkFile` → `jdk-file` (deprecated alias kept);
-every job here uses `temurin` (or `zulu` in `sonarqube.yml`), both still supported, so the major bump
+every job here uses `temurin` (or `zulu` in `sonarqube.yml`; `microsoft` in jllama's `windows-aarch64` smoke row since 2026-10-25), all still supported, so the major bump
 is a no-op for these pipelines.
 
 **jllama: `Jimver/cuda-toolkit` retired, `ggml-org/free-disk-space` added (2026-09-27, branch
