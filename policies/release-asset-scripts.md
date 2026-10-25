@@ -7,7 +7,8 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 
 The four Java repositories use byte-identical Python entry points, library code and tests,
 listed in each `.github/shared-files.sha256`. Python 3.9+ and the standard library are sufficient;
-only the snapshot uploader additionally needs `gh` and `GH_TOKEN`. CI checks out the scripts from
+the snapshot uploader and `publication.py upload --skip-superseded` additionally need `gh` and
+`GH_TOKEN`. CI checks out the scripts from
 the same commit as the artifacts. Repository-specific paths and classifiers live in
 `.github/release-assets.json`, which is deliberately **not** shared.
 
@@ -99,14 +100,18 @@ remains last; the structural native-content checks and signing stay in srcmorph.
 
 ## Gate publication before uploading
 
-The publication workflow stages and signs locally, then uses `publication.py prepare` to
-cryptographically verify and freeze the complete contract. Central, GitHub Release and provenance attestation consume
-that same GitHub Actions handoff independently. The common
-`.github/actions/finalize-publication/action.yml` collects, verifies and secures the package. See [publication-preflight.md](publication-preflight.md)
-for the shared CLI, configuration, checksums and asynchronous Central transfer.
+`check-snapshot` / `check-tag` run `python3 .github/publication.py check-ref --channel
+snapshot|release` first: a release publishes only from the tag `v<version>` of a non-SNAPSHOT
+version, a snapshot only a `-SNAPSHOT` version and never from a tag. The publication workflow then
+stages and signs locally and uses `publication.py prepare --channel <channel>` to check the
+version again, cryptographically verify and freeze the complete contract. Central, GitHub Release
+and provenance attestation consume that same GitHub Actions handoff independently. The common
+`.github/actions/finalize-publication/action.yml` collects, verifies and secures the package. See
+[publication-preflight.md](publication-preflight.md) for the shared CLI, configuration, checksums
+and asynchronous Central transfer.
 
-`report-asset-signatures.py` remains a diagnostic presence/size reporter; it is not the
-publication gate. Publish jobs no longer attach unsigned files and fail afterwards.
+The gate is the only signature check: the former diagnostic reporter
+`report-asset-signatures.py` is gone, and no job attaches files before the gate has passed.
 
 ## Update the rolling snapshot
 
@@ -120,12 +125,15 @@ successful preflight result through `ASSETS_COMPLETE`. The complete job is seria
 `snapshot-release-${{ github.repository }}` with `cancel-in-progress: false` in all four repos.
 If another channel is introduced, give it a distinct but stable serialization group.
 
-The helper compares commit ancestry and the recorded run/attempt before any upload. Superseded
-runs are skipped; divergent histories fail. The workflow calls it only with a complete, preflight-verified collection. Its legacy direct-call
-partial-upload path is not used by publishing workflows. Only a complete signed upload advances the source tag and release notes,
-then prunes assets outside the uploaded set. Existing release IDs are retained. All asset pages
-are read before deletion, HTTP 404 is tolerated for already removed assets, other failures are
-reported after trying the remaining deletions. Versioned releases are never pruned.
+The helper refuses an incomplete collection (`ASSETS_COMPLETE` other than `true`, or any
+missing, empty or orphaned signature) before it changes anything, a versioned tag (`v<digit>...`)
+as the rolling tag, and a file name GitHub would rename (anything outside `[A-Za-z0-9._-]`, or a
+leading dot): the renamed asset would no longer match the upload set and be pruned. It compares
+commit ancestry and the recorded run/attempt before any upload. Superseded runs are skipped;
+divergent histories fail. A complete upload advances the source tag and release notes, then prunes
+assets outside the uploaded set. Existing release IDs are retained. All asset pages are read
+before deletion, HTTP 404 is tolerated for already removed assets, other failures are reported
+after trying the remaining deletions. Versioned releases are never pruned.
 
 ## Maintenance and checks
 
@@ -138,7 +146,9 @@ are identical across all four consumers. Keep job-level changes synchronized too
 Run `python3 -m unittest discover -s .github/buildcheck/tests -t .github`, the offline shared-file
 check, release-gate and run-script checks, and actionlint in each checkout. The common tests cover
 generic fixtures, each checkout's real POM/config contract, staged Maven output, partial assets,
-signature gaps, CLI outputs and snapshot ordering using a fake GitHub client. They do not publish
+signature gaps, CLI outputs, the version/ref check, Gradle's timestamped snapshot names, several
+Central roots, both transfers (with `curl`/`mvn` replaced) and snapshot ordering using a fake
+GitHub client. They do not publish
 anything. Native dependency, Android packaging, bytecode and CLI smoke checks remain specialized
 where their artifact semantics require it. See [fat-jar-release-assets.md](fat-jar-release-assets.md)
 for signing and release policy.

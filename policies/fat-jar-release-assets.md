@@ -83,14 +83,15 @@ The whole upload/tag/notes/prune operation is serialized with a stable job concu
 older commits or older runs/attempts of the same commit cannot overwrite a promoted snapshot.
 After a **complete signed collection and successful upload**, the helper moves the source tag
 to the build commit, updates notes with the commit and run, and deletes every asset outside the
-upload set. Incomplete collections upload available files, then fail while retaining the existing
-tag, notes and other assets:
+upload set. An incomplete collection never reaches the job (`github-snapshot` runs only on the
+publication gate's `assets_complete=true`), and the helper itself refuses one before any change:
 
 - the **keep-set is the asset directory the run uploaded**, never a version pattern -- a pattern has
   to be re-taught at every classifier added or dropped, which is how the 43 stale shapes arose;
 - **after a successful complete upload**, so failed/incomplete uploads do not prune the release;
 - **every deletion is printed by name**, so the job log is the audit trail;
-- `github-release` / `github-release-signed` **never delete**: a versioned `v*` release is history.
+- `github-release` **never deletes**, and the helper refuses a `v<digit>...` tag as the rolling
+  tag: a versioned `v*` release is history.
 
 Nothing is deleted by hand; the next snapshot run clears each repo's backlog by itself.
 
@@ -109,8 +110,8 @@ The step has three guards, and they come from the job's own history rather than 
   deleting anything, so deletions cannot shift a later page and make stale files disappear from
   the scan.
 - **A failed deletion is reported and the rest are still tried**; the step fails afterwards. The
-  assets of this upload are on the release either way, so this is "attach first, then red" like the
-  signature check. Nothing is swallowed with `|| true` -- that is what hid the GitHub Packages
+  assets of this upload are on the release either way, so a failed prune leaves extra assets, never
+  missing ones. Nothing is swallowed with `|| true` -- that is what hid the GitHub Packages
   failures below for a day.
 
 **The history, from the four repos' `git log` and the Actions API (job logs expire after 90 days,
