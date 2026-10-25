@@ -89,6 +89,9 @@ publication gate's `assets_complete=true`), and the helper itself refuses one be
 - the **keep-set is the asset directory the run uploaded**, never a version pattern -- a pattern has
   to be re-taught at every classifier added or dropped, which is how the 43 stale shapes arose;
 - **after a successful complete upload**, so failed/incomplete uploads do not prune the release;
+- **the first snapshot of a repository is a draft until its upload is complete**: no public
+  pre-release and no `snapshot` tag naming a build whose assets are not there yet; a draft that a
+  failed first upload left behind is reused by the next run;
 - **every deletion is printed by name**, so the job log is the audit trail;
 - `github-release` **never deletes**, and the helper refuses a `v<digit>...` tag as the rolling
   tag: a versioned `v*` release is history.
