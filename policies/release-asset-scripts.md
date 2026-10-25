@@ -82,7 +82,7 @@ Optional settings, illustrated with generic names:
 | srcmorph | Default CLI fat jar plus 14 GPU variants, signed separately; plain Maven artifacts staged before the rebuild |
 | streambuffer | None; POM and three jars discovered from the root POM |
 
-### Preserve signed Maven output before rebuilding (srcmorph)
+### Preserve signed Maven output before rebuilding (BAF, srcmorph)
 
 ```bash
 python3 .github/collect-release-assets.py central-assets --maven-only
@@ -96,7 +96,8 @@ The first command skips extra-file rules. The last reads every required Maven ou
 staged directory under its final filename, rather than a subsequently overwritten `target/`.
 Missing staged files still fail the final collection. `--list-classifiers` takes a zero-based
 file-rule index and lets the build and verifier consume one classifier list. The CPU build
-remains last; the structural native-content checks and signing stay in srcmorph.
+remains last; the structural native-content checks and signing stay in srcmorph. BAF runs the first
+and the last command only: its single fat jar comes from one `mvn -P release,assembly verify`.
 
 ## Gate publication before uploading
 
