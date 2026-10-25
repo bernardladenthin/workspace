@@ -132,9 +132,10 @@ supplement rather than weakening the workspace policy.
 The file lives in each sibling repo's root (jllama: `llama/lombok.config`) and the
 canonical content above is the source of truth. Since 2026-07-24 all three copies are
 **byte-identical** to this block — the repo-specific rationale that used to drift in
-per-file comments now lives only here (that is why the file can be identical). Each of the three
-repos lists it in `.github/shared-files.sha256` (jllama as `llama/lombok.config`), and its
-`shared-files` job fails when the copy changed alone and warns when another repo's differs.
+per-file comments now lives only here (that is why the file can be identical). It is a template of
+bernardladenthin/actions (`templates/java/lombok.config`; jllama relocates it to `llama/lombok.config`
+in its `.github/actions-config.json`, streambuffer excludes it), and each repository's
+`repository-checks` job fails when its copy differs from the template.
 
-When this canonical content changes, update every sibling repo's `lombok.config` and run
-`python3 .github/check-shared-files.py --write` in each, in the same series of commits.
+When this canonical content changes, change the template in bernardladenthin/actions and write it
+into each repository (`python3 -m actionlib.common.templates --write`) when its pin moves.

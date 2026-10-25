@@ -133,12 +133,11 @@ aborting frame was unreachable for exactly this reason while every other avenue
 (local reproduction) was also closed.
 
 The step above therefore **precedes** the upload and echoes the same files. The
-logic is the shared script **`.github/print-crash-logs.sh`**, byte-identical in all
-four repos (listed in each repo's `.github/shared-files.sha256`, checked by its
-`shared-files` job) — it used to be pasted into every test job (eight copies in
-jllama alone), and a copy edited in one place is exactly the drift the manifest now
-catches. Arguments are the module directories to look in (`.` by default; srcmorph
-passes its three modules, jllama `llama` or the sibling module the job tests). It
+logic is the **`java/print-crash-logs`** action of bernardladenthin/actions (its
+`print-crash-logs.sh`) — it used to be pasted into every test job (eight copies in
+jllama alone), then was a script kept byte-identical in all four repos, and lives once
+now. Its `modules` input names the module directories to look in (`.` by default;
+srcmorph passes its three modules, jllama `llama` or the sibling module the job tests). It
 always exits 0, so it can never replace the job's real failure. It runs under
 `shell: bash` on every platform including Windows (GitHub's Windows runners ship Git
 Bash), so one line covers the whole matrix. Two deliberate details:

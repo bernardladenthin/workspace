@@ -78,7 +78,7 @@ still carried `fb-contrib-7.6.4.jar`, `fb-contrib-7.7.4.jar` and `findsecbugs-pl
 SpotBugs plugin jars an older collect step uploaded from `target/spotbugs/` in 2026-05/06; BAF (14)
 carried the previous version's six jars.
 
-So `github-snapshot` uses the common `update-snapshot.py` helper in all four repositories.
+So `github-snapshot` uses the common snapshot update (`java/publish-github` of bernardladenthin/actions) in all four repositories.
 The whole upload/tag/notes/prune operation is serialized with a stable job concurrency group;
 older commits or older runs/attempts of the same commit cannot overwrite a promoted snapshot.
 After a **complete signed collection and successful upload**, the helper moves the source tag
@@ -180,11 +180,10 @@ would be worse than the duplication it saves:
 | jllama | `smoke-agent-linux` | `smoke-agent.sh` → the published agent's thin jar + its dependencies on one classpath with the Linux x86-64 smoke set | bytecode ≤ 65 + the agent alone fails for the missing core + `--help` + a one-shot answer + a `read_file` round surfacing a marker (cached tool model) + `--web` + `--acp` |
 | sb | `smoke-jar` | `smoke-jar.sh` → `java -cp <jar> StreamBufferSmoke.java` | jar carries `module-info.class` + a real write/read/EOF round-trip through the API, exit 0 + marker |
 
-BAF and srcmorph share a **byte-identical `.github/smoke-fatjar-cli.sh`** (`<jar-dir> <jar-glob>
-<work-dir> <success-marker> [args…]`, plain `java -jar`, no extra JVM flags — the contract under
-test is that the published artifact runs as-is). Both CLIs derive from the same `cli.Main` pattern
-and log `Main#run end.`, which is what lets the marker be identical too. **Sync any edit to both
-copies, then `check-shared-files.py --write` in each** (both list it in `.github/shared-files.sha256`). jllama needs
+BAF and srcmorph run the **`java/smoke-fatjar-cli` action of bernardladenthin/actions** (inputs
+`jar-dir`, `jar-glob`, `work-dir`, `marker`, `args`; plain `java -jar`, no extra JVM flags — the
+contract under test is that the published artifact runs as-is). Both CLIs derive from the same `cli.Main` pattern
+and log `Main#run end.`, which is what lets the marker be identical too. jllama needs
 its own scripts: its Main-Class is a server that never exits, so "exit 0" is not a contract it can
 satisfy, and on macOS the assertion that matters is native loadability rather than any CLI
 behaviour.
@@ -243,18 +242,15 @@ its Java baseline.
   `.github/sign-fatjars.sh` (dual-licensed `MIT OR Apache-2.0`) — it imports the key into an
   ephemeral keyring and produces a verified detached armored `.asc` for every
   `*-jar-with-dependencies*.jar` in a directory. It was byte-identical with jllama's copy until
-  jllama dropped its fat jars (5.2.0); srcmorph's `shared-files.sha256` still lists it, which is why
-  its `shared-files` job warns about the sibling until the entry is removed there. BAF does **not**
+  jllama dropped its fat jars (5.2.0); it is srcmorph's own now. BAF does **not**
   use it: its single fat jar is an *attached* Maven artifact, so `maven-gpg-plugin` signs it directly
   during the `verify` run.
 - **Signature convention.** New fat-jar-shipping surfaces should sign with a detached armored
   `.asc` using the `maven-central`-scoped key, in a dispatch-gated job, reusing `sign-fatjars.sh`.
 
-## Drift check — `sign-fatjars.sh`
+## `sign-fatjars.sh` — srcmorph's own
 
 The script was **byte-identical** in both repos (jllama + srcmorph) while both shipped fat jars;
-jllama's copy is gone with its fat jars (5.2.0), srcmorph's remains. Both listed it in
-`.github/shared-files.sha256`; each repo's `shared-files` job fails when its copy changed alone and
-warns when the other repo's copy differs (see "Cross-repo byte-identical files" in
-[`../crossrepostatus.md`](../crossrepostatus.md)). On an intentional edit, change both copies and run
-`python3 .github/check-shared-files.py --write` in each.
+jllama's copy is gone with its fat jars (5.2.0), srcmorph's remains as a file of that repository
+only. Should a second repository ship fat jars again, it becomes an action of
+bernardladenthin/actions rather than a second copy.
