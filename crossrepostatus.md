@@ -205,6 +205,24 @@ Differences below are intentional design decisions, not gaps to close.
 
 ## Open cross-repo items
 
+- **`claude-review` is red on every pull request in all four repositories** (found 2026-10-26; last
+  green run in java-llama.cpp 2026-10-25 17:30 UTC). The action ends after ~0.3 s with
+  `total_cost_usd: 0`, `num_turns: 1` and `"is_error": true` (srcmorph run 40367231230), so Claude
+  never answered -- authentication, quota or the action version, not yet found. The
+  `tsconfig.json` "directory mismatch" in that log is only the comment of the workflow step, not the
+  error. Read `claude-execution-output.json` of a failing run, fix it in the template in
+  bernardladenthin/actions, and roll it out.
+- **Owner: settings of bernardladenthin/actions** like the four repositories: a ruleset on `main`
+  (pull request required, no force push, no deletion), Dependabot alerts and security updates, tags
+  `v*` protected. Checked 2026-10-26: no ruleset, Dependabot alerts and security updates off; secret
+  scanning and push protection are already on. Its releases are what every repository's Dependabot
+  proposes.
+- **Owner (optional): a tag ruleset for `v*` in the four repositories.** Today each has only the
+  `main` ruleset; a release tag can be deleted or moved freely.
+- **The snapshot path of actions v1.1.0 is unproven in three repositories.** java-llama.cpp: see its
+  TODO (dispatch 40367798517 re-creates the `snapshot` tag for the first time). BitcoinAddressFinder
+  and streambuffer: no snapshot has been published since the pin bumps -- items in their TODO.md.
+
 - **srcmorph's corrupt-macOS-dylib exposure — bump landed, the proof run has not** (➖ mostly
   closed). srcmorph used to pin `<llama.version>5.0.6</llama.version>`, and 5.0.6 is one of the
   releases explicitly verified to carry the hybrid `Mac/aarch64/libjllama.dylib` (see the macOS
