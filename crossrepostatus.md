@@ -219,9 +219,12 @@ Differences below are intentional design decisions, not gaps to close.
   proposes.
 - **Owner (optional): a tag ruleset for `v*` in the four repositories.** Today each has only the
   `main` ruleset; a release tag can be deleted or moved freely.
-- **The snapshot path of actions v1.1.0 is unproven in three repositories.** java-llama.cpp: see its
-  TODO (dispatch 40367798517 re-creates the `snapshot` tag for the first time). BitcoinAddressFinder
-  and streambuffer: no snapshot has been published since the pin bumps -- items in their TODO.md.
+- **The snapshot path of actions v1.1.0 is unproven in three repositories.** srcmorph has proven
+  both paths: snapshot run 40367427445 (`1.3.0-SNAPSHOT`, 2026-10-26) and release run 40393269200
+  (`v1.3.0`, Central deployment `0518820c-9024-481a-9775-ed294060780e`). java-llama.cpp: see its
+  TODO (dispatch 40367798517 failed only on a cancelled macOS 26 arm64 job, runner capacity; not
+  re-run yet). BitcoinAddressFinder and streambuffer: no snapshot has been published since the pin
+  bumps, the Publish dispatch is still owed -- items in their TODO.md.
 
 - **srcmorph's corrupt-macOS-dylib exposure — bump landed, the proof run has not** (➖ mostly
   closed). srcmorph used to pin `<llama.version>5.0.6</llama.version>`, and 5.0.6 is one of the
@@ -232,11 +235,12 @@ Differences below are intentional design decisions, not gaps to close.
   **Resolved by the bump:** jllama never released a `5.0.7` — 5.1.0 superseded it and carries the
   fix (its CHANGELOG documents the `merge-native-artifacts.sh` collision guard and the new
   `smoke-fatjar-macos` `codesign --verify --strict` + JVM-load gate, #390). srcmorph moved to
-  `5.1.0` in `fcfc9cb`, and has since moved past it — `srcmorph/srcmorph/pom.xml` reads
-  `<llama.version>5.2.0</llama.version>` as of 2026-09-05 (see the separate blocking item below;
-  that is a *forward* pin on a version Central does not carry yet, not a regression to a pre-fix
-  release). **What is still open is only the proof:** nobody has yet run the srcmorph CLI against a
-  real model on macOS arm64. The bump is the fix, that run is the evidence — and until it happens
+  `5.1.0` in `fcfc9cb`, and has since moved past it: srcmorph 1.3.0 (released 2026-10-26) is built
+  on `net.ladenthin:llama` 6.0.0. **What is still open is only the proof:** nobody has yet run the
+  srcmorph CLI against a real model on macOS arm64 (srcmorph's `smoke-fatjar` job runs on
+  `ubuntu-latest` only). 1.3.0 is the last release with fat jars; from 1.4.0 the published thin jar
+  plus the natives jars a consumer resolves are what such a run has to load.
+  The bump is the fix, that run is the evidence — and until it happens
   the claim rests on jllama's own gate rather than on srcmorph's artifact. Blast radius if it were
   still broken is unchanged: the `LlamaCppJniAiGenerationProvider` path only (the `mock` provider
   never loads the native library), so `Plan`/mock runs and the whole test suite say nothing either
@@ -313,27 +317,11 @@ Differences below are intentional design decisions, not gaps to close.
   production package, not a curated subset. Today only sb is whole-package; the other three gate
   a verified-100% subset that should keep growing — add tests for a class, then widen the scope
   to include it, never the other way around. Track per-repo progress in each repo's `TODO.md`.
-- **srcmorph `main` cannot resolve its dependencies, by design, until jllama releases 6.0.0**
-  (❌ open, blocked on another repo — the only such state in the workspace). `srcmorph/srcmorph/pom.xml`
-  pins `<llama.version>6.0.0</llama.version>`; Central's newest `net.ladenthin:llama` release is
-  `5.1.0` and jllama `main` is `6.0.0-SNAPSHOT`, so `mvn -pl srcmorph dependency:resolve` ends in
-  `Could not find artifact net.ladenthin:llama:jar:6.0.0`. **This is deliberate and is documented in
-  a 22-line comment above the property — do not "fix" it.** The provider calls
-  `setFlashAttn(FlashAttn)` and `setLazyMode(LazyMode)`, neither of which exists in 5.1.0, so a
-  downgrade does not compile; and naming `6.0.0-SNAPSHOT` would need a `<repositories>` entry the
-  repo deliberately does not declare **and** would block every future srcmorph release, since
-  Central rejects a release with a `-SNAPSHOT` dependency. The pin goes green with no further edit
-  the moment 6.0.0 is published.
-  **What is *not* covered by that rationale, and is the reason this is an open item rather than a
-  footnote: srcmorph has had no green CI of any kind since it landed.** The pin arrived in `5b4abeb`,
-  merged as **PR #198 on 2026-09-01**; since then **8 PRs (#198–#205) have been merged with a red
-  pipeline**, and it is not only `main` — every one of those *`pull_request`* runs is `failure` too
-  (33491348847 … 33963628772 for CodeQL; 33493864690 … 33962068246 for Publish). Resolution fails
-  before the first test compiles, so for that whole window srcmorph's tests, SpotBugs, spotless,
-  PIT and bytecode gates have been asserting nothing. Each of those PRs was verified locally against
-  a `mvn install`-ed jllama snapshot, which is what makes the arrangement workable at all — but a
-  local build is the developer's evidence, not the repo's. **The single resolving step is a jllama
-  6.0.0 release**; nothing is open on the srcmorph side, and jllama has no open PR blocking one.
+- **srcmorph `main` resolves again: jllama 6.0.0 is on Central** (✅ closed 2026-10-26). From
+  PR #198 (2026-09-01) srcmorph pinned the unreleased `net.ladenthin:llama` 6.0.0 on purpose, so
+  every CI run failed at dependency resolution and 8 PRs (#198–#205) merged on local evidence only.
+  With 6.0.0 published the pin resolved unchanged; snapshot run 40367427445 and release run
+  40393269200 (`v1.3.0`) ran the build, test, plugin-IT and fat-jar smoke jobs green.
 - **"Did CI ever actually run this?" is not answerable from a run's presence in any of these repos**
   (📌 standing caveat, worth re-reading before citing any run as evidence). Two mechanisms suppress
   completed runs, and both were mistaken for green at least once: **(1)** a push to `main` is
