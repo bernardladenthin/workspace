@@ -214,6 +214,14 @@ Differences below are intentional design decisions, not gaps to close.
   `tsconfig.json` "directory mismatch" in that log is only the comment of the workflow step, not the
   error. Read `claude-execution-output.json` of a failing run, fix it in the template in
   bernardladenthin/actions, and roll it out.
+  **Still red on 2026-10-27** (java-llama.cpp: 30 of 30 runs since 2026-10-25 failed; PR #583, run
+  40554119329: `duration_ms` 207, the same `is_error: true`). The action prints nothing more
+  ("full output hidden for security"), and `claude-execution-output.json` stays on the runner, so
+  the next step is one branch run with `show_full_output: true`. **The one green run is no
+  evidence:** streambuffer #199 (Dependabot, claude-code-action 1.0.259 -> 1.0.262) passed only
+  because the action skipped itself -- a Dependabot run gets no `ANTHROPIC_API_KEY`, and the
+  workflow file differed from `main`. So whether the bump fixes it is still open; checking the API
+  key and its credit in the Anthropic console is the owner's half.
 - **Owner: settings of bernardladenthin/actions** like the four repositories: a ruleset on `main`
   (pull request required, no force push, no deletion), Dependabot alerts and security updates, tags
   `v*` protected. Checked 2026-10-26: no ruleset, Dependabot alerts and security updates off; secret
