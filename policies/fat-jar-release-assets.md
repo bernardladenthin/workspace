@@ -7,10 +7,11 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 
 Cross-repo convention for the runnable **fat jars** (`*-jar-with-dependencies*.jar`) that the
 sibling repos ship. It captures one invariant and the per-repo shapes that implement it, so the
-repos that ship a fat jar stay conceptually aligned even though the *artifacts* differ. Two repos
-ship one today (BAF, srcmorph); **jllama stopped with its modular natives** (5.2.0, see its row
-below) and sb never did -- for both, the rule that survives is the release-asset gating ("no
-release asset is attached that CI has not run"), applied to the artifacts they do attach.
+repos that ship a fat jar stay conceptually aligned even though the *artifacts* differ. One repo
+ships one today (BAF); **jllama stopped with its modular natives** (5.2.0) and **srcmorph with
+1.4.0** (see their rows below), and sb never did -- for those three, the rule that survives is the
+release-asset gating ("no release asset is attached that CI has not run"), applied to the
+artifacts they do attach.
 
 ## The invariant
 
@@ -174,13 +175,13 @@ would be worse than the duplication it saves:
 | Repo | Job | What it launches | Assertion |
 |---|---|---|---|
 | BAF | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_AddressFilesToLMDB.json` | exit 0 + `Main#run end.`; also exercises the **lmdbjava natives** out of the jar |
-| srcmorph | `smoke-fatjar` | `.github/smoke-fatjar-cli.sh` → `config_Plan.json` | exit 0 + `Main#run end.`; `mock` provider, so no GGUF/GPU/network |
+| srcmorph | `smoke-jar` (since 1.4.0; `smoke-fatjar` before) | `mvn install` of the reactor, then `examples/build-your-own-jar` with the reactor's versions → `target/srcmorph.jar` (the jar a user builds) → `config_Plan.json`; bytecode ≤ 52 over it and the plugin jar first | exit 0 + `Main#run end.`; `mock` provider, so no GGUF/GPU/network |
 | jllama | `smoke-natives` (matrix, one row per desktop platform) | `smoke-test-natives.{sh,ps1}` → `java -cp '<smoke set>/*'` server on the published jars (classes + runtime deps + the platform's library jar + every GPU module jar of the platform) | `/health` 200 + a `/v1/chat/completions` choice + the loader line naming every GPU module of the platform (each skipped by ggml on the GPU-less runner) + the HTTPS round |
 | jllama | `smoke-natives-macos` | `smoke-native-macos.sh` → `codesign` + `NativeLoadSmoke.java` on the `metal-macos-aarch64` jar | signature matches its own pages + the JVM loads the dylib and crosses JNI |
 | jllama | `smoke-agent-linux` | `smoke-agent.sh` → the published agent's thin jar + its dependencies on one classpath with the Linux x86-64 smoke set | bytecode ≤ 65 + the agent alone fails for the missing core + `--help` + a one-shot answer + a `read_file` round surfacing a marker (cached tool model) + `--web` + `--acp` |
 | sb | `smoke-jar` | `smoke-jar.sh` → `java -cp <jar> StreamBufferSmoke.java` | jar carries `module-info.class` + a real write/read/EOF round-trip through the API, exit 0 + marker |
 
-BAF and srcmorph run the **`java/smoke-fatjar-cli` action of bernardladenthin/actions** (inputs
+BAF and srcmorph (on the user-built jar) run the **`java/smoke-fatjar-cli` action of bernardladenthin/actions** (inputs
 `jar-dir`, `jar-glob`, `work-dir`, `marker`, `args`; plain `java -jar`, no extra JVM flags — the
 contract under test is that the published artifact runs as-is). Both CLIs derive from the same `cli.Main` pattern
 and log `Main#run end.`, which is what lets the marker be identical too. jllama needs
@@ -208,7 +209,7 @@ model — it uses the already-cached 1.5B tool model on CPU, no download.)
 | Repo | Fat jar(s) | Kept off Central by | Built + signed by |
 |---|---|---|---|
 | **jllama** (`java-llama.cpp`) | ➖ **None since the modular natives (5.2.0).** The GPU backends are additive module jars (`net.ladenthin:llama:<v>:<backend>-<os>-<arch>`, each one ggml backend module) next to the platform's library jar (`cpu-<os>-<arch>` / `metal-macos-aarch64`, collected by the `llama-platform` pom), so a consumer's classpath is what Maven resolves and a jar of every backend of every platform would be the opposite of the point. Replacements: `jbang --deps net.ladenthin:llama:<v>:<classifier> net.ladenthin:llama:<v>` (the classes jar's `Main-Class` is the server launcher) and `examples/server/pom.xml` (`llama-platform` + one profile per GPU module jar, a local `-P assembly` for a machine without Maven). The agent is its thin jar on Central (`jbang net.ladenthin:llama-atmosphere-agent:<v>`). Until then it shipped the default CPU fat jar, four `all-<os>-<arch>` jars and the agent's core-less jar, signed by `sign-fatjars.sh`. | The GitHub Release attaches the Maven artifacts with the `.asc` maven-gpg wrote for Central, and nothing else | — (nothing is assembled or signed in the attach jobs; `verify-signing-key` still proves the key) |
-| **srcmorph** (`srcmorph-cli`) | One CLI fat jar **per desktop GPU module jar of `net.ladenthin:llama`** (default all-platform CPU + 14: `cuda13-*`, `vulkan-*`, `opencl-*`, `rocm-*`, `sycl-*`, `openvino-*` per OS/arch -- every `module` row of `natives.csv` but the Android one; `msvc-*`, `sycl-fp*` and 32-bit jars no longer exist since llama 5.2.0), each the default jar **plus** that one ggml backend module (the CPU natives stay the fallback: ggml loads the module only when its runtime is installed), named `srcmorph-cli-<v>-jar-with-dependencies[-<classifier>].jar`. Whether srcmorph follows jllama and drops them for the thin jar + `jbang --deps` is an open owner's decision (srcmorph `TODO.md`) | `srcmorph-cli/pom.xml` sets `<attach>false</attach>` on the assembly execution → built into `target/` but never installed/deployed | The `publish-{release,snapshot}` jobs loop over the classifier set (`mvn -pl srcmorph-cli -am -Dllama.classifier=<c> package`), rename per classifier (default built **last** = unsuffixed CPU jar), collect them into the asset dir, then sign via `.github/sign-fatjars.sh`. `.asc` only. |
+| **srcmorph** (`srcmorph-cli`) | ➖ **None since 1.4.0** (#249). Users build the runnable jar with `examples/build-your-own-jar/pom.xml`: `srcmorph-cli` from Central with `llama-platform` excluded, the one natives jar of the OS/arch an OS-activated profile picks (`-Dnatives=` overrides), an optional GPU module jar via `-Dgpu=<classifier>`, packed by `jar-with-dependencies` into `target/srcmorph.jar` -- there are too many OS/CPU/GPU combinations to release one jar each. The thin `srcmorph-cli` jar names its `Main-Class`, so `jbang` can run it too. Up to 1.3.0 the publish jobs built one fat jar per desktop GPU module jar of `net.ladenthin:llama` (15 per release, `<attach>false</attach>`, signed by `.github/sign-fatjars.sh`, never on Central). | The GitHub Release attaches the Maven artifacts with the `.asc` maven-gpg wrote for Central, and nothing else | — (`sign-fatjars.sh`, `verify-classifier-fatjars.sh` and the runtime-license collector went with the fat jars) |
 | **BAF** (`BitcoinAddressFinder`) | **Single** fat jar (LWJGL ships one `natives-*` classifier jar per platform, but they may all sit on one classpath — LWJGL picks the match at runtime — so there is still no classifier split) | The Central `deploy` runs `-P release` **without** `assembly`; the fat jar is built by a **second** invocation that stops at `verify` (never reaching `deploy`), so `central-publishing`'s deploy-bound publish goal never runs | `mvn -P release,assembly verify` in the `publish-{release,snapshot}` jobs; `maven-gpg-plugin` (bound to `verify`) signs the attached fat jar → `.asc`. |
 | **sb** (`streambuffer`) | ➖ N/A — a pure library with no runnable entry point, so no fat jar is produced or shipped. Its **thin** jar is still smoke-tested before release (`smoke-jar`, see above) and still carries a `.asc` | — | — |
 
@@ -220,37 +221,31 @@ repo. That second invocation must pass `-Dmaven.javadoc.skip=true` (BAF's `publi
 or it inherits `target/classes/module-info.class` from the first invocation and trips the JPMS
 javadoc module-mode trap — see
 [`jpms-module-descriptor.md`](jpms-module-descriptor.md) "A second trigger" for the full
-mechanism (incident: 2026-08-02). Not applicable to srcmorph/jllama's classifier-loop shape as
-written (javadoc `<source>` resolves to 8 there), but worth checking again if either ever raises
-its Java baseline.
+mechanism (incident: 2026-08-02). It never applied to the classifier-loop shape srcmorph (until
+1.3.0) and jllama (until 5.2.0) used (javadoc `<source>` resolves to 8 there); neither builds a fat
+jar any more.
 
 ## Keep-in-sync notes
 
-- **jllama / srcmorph classifier lists.** The natives jars are declared once, in
+- **jllama natives classifiers.** The natives jars are declared once, in
   `java-llama.cpp/.github/natives.csv` (a `kind` column since 5.2.0: `library` jars and additive GPU
   `module` jars); jllama's pom executions, `llama-platform`, workflow artifacts, smoke sets and the
   loader's backend lists are checked against it (`check-natives.py`), and `package-smoke-sets.sh`
-  reads it. srcmorph's `.github/release-assets.json` declares the classifier list consumed by both
-  its build loop and collector (the rows with `platform=no`
-  except the Android ones) — **on a `net.ladenthin:llama` version bump, re-check that array against
-  `natives.csv`**: with 5.2.0's modular natives the `cpu-windows-x86`, `msvc-windows-*` and
-  `sycl-fp16`/`sycl-fp32` classifiers are gone and a GPU classifier is one module jar that needs the
-  platform's library jar next to it -- srcmorph's loop names the 14 desktop module jars since its
-  2026-10-10 update (and confirm every natives jar is actually published on Central
-  for the pinned version); `verify-classifier-fatjars.sh` fails on an unmapped classifier shape.
-- **Signing script (`.github/sign-fatjars.sh`).** srcmorph signs its loose fat jars with
-  `.github/sign-fatjars.sh` (dual-licensed `MIT OR Apache-2.0`) — it imports the key into an
-  ephemeral keyring and produces a verified detached armored `.asc` for every
-  `*-jar-with-dependencies*.jar` in a directory. It was byte-identical with jllama's copy until
-  jllama dropped its fat jars (5.2.0); it is srcmorph's own now. BAF does **not**
-  use it: its single fat jar is an *attached* Maven artifact, so `maven-gpg-plugin` signs it directly
-  during the `verify` run.
+  reads it. srcmorph's classifier list in `.github/release-assets.json` went with its fat jars
+  (1.4.0; the file is `{"schema": 1}` now). What still names classifiers there is the OS profiles of
+  `examples/build-your-own-jar/pom.xml` (one natives jar per OS/arch, `metal-macos-aarch64` on
+  macOS) -- **on a `net.ladenthin:llama` bump that adds or renames a library jar, re-check them
+  against `natives.csv`**; the `smoke-jar` job builds that pom only on the Linux runner.
+- **Signing.** BAF's single fat jar is an *attached* Maven artifact, so `maven-gpg-plugin` signs it
+  directly during the `verify` run. `.github/sign-fatjars.sh`, which signed loose fat jars, is gone
+  from every repository (jllama 5.2.0, srcmorph 1.4.0).
 - **Signature convention.** New fat-jar-shipping surfaces should sign with a detached armored
-  `.asc` using the `maven-central`-scoped key, in a dispatch-gated job, reusing `sign-fatjars.sh`.
+  `.asc` using the `maven-central`-scoped key, in a dispatch-gated job -- preferably as an attached
+  artifact that maven-gpg signs, as BAF does.
 
-## `sign-fatjars.sh` — srcmorph's own
+## `sign-fatjars.sh` — retired
 
 The script was **byte-identical** in both repos (jllama + srcmorph) while both shipped fat jars;
-jllama's copy is gone with its fat jars (5.2.0), srcmorph's remains as a file of that repository
-only. Should a second repository ship fat jars again, it becomes an action of
-bernardladenthin/actions rather than a second copy.
+jllama's copy went with its fat jars (5.2.0), srcmorph's with its own (1.4.0). Should a repository
+need to sign loose jars again, it becomes an action of bernardladenthin/actions rather than a
+copy.
