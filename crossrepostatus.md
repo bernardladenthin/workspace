@@ -53,9 +53,9 @@ Legend: ✅ done · 🚧 in progress · ❌ open · ➖ N/A · 📌 standing pol
 | ArchUnit standard set (`noSystemExit` / `noNewRandom` / `Thread.sleep` / sun-com.sun-jdk.internal bans / public-fields-final / `noTestFrameworksInProduction` / `noPackageCycles`) | All 4 ✅ |
 | `javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing` | All 4 ✅ |
 | Full `layeredArchitecture()` + per-module banned-imports | BAF/jllama/srcmorph ✅ (flat root package split into layered packages, strict rule enforced per repo — see each repo's own `TODO.md` "Done"); sb ➖ (single package) |
-| GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired in `publish.yml` through the `common/verify-gpg-key` and `java/verify-signing-key-gradle` actions of bernardladenthin/actions: two jobs (no `needs:`, so they start with the run, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata. **Since 2026-10-28 (BAF #404, sb #200, srcmorph #250, jllama #588; open until merged) they run only on a `publish_to_central` dispatch, and both publish jobs need them.** Before, they ran on every trigger: the `maven-central` environment admits only `main` and `v*` tags (deployment branch policy, plus a 15-minute wait timer), so both were red on every `pull_request` run (first seen on BAF run 33866409744, a same-repository Dependabot branch) and on a push to `main` sat out the wait timer for a run that publishes nothing; they were release-gate exemptions for that reason. The Gradle self-test project used by the second job ships with its action. |
+| GPG signing-key preflight (gpg + Gradle/BouncyCastle) | All 4 wired in `publish.yml` through the `common/verify-gpg-key` and `java/verify-signing-key-gradle` actions of bernardladenthin/actions: two jobs (no `needs:`, so they start with the run, `environment: maven-central`) reproduce what `maven-gpg-plugin` and Gradle's `signing` plugin do at deploy/publish time, so a bad/expired key or wrong passphrase reds in seconds instead of failing the publish stage. Prints only public key metadata. **Since 2026-10-28 (BAF #404, sb #200, srcmorph #250, jllama #588) they run only on a `publish_to_central` dispatch, and both publish jobs need them.** Before, they ran on every trigger: the `maven-central` environment admits only `main` and `v*` tags (deployment branch policy, plus a 15-minute wait timer), so both were red on every `pull_request` run (first seen on BAF run 33866409744, a same-repository Dependabot branch) and on a push to `main` sat out the wait timer for a run that publishes nothing; they were release-gate exemptions for that reason. The Gradle self-test project used by the second job ships with its action. |
 | Class-file floor on the built jars (`java/verify-bytecode`) | All 4 wired in `publish.yml` with the `java/verify-bytecode` action of bernardladenthin/actions. `maven.compiler.release` governs only the code *we* compile; a dependency built for a newer Java lands in the jar untouched and surfaces as `UnsupportedClassVersionError` on a consumer's JVM. It has happened twice: **checker-qual 4.x** (Java 11, `@Retention(RUNTIME)`, so any reflection over an annotated element loads it) and **logback-classic 1.4.0+**, whose `LogbackServiceProvider` SLF4J's `ServiceLoader` loads at startup. `max-major` is passed from the workflow so the ceiling lives next to the release it belongs to: **52** in jllama/srcmorph/sb, **65** in BAF (Java 21). Placement is per-repo, on whatever job first has the jars: jllama `package` + the Linux rows of `smoke-natives` (the natives jars, then the smoke set a consumer's classpath resolves to), BAF `smoke-fatjar`, srcmorph `smoke-jar` (since 1.4.0: the user-built `srcmorph.jar` and the plugin jar), sb `smoke-jar` (its deliverable is the plain jar, not a fat jar). `module-info.class` and `META-INF/versions/**` are skipped unconditionally — a classpath JVM never loads either. Exit 2 on an empty scan, so a build that produced no jars cannot read as a pass. |
-| Informational steps in the `report` job never gate the release | **srcmorph ✅ · jllama / BAF / sb in open PRs as of 2026-09-09 (#424 / #364 / #157) — this row becomes "All 4 ✅" when those merge, and must not be read as parity before then.** Keep in sync; this one is easy to lose and expensive to lose. The rule: a third-party step in `report` that only *reports* (dependency graph, coverage upload) carries `continue-on-error: true`; a step that is a **gate** does not. **Why it is not cosmetic:** the pipelines are deliberately built so the GitHub assets land even when the Central publish fails — `github-snapshot`/`github-release*` run on `(needs.publish-*.result == 'success' \|\| == 'failure')`. That `if:` tolerates **`failure`** but not **`skipped`**, and `report` gates the chain: a failed `report` *skips* `check-snapshot` (its `if:` is a plain event/ref condition with no `always()`/`!cancelled()` escape), which skips `publish-snapshot`, which leaves `publish-snapshot.result == 'skipped'` — matching neither arm, so **`github-snapshot` does not run and the assets are lost**. An unguarded informational action therefore does not merely delay a Central publish; it silently defeats the one guarantee the release path exists to provide. **History — how it drifted:** srcmorph got the guard *in passing* from `ee2ae49` ("ci: report unsigned assets without ever withholding them"), whose actual feature was the unsigned-asset reporting. That feature **was** ported to the other three the same day (jllama `90dd21a`, BAF `2e14f5c`, sb `2ed13ff` — each a clean `68 insertions(+)` change), but the port reproduced the *feature*, not the *commit*, so the unrelated drive-by line never travelled and sat missing for nine days. Being closed by jllama #424, BAF #364, sb #157 — open at the time of writing. **What stays bare, on purpose:** `checkout`/`setup-java` (infrastructure, must work) and streambuffer's PIT steps (gates, meant to block). **Verifiable:** the 5-line block — rationale comment + `uses:` + flag — is byte-identical in all four; see the block-level check below, retired since. **Since the `refactor/shared-release-checks` branches** the dependency graph is no longer a step of `report` (it moved to `dependency-submission.yml`, see the row above), so `report` keeps only the coverage uploads, each still with `continue-on-error: true`; and the publication consumers run on the gate's `assets_complete` output rather than on `publish-*.result`. |
+| Informational steps in the `report` job never gate the release | **All 4 ✅** (srcmorph first; jllama #424, BAF #364, sb #157 merged). Keep in sync; this one is easy to lose and expensive to lose. The rule: a third-party step in `report` that only *reports* (dependency graph, coverage upload) carries `continue-on-error: true`; a step that is a **gate** does not. **Why it is not cosmetic:** the pipelines are deliberately built so the GitHub assets land even when the Central publish fails — `github-snapshot`/`github-release*` run on `(needs.publish-*.result == 'success' \|\| == 'failure')`. That `if:` tolerates **`failure`** but not **`skipped`**, and `report` gates the chain: a failed `report` *skips* `check-snapshot` (its `if:` is a plain event/ref condition with no `always()`/`!cancelled()` escape), which skips `publish-snapshot`, which leaves `publish-snapshot.result == 'skipped'` — matching neither arm, so **`github-snapshot` does not run and the assets are lost**. An unguarded informational action therefore does not merely delay a Central publish; it silently defeats the one guarantee the release path exists to provide. **History — how it drifted:** srcmorph got the guard *in passing* from `ee2ae49` ("ci: report unsigned assets without ever withholding them"), whose actual feature was the unsigned-asset reporting. That feature **was** ported to the other three the same day (jllama `90dd21a`, BAF `2e14f5c`, sb `2ed13ff` — each a clean `68 insertions(+)` change), but the port reproduced the *feature*, not the *commit*, so the unrelated drive-by line never travelled and sat missing for nine days. Closed by jllama #424, BAF #364, sb #157. **What stays bare, on purpose:** `checkout`/`setup-java` (infrastructure, must work) and streambuffer's PIT steps (gates, meant to block). **Verifiable:** the 5-line block — rationale comment + `uses:` + flag — is byte-identical in all four; see the block-level check below, retired since. **Since the `refactor/shared-release-checks` branches** the dependency graph is no longer a step of `report` (it moved to `dependency-submission.yml`, see the row above), so `report` keeps only the coverage uploads, each still with `continue-on-error: true`; and the publication consumers run on the gate's `assets_complete` output rather than on `publish-*.result`. |
 
 ### Shared CI — bernardladenthin/actions (the `repository-checks` job)
 
@@ -229,12 +229,13 @@ Differences below are intentional design decisions, not gaps to close.
   proposes.
 - **Owner (optional): a tag ruleset for `v*` in the four repositories.** Today each has only the
   `main` ruleset; a release tag can be deleted or moved freely.
-- **The snapshot path of actions v1.1.0 is unproven in three repositories.** srcmorph has proven
-  both paths: snapshot run 40367427445 (`1.3.0-SNAPSHOT`, 2026-10-26) and release run 40393269200
-  (`v1.3.0`, Central deployment `0518820c-9024-481a-9775-ed294060780e`). java-llama.cpp: see its
-  TODO (dispatch 40367798517 failed only on a cancelled macOS 26 arm64 job, runner capacity; not
-  re-run yet). BitcoinAddressFinder and streambuffer: no snapshot has been published since the pin
-  bumps, the Publish dispatch is still owed -- items in their TODO.md.
+- **The snapshot path of actions v1.1.0 is unproven only in java-llama.cpp.** Proven: srcmorph
+  (snapshot run 40367427445, `1.3.0-SNAPSHOT`, 2026-10-26; release run 40393269200, `v1.3.0`),
+  BitcoinAddressFinder (snapshot run 40595873922 at `55d64cc6`, 2026-10-27) and streambuffer
+  (snapshot run 40595878224 at `ae1db1c`, 2026-10-27): prepare, Central upload, the `snapshot`
+  pre-release and the attestation green, the `snapshot` tags on those commits. java-llama.cpp: see
+  its TODO -- dispatches 40367798517 and 40699518595 failed on cancelled macOS arm64 jobs (runner
+  capacity), so the snapshot jobs were skipped; its `snapshot` tag is still from May.
 
 - **srcmorph's corrupt-macOS-dylib exposure — bump landed, the proof run has not** (➖ mostly
   closed). srcmorph used to pin `<llama.version>5.0.6</llama.version>`, and 5.0.6 is one of the
@@ -255,6 +256,51 @@ Differences below are intentional design decisions, not gaps to close.
   still broken is unchanged: the `LlamaCppJniAiGenerationProvider` path only (the `mock` provider
   never loads the native library), so `Plan`/mock runs and the whole test suite say nothing either
   way.
+- **Test-JVM diagnostics + memory standard** ([`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md)):
+  ✅ in the four Java repos, ❌ open for BroomCabinet (see the end of this entry) — the
+  `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
+  `reuseForks`/`forkCount` tuning, the pocl job's memory steps).
+  **§ 3.1 (echo the crash log into the job log, not only upload it) added 2026-08-26** and
+  mirrored into all 4 `publish.yml` — jllama 6 sites, BAF 2 new + its pre-existing `test-opencl`
+  step aligned, sb 1, srcmorph 1. It generalises what BAF's `test-opencl` job already did for the
+  pocl SIGSEGV. Trigger: an artifact-only crash log is unreachable wherever Azure Blob egress is
+  denied, which blocked the jllama `TtsIntegrationTest` investigation outright. The step also
+  states explicitly when *no* crash log was written — `if-no-files-found` makes an empty upload
+  indistinguishable from a populated one otherwise.
+  **Out of scope, deliberately:** BAF's `issue50-lmdb-crash-repro.yml` (built never to fail on a
+  reproduced crash, so a `failure()`-gated step could not fire) and **BroomCabinet's
+  `java-ci.yml`** — that repo is not on this standard at all (no `-Xmx2g`, no `-XX:ErrorFile` in
+  any of its ~15 project poms, and its upload takes only `surefire-reports/`), so a print step
+  there would only ever emit the "nothing was written" line. Bringing BroomCabinet in means doing
+  the pom side first; tracked as open, not silently half-done.
+- **PIT mutation coverage → 100% on ALL classes** (📌 all-time goal, ❌ open, never-finished
+  quality ratchet). End state is the streambuffer model: `targetClasses` covering the *whole*
+  production package, not a curated subset. Today only sb is whole-package; the other three gate
+  a verified-100% subset that should keep growing — add tests for a class, then widen the scope
+  to include it, never the other way around. Track per-repo progress in each repo's `TODO.md`.
+- **"Did CI ever actually run this?" is not answerable from a run's presence in any of these repos**
+  (📌 standing caveat, worth re-reading before citing any run as evidence). Two mechanisms suppress
+  completed runs, and both were mistaken for green at least once: **(1)** a push to `main` is
+  cancelled in the start-gate abort window in all four repos, so a `cancelled` run on `main` says
+  nothing about health; **(2)** merging a PR promptly cancels that PR's own in-flight run. jllama is
+  the live example — **every** run after the one that fixed its PIT gate is `cancelled` (898, 900,
+  901, 902, 903, 904, 905), so the newest **completed** jllama run is 897, a `workflow_dispatch` from
+  2026-09-04 at pin b10797 that failed. Nothing on jllama's current `main` (`ad2e3db`, pin b10819)
+  has been validated by CI at all. The corollary for this file: green evidence comes only from
+  `pull_request` runs that were allowed to finish and from `workflow_dispatch` releases — cite those,
+  by run id, and never a bare "CI is green".
+- **SonarQube local build check — per repo** (❌ open). Add an opt-in, locally-runnable
+  `org.sonarsource.scanner.maven:sonar-maven-plugin` analysis (behind a `sonar` profile, off the
+  default build) to all four repos, with a JaCoCo XML report so Sonar ingests coverage, and a
+  documented local-run recipe (`sonar:sonar -Dsonar.host.url=... -Dsonar.token=...`) in each
+  repo's `CLAUDE.md`. Deliberately kept out of CI for now — local/opt-in only.
+
+## Closed cross-repo items (records)
+
+Moved out of "Open cross-repo items" on 2026-10-28 once done; kept because the reasoning and the
+run ids are the evidence other entries cite. Some details describe the state at the time (srcmorph
+and jllama ship no fat jar any more since 1.4.0 / 6.0.0).
+
 - **The release assets are what Central gets, and the `snapshot` pre-release holds exactly the current
   upload** (✅ landed in **all four** repos, 2026-10-12). The collect steps copy every module's pom +
   `.pom.asc` with the jars (jllama also the AARs' `.asc`, poms and sources/javadoc jars, the agent's
@@ -297,57 +343,19 @@ Differences below are intentional design decisions, not gaps to close.
   `module-info.class` (compiled in a separate `release 9` execution, so it can be dropped without
   failing anything else). Repo-specific script (`.github/smoke-jar.sh`), not a shared one: there is
   no second no-Main-Class repo to share it with.
-- **Unsigned-asset guard on the attach jobs** (✅ 2026-09-01 in all four repos; **superseded** on the
-  `refactor/shared-release-checks` branches). It reported unsigned jars before the upload, uploaded
+- **Unsigned-asset guard on the attach jobs** (✅ 2026-09-01 in all four repos; **superseded** since the
+  `refactor/shared-release-checks` merge). It reported unsigned jars before the upload, uploaded
   anyway and failed the job afterwards, because the attach jobs then also ran when the publish job
   had failed. The publication gate replaces it: `publication.py prepare` verifies every signature
   before anything is attached, the GitHub consumers run only on its `assets_complete` output, and a
   Central outage no longer blocks them, since Central is a separate consumer of the same frozen
   package ([`policies/publication-preflight.md`](policies/publication-preflight.md)). The
   report/upload/assert steps and `report-asset-signatures.py` are gone.
-- **Test-JVM diagnostics + memory standard** ([`policies/ci-test-diagnostics.md`](policies/ci-test-diagnostics.md)):
-  🚧 in progress across BAF/jllama/srcmorph/sb — the `-Xmx2g`/no-eager-`-Xms`/crash-dump-upload
-  standard is landed in all 4; some repos still carry repo-specific extras by design (BAF's
-  `reuseForks`/`forkCount` tuning, the pocl job's memory steps).
-  **§ 3.1 (echo the crash log into the job log, not only upload it) added 2026-08-26** and
-  mirrored into all 4 `publish.yml` — jllama 6 sites, BAF 2 new + its pre-existing `test-opencl`
-  step aligned, sb 1, srcmorph 1. It generalises what BAF's `test-opencl` job already did for the
-  pocl SIGSEGV. Trigger: an artifact-only crash log is unreachable wherever Azure Blob egress is
-  denied, which blocked the jllama `TtsIntegrationTest` investigation outright. The step also
-  states explicitly when *no* crash log was written — `if-no-files-found` makes an empty upload
-  indistinguishable from a populated one otherwise.
-  **Out of scope, deliberately:** BAF's `issue50-lmdb-crash-repro.yml` (built never to fail on a
-  reproduced crash, so a `failure()`-gated step could not fire) and **BroomCabinet's
-  `java-ci.yml`** — that repo is not on this standard at all (no `-Xmx2g`, no `-XX:ErrorFile` in
-  any of its ~15 project poms, and its upload takes only `surefire-reports/`), so a print step
-  there would only ever emit the "nothing was written" line. Bringing BroomCabinet in means doing
-  the pom side first; tracked as open, not silently half-done.
-- **PIT mutation coverage → 100% on ALL classes** (📌 all-time goal, ❌ open, never-finished
-  quality ratchet). End state is the streambuffer model: `targetClasses` covering the *whole*
-  production package, not a curated subset. Today only sb is whole-package; the other three gate
-  a verified-100% subset that should keep growing — add tests for a class, then widen the scope
-  to include it, never the other way around. Track per-repo progress in each repo's `TODO.md`.
 - **srcmorph `main` resolves again: jllama 6.0.0 is on Central** (✅ closed 2026-10-26). From
   PR #198 (2026-09-01) srcmorph pinned the unreleased `net.ladenthin:llama` 6.0.0 on purpose, so
   every CI run failed at dependency resolution and 8 PRs (#198–#205) merged on local evidence only.
   With 6.0.0 published the pin resolved unchanged; snapshot run 40367427445 and release run
   40393269200 (`v1.3.0`) ran the build, test, plugin-IT and fat-jar smoke jobs green.
-- **"Did CI ever actually run this?" is not answerable from a run's presence in any of these repos**
-  (📌 standing caveat, worth re-reading before citing any run as evidence). Two mechanisms suppress
-  completed runs, and both were mistaken for green at least once: **(1)** a push to `main` is
-  cancelled in the start-gate abort window in all four repos, so a `cancelled` run on `main` says
-  nothing about health; **(2)** merging a PR promptly cancels that PR's own in-flight run. jllama is
-  the live example — **every** run after the one that fixed its PIT gate is `cancelled` (898, 900,
-  901, 902, 903, 904, 905), so the newest **completed** jllama run is 897, a `workflow_dispatch` from
-  2026-09-04 at pin b10797 that failed. Nothing on jllama's current `main` (`ad2e3db`, pin b10819)
-  has been validated by CI at all. The corollary for this file: green evidence comes only from
-  `pull_request` runs that were allowed to finish and from `workflow_dispatch` releases — cite those,
-  by run id, and never a bare "CI is green".
-- **SonarQube local build check — per repo** (❌ open). Add an opt-in, locally-runnable
-  `org.sonarsource.scanner.maven:sonar-maven-plugin` analysis (behind a `sonar` profile, off the
-  default build) to all four repos, with a JaCoCo XML report so Sonar ingests coverage, and a
-  documented local-run recipe (`sonar:sonar -Dsonar.host.url=... -Dsonar.token=...`) in each
-  repo's `CLAUDE.md`. Deliberately kept out of CI for now — local/opt-in only.
 - **Fat-jar signing — proven in production in all three fat-jar repos** (✅ closed 2026-09-05).
   Each was closed by a real release, not by a local check: **jllama** (assets carry matching
   `.asc` *and* `.sha256`), **BAF `v1.8.0`** (2026-08-29 — `bitcoinaddressfinder-1.8.0-jar-with-dependencies.jar`
@@ -356,8 +364,8 @@ Differences below are intentional design decisions, not gaps to close.
   same uploader). One shape difference worth knowing rather than closing over: only jllama attaches
   a `.sha256` alongside; srcmorph's 52 assets contain none, so "`.asc`/`.sha256`" describes jllama,
   not the convention. sb is ➖ (ships no fat jar).
-- **Central-publish pipeline current mechanism** (informational, not open, but non-obvious; as on
-  the `refactor/shared-release-checks` branches): publishing requires an explicit
+- **Central-publish pipeline current mechanism** (informational, non-obvious; since the
+  `refactor/shared-release-checks` merge): publishing requires an explicit
   `workflow_dispatch` with `publish_to_central=true` — nothing publishes from an automatic push or
   tag. `check-snapshot` / `check-tag` run `publication.py check-ref` (a release only from
   `v<version>` of a non-SNAPSHOT version, a snapshot never from a tag), the publish job stages and
