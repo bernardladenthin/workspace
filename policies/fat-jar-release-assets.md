@@ -36,9 +36,10 @@ a signature — the `.asc` provides **authenticity**. Keep both where both exist
 ## Where the signing key lives (and why signing happens where it does)
 
 The GPG signing secret (`GPG_PRIVATE_KEY` / `GPG_PASSPHRASE`) is scoped to the **`maven-central`
-GitHub Environment**. That environment has **no approval gate** (the standalone
-`verify-signing-key*` jobs use it on every push), so any job may declare
-`environment: maven-central` to obtain the key without blocking the pipeline.
+GitHub Environment**. That environment has **no approval gate**, only a 15-minute wait timer
+and a deployment branch policy that admits `main` and `v*` tags (so a job declaring it is red on
+every pull request); a job on the dispatch-gated publish path may declare
+`environment: maven-central` to obtain the key.
 
 Fat-jar signing therefore happens in whatever job **both** (a) runs on the dispatch-gated publish
 path where the key is delivered and (b) has the fat jar on disk — see the per-repo shapes below.
