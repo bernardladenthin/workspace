@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 
 The four Java repositories use the actions and the `actionlib` library of [bernardladenthin/actions](https://github.com/bernardladenthin/actions), pinned by
 commit (until 2026-10-25: byte-identical copies listed in each `.github/shared-files.sha256`).
-Python 3.9+ and the standard library are sufficient; the snapshot uploader and the superseded check
+Python 3.11+ and the standard library are sufficient; the snapshot uploader and the superseded check
 of the snapshot transfer additionally need `gh` and `GH_TOKEN`. The commands below run with
 `lib/` of that repository on `PYTHONPATH` (its `common/setup` action does that in a job).
 Repository-specific paths and classifiers live in `.github/release-assets.json`, which is
