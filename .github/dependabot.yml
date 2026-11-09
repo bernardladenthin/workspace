@@ -3,10 +3,16 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 # This repository has no build; only its workflow's actions are pinned to a
-# commit and bumped here, on the same weekly schedule as the four Java repos.
+# commit and bumped here, on the same weekly schedule as the four Java repos: minor and patch
+# updates as one pull request, a major update as a pull request of its own.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "saturday"
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
