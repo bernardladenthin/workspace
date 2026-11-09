@@ -47,6 +47,7 @@ policies/dependency-license-review.md    FOSSA evidence and runtime notice distr
 policies/git-checkout-credentials.md    Checkout credential persistence and explicit authentication for release Git/API operations
 policies/code-quality-todos.md           Recurring per-repo audits
 policies/ci-test-diagnostics.md          Test-JVM heap (-Xmx2g, no -Xms) + crash-dump CI standard
+policies/ci-artifact-timeouts.md         Artifact upload/download steps time out after vars.ARTIFACT_TIMEOUT_MINUTES (default 20)
 policies/pit-mutation-testing.md         PIT version/threshold + the test-compile/@{argLine} invocation rule
 workflows/pull-request-workflow.md       gh / MCP PR steps
 workflows/release-process.md             Canonical Maven Central release procedure (siblings point here)
