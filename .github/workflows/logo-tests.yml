@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: Logo tests
+
+# The unit tests of llama.cpp/projects/logo, whenever a file there changes. preview_icon.py crashed
+# on every run for as long as it existed (issue #74), because nothing ever ran it.
+on:
+  push:
+    branches: [main]
+    paths: ["llama.cpp/projects/logo/**", ".github/workflows/logo-tests.yml"]
+  pull_request:
+    paths: ["llama.cpp/projects/logo/**", ".github/workflows/logo-tests.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Logo unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install Pillow, fontTools and resvg-py
+        # The versions the committed PNGs were rendered with: another resvg may antialias otherwise.
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow==12.3.0 fonttools==4.68.0 resvg-py==0.5.0
+      - name: Run the tests
+        working-directory: llama.cpp/projects/logo
+        env:
+          # a test that needs fontTools or resvg-py fails here instead of skipping
+          LOGO_TESTS_REQUIRE_ALL: "1"
+        run: '"$RUNNER_TEMP/venv/bin/python" -m unittest discover -v -p "test_*.py"'
