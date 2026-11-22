@@ -22,6 +22,7 @@ with the font embedded** (default — editable, selectable) or, with
 | `generate_srcmorph_logo.py` | srcmorph generator (wordmark + blurred m-in-"morph"). |
 | `srcmorph-logo-config.json` | Config for the srcmorph logo. |
 | `preview_icon.py` | Fast **shard-icon** preview (PIL, no font) — for J-shape iteration. |
+| `test_preview_icon.py`, `test_generators.py` | Unit tests: the preview, `logolib`, and every committed SVG, PNG and app-icon file regenerated from its config and compared byte for byte (PNGs pixel for pixel). Need Pillow; the outlined SVGs fontTools and the PNGs `resvg-py`, without which those tests are skipped. The workflow `.github/workflows/logo-tests.yml` runs them on every change here, with all three installed. |
 | `generate_app_icon.py` | Square **Android app icon** from the shard-J (full set via `--android-set`); see [`app-icon/`](app-icon/README.md). |
 | `MartianMono-Regular.ttf` | Wordmark font (OFL-1.1), embedded into the SVG as base64. |
 | `*-generated.svg` / `*.png` | Generated output (embedded-font wordmark). |
@@ -49,7 +50,7 @@ python generate_java_llama_logo.py -c java-llama-logo-config.json -o java-llama-
 
 # SVG + PNG in one go (needs: pip install resvg-py)
 python generate_java_llama_logo.py -c java-llama-logo-config.json \
-    -o java-llama-cpp-generated.svg --png java-llama-cpp.png --png-width 2250
+    -o java-llama-cpp-generated.svg --png java-llama-cpp.png --png-width 3000
 
 # Write a fresh default config to edit
 python generate_java_llama_logo.py --write-default-config myconfig.json
@@ -64,12 +65,15 @@ python generate_java_llama_logo.py -c java-llama-logo-config.json -o debug.svg -
 # Fast icon-shape preview while tuning geometry (no font needed)
 python preview_icon.py -c java-llama-logo-config.json -o preview_icon.png
 
+# Unit tests (needs Pillow; fontTools and resvg-py for all of them)
+python -m unittest discover -p "test_*.py"
+
 # Square Android app icon (full drop-in res/ set) from the shard-J
 python generate_app_icon.py -c java-llama-logo-config.json --android-set app-icon
 
 # srcmorph — same flags (including --outline-text)
 python generate_srcmorph_logo.py -c srcmorph-logo-config.json \
-    -o srcmorph-generated.svg --png srcmorph.png
+    -o srcmorph-generated.svg --png srcmorph.png --png-width 3000
 python generate_srcmorph_logo.py -c srcmorph-logo-config.json \
     --outline-text -o srcmorph-outlined.svg
 python generate_srcmorph_logo.py --write-default-config srcmorph-logo-config.json

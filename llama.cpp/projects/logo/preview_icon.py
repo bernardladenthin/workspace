@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Fast, dependency-light QA preview of the shard icon (PIL only, no font).
 
-Renders the icon geometry from generate_java_llama_logo.build_icon so the shape
-can be checked visually without an SVG/font renderer. Use this to iterate the
+Renders the icon geometry from generate_java_llama_logo.icon_shards (the shards
+the SVG draws, the mirrored "L" included when mirror_jl is set) so the shape can
+be checked visually without an SVG/font renderer. Use this to iterate the
 "does it read as a J?" question; use a browser for the final font-accurate SVG.
 
     python preview_icon.py --config java-llama-logo-config.json -o preview.png
@@ -18,6 +19,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 import generate_java_llama_logo as gen
+import logolib
 
 
 def _round_polygon(points, round_map, samples=20):
@@ -53,8 +55,8 @@ def _round_polygon(points, round_map, samples=20):
 
 
 def render(config_path, out_path, scale=1.2, margin=60):
-    c = gen.load_config(Path(config_path) if config_path else None)
-    shards = gen.build_icon(c)
+    c = logolib.load_config(gen.LogoConfig, Path(config_path) if config_path else None)
+    shards = gen.icon_shards(c)
 
     polys = [_round_polygon(s["points"], s["round"]) for s in shards]
     allpts = [p for poly in polys for p in poly]
